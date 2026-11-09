@@ -422,18 +422,27 @@ export const OwnerDashboard = ({
                 </div>
               </div>
 
-              {/* Leads Table - SPATIOUS, READABLE, NO OVERLAPPING */}
-              <div className="overflow-x-auto rounded-2xl border-2 border-cyan-500/30 bg-[#071530] shadow-xl">
-                <table className="w-full text-left text-sm text-slate-200">
-                  <thead className="bg-[#0a214d] text-cyan-300 font-bold uppercase text-xs tracking-wider border-b-2 border-cyan-500/40">
+              {/* Leads Table - THẤY HẾT Ô GRID, XUỐNG DÒNG, KHÔNG CUỘN NGANG */}
+              <div className="w-full rounded-2xl border-2 border-cyan-500/30 bg-[#071530] shadow-xl overflow-hidden">
+                <table className="w-full text-left text-xs sm:text-sm text-slate-200 table-fixed border-collapse">
+                  <colgroup>
+                    <col className="w-[10%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[28%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[11%]" />
+                  </colgroup>
+                  <thead className="bg-[#0a214d] text-cyan-300 font-bold uppercase text-[11px] sm:text-xs tracking-wider border-b-2 border-cyan-500/40">
                     <tr>
-                      <th className="py-4 px-4 whitespace-nowrap">Thời gian</th>
-                      <th className="py-4 px-4 whitespace-nowrap">Khách hàng</th>
-                      <th className="py-4 px-4 whitespace-nowrap">Số điện thoại</th>
-                      <th className="py-4 px-4">Sản phẩm quan tâm</th>
-                      <th className="py-4 px-4 whitespace-nowrap">Nhu cầu</th>
-                      <th className="py-4 px-4 whitespace-nowrap">Trạng thái xử lý</th>
-                      <th className="py-4 px-4 text-right whitespace-nowrap">Thao tác</th>
+                      <th className="py-3.5 px-3">Thời gian</th>
+                      <th className="py-3.5 px-3">Khách hàng</th>
+                      <th className="py-3.5 px-3">Số điện thoại</th>
+                      <th className="py-3.5 px-3">Sản phẩm quan tâm</th>
+                      <th className="py-3.5 px-3">Nhu cầu</th>
+                      <th className="py-3.5 px-3">Trạng thái</th>
+                      <th className="py-3.5 px-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
@@ -453,82 +462,99 @@ export const OwnerDashboard = ({
                             }`}
                           >
                             {/* Thời gian */}
-                            <td className="py-3.5 px-4 whitespace-nowrap text-slate-300 font-mono text-xs font-medium">
-                              {new Date(ld.created_time).toLocaleString('vi-VN')}
+                            <td className="py-3 px-3 align-middle font-mono text-[11px] text-slate-300">
+                              <div className="font-bold text-cyan-300">
+                                {new Date(ld.created_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                              </div>
+                              <div className="text-slate-400 text-[10px]">
+                                {new Date(ld.created_time).toLocaleDateString('vi-VN')}
+                              </div>
                             </td>
 
                             {/* Khách hàng */}
-                            <td className="py-3.5 px-4 font-bold text-white text-sm">
-                              <div>{ld.customer_name}</div>
-                              {ld.email && <div className="text-xs text-cyan-300/80 font-normal mt-0.5">{ld.email}</div>}
+                            <td className="py-3 px-3 align-middle">
+                              <div className="font-bold text-white text-xs sm:text-sm leading-snug break-words whitespace-normal">
+                                {ld.customer_name}
+                              </div>
+                              {ld.email && (
+                                <div className="text-[11px] text-cyan-300/80 break-all leading-tight mt-0.5">
+                                  {ld.email}
+                                </div>
+                              )}
                             </td>
 
                             {/* Số điện thoại */}
-                            <td className="py-3.5 px-4 font-mono font-bold text-cyan-300 text-sm tracking-wide whitespace-nowrap">
-                              {ld.phone}
+                            <td className="py-3 px-3 align-middle">
+                              <span className="font-mono font-bold text-cyan-300 text-xs sm:text-sm tracking-wide block">
+                                {ld.phone}
+                              </span>
                             </td>
 
-                            {/* Sản phẩm quan tâm */}
-                            <td className="py-3.5 px-4 text-slate-100 font-semibold text-sm max-w-sm truncate" title={ld.product_name}>
-                              {ld.product_name || 'Tư vấn tổng quan'}
+                            {/* Sản phẩm quan tâm: XUỐNG DÒNG TỰ NHIÊN, KHÔNG TRUNCATE, THẤY TOÀN BỘ CHỮ */}
+                            <td className="py-3 px-3 align-middle">
+                              <div className="text-white font-semibold text-xs sm:text-sm leading-relaxed break-words whitespace-normal">
+                                {ld.product_name || 'Tư vấn tổng quan'}
+                              </div>
                             </td>
 
-                            {/* Nhu cầu */}
-                            <td className="py-3.5 px-4 whitespace-nowrap">
-                              <span className="px-3 py-1 rounded-lg bg-[#0c2654] border border-cyan-500/40 text-cyan-200 text-xs font-semibold inline-block">
+                            {/* Nhu cầu: XUỐNG DÒNG, KHÔNG BỊ CẮT */}
+                            <td className="py-3 px-3 align-middle">
+                              <span className="inline-block px-2.5 py-1 rounded-lg bg-[#0c2654] border border-cyan-500/40 text-cyan-200 text-[11px] sm:text-xs font-semibold break-words whitespace-normal leading-snug">
                                 {ld.customer_requirement || 'Tư vấn'}
                               </span>
                             </td>
 
                             {/* Trạng thái */}
-                            <td className="py-3.5 px-4 whitespace-nowrap">
+                            <td className="py-3 px-3 align-middle">
                               <select
                                 value={ld.lead_status}
                                 onChange={(e) => handleUpdateLeadStatus(ld.id, e.target.value)}
-                                className="bg-[#0b2046] border-2 border-cyan-500/40 text-xs font-bold rounded-xl px-3 py-1.5 text-white outline-none focus:border-cyan-300 shadow-sm cursor-pointer"
+                                className="w-full bg-[#0b2046] border border-cyan-500/40 text-[11px] sm:text-xs font-bold rounded-xl px-2 py-1.5 text-white outline-none focus:border-cyan-300 shadow-sm cursor-pointer"
                               >
-                                <option value="NEW – WAITING FOR OWNER CONTACT">Mới - Chờ chủ nhân gọi</option>
-                                <option value="WAITING_CALL">Đang chờ gọi điện</option>
-                                <option value="CONTACTED">Đã liên hệ thành công</option>
-                                <option value="HIGH_INTEREST">Khách quan tâm cao</option>
-                                <option value="CLOSED">Đã hoàn thành</option>
+                                <option value="NEW – WAITING FOR OWNER CONTACT">Mới - Chờ gọi</option>
+                                <option value="WAITING_CALL">Đang chờ gọi</option>
+                                <option value="CONTACTED">Đã liên hệ</option>
+                                <option value="HIGH_INTEREST">Quan tâm cao</option>
+                                <option value="CLOSED">Hoàn thành</option>
                               </select>
                             </td>
 
                             {/* Thao tác */}
-                            <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-2">
-                              {/* Direct Call */}
-                              <a
-                                href={`tel:${ld.phone}`}
-                                className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
-                                title="Gọi điện thoại trực tiếp cho khách"
-                              >
-                                <Phone size={13} />
-                                <span>Gọi</span>
-                              </a>
-
-                              {/* Zalo */}
-                              <a
-                                href={`https://zalo.me/${ld.phone}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
-                                title="Mở chat Zalo với khách"
-                              >
-                                <span>Zalo</span>
-                              </a>
-
-                              {/* View Conversation */}
-                              {ld.conversation_id && (
-                                <button
-                                  onClick={() => handleViewConversation(ld.conversation_id, ld)}
-                                  className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
-                                  title="Xem toàn bộ lịch sử hội thoại của khách với Robot"
+                            <td className="py-3 px-3 align-middle text-right">
+                              <div className="flex items-center justify-end gap-1 flex-wrap">
+                                {/* Direct Call */}
+                                <a
+                                  href={`tel:${ld.phone}`}
+                                  className="inline-flex items-center space-x-0.5 px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm transition-all active:scale-95"
+                                  title="Gọi điện thoại trực tiếp cho khách"
                                 >
-                                  <MessageSquare size={13} />
-                                  <span>Xem chat</span>
-                                </button>
-                              )}
+                                  <Phone size={11} />
+                                  <span>Gọi</span>
+                                </a>
+
+                                {/* Zalo */}
+                                <a
+                                  href={`https://zalo.me/${ld.phone}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] shadow-sm transition-all active:scale-95"
+                                  title="Mở chat Zalo với khách"
+                                >
+                                  <span>Zalo</span>
+                                </a>
+
+                                {/* View Conversation */}
+                                {ld.conversation_id && (
+                                  <button
+                                    onClick={() => handleViewConversation(ld.conversation_id, ld)}
+                                    className="inline-flex items-center space-x-0.5 px-2 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] shadow-sm transition-all active:scale-95"
+                                    title="Xem toàn bộ lịch sử hội thoại của khách với Robot"
+                                  >
+                                    <MessageSquare size={11} />
+                                    <span>Chat</span>
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -557,17 +583,25 @@ export const OwnerDashboard = ({
                 </button>
               </div>
 
-              {/* Products Table */}
-              <div className="overflow-x-auto rounded-2xl border-2 border-cyan-500/30 bg-[#071530] shadow-xl">
-                <table className="w-full text-left text-sm text-slate-200">
-                  <thead className="bg-[#0a214d] text-cyan-300 font-bold uppercase text-xs tracking-wider border-b-2 border-cyan-500/40">
+              {/* Products Table - THẤY HẾT Ô GRID, XUỐNG DÒNG, KHÔNG CUỘN NGANG */}
+              <div className="w-full rounded-2xl border-2 border-cyan-500/30 bg-[#071530] shadow-xl overflow-hidden">
+                <table className="w-full text-left text-xs sm:text-sm text-slate-200 table-fixed border-collapse">
+                  <colgroup>
+                    <col className="w-[8%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[32%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+                  <thead className="bg-[#0a214d] text-cyan-300 font-bold uppercase text-[11px] sm:text-xs tracking-wider border-b-2 border-cyan-500/40">
                     <tr>
-                      <th className="py-4 px-4">Ảnh</th>
-                      <th className="py-4 px-4">Lĩnh vực</th>
-                      <th className="py-4 px-4">Nhóm SP</th>
-                      <th className="py-4 px-4">Tên sản phẩm</th>
-                      <th className="py-4 px-4">Giá phê duyệt</th>
-                      <th className="py-4 px-4">Trạng thái duyệt</th>
+                      <th className="py-3.5 px-3">Ảnh</th>
+                      <th className="py-3.5 px-3">Lĩnh vực</th>
+                      <th className="py-3.5 px-3">Nhóm SP</th>
+                      <th className="py-3.5 px-3">Tên sản phẩm</th>
+                      <th className="py-3.5 px-3">Giá phê duyệt</th>
+                      <th className="py-3.5 px-3">Trạng thái duyệt</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
@@ -578,23 +612,23 @@ export const OwnerDashboard = ({
                           idx % 2 === 0 ? 'bg-[#071530]' : 'bg-[#051126]'
                         }`}
                       >
-                        <td className="py-3.5 px-4">
+                        <td className="py-3 px-3 align-middle">
                           <img
                             src={p.image_url}
                             alt={p.name}
-                            className="w-12 h-12 rounded-xl object-contain bg-slate-950 p-1 border border-cyan-500/40 shadow-sm"
+                            className="w-10 h-10 rounded-xl object-contain bg-slate-950 p-1 border border-cyan-500/40 shadow-sm"
                           />
                         </td>
-                        <td className="py-3.5 px-4 text-cyan-300 font-bold">{p.field}</td>
-                        <td className="py-3.5 px-4 text-slate-200">{p.group_name}</td>
-                        <td className="py-3.5 px-4 font-bold text-white text-sm">{p.name}</td>
-                        <td className="py-3.5 px-4 font-extrabold text-[#ff3864] font-display text-base">
+                        <td className="py-3 px-3 align-middle text-cyan-300 font-bold break-words whitespace-normal">{p.field}</td>
+                        <td className="py-3 px-3 align-middle text-slate-200 break-words whitespace-normal">{p.group_name}</td>
+                        <td className="py-3 px-3 align-middle font-bold text-white text-xs sm:text-sm break-words whitespace-normal leading-relaxed">{p.name}</td>
+                        <td className="py-3 px-3 align-middle font-extrabold text-[#ff3864] font-display text-sm sm:text-base break-words whitespace-normal">
                           {p.price_formatted || `${(p.price || 0).toLocaleString('vi-VN')} ₫`}
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-xs font-bold">
+                        <td className="py-3 px-3 align-middle">
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold">
                             <CheckCircle size={12} className="text-emerald-400" />
-                            <span>Đã phê duyệt</span>
+                            <span>Đã duyệt</span>
                           </span>
                         </td>
                       </tr>
