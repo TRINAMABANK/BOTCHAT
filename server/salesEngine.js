@@ -133,20 +133,80 @@ function extractBudget(normMsg) {
 }
 
 /**
- * Extract requested purchase quantity without colliding with product model codes or phone numbers.
+ * Extract explicit purchase quantity (returns null if no quantity was stated).
  */
-function extractQuantity(normMsg) {
+function extractExplicitQuantity(normMsg) {
+  if (!normMsg) return null;
   const qtyMatch = normMsg.match(/\b(\d{1,3})\s*(?:cai|may|chiec|bo|hop|goi|san pham|sp)\b/);
   if (qtyMatch) {
     const q = parseInt(qtyMatch[1], 10);
     if (q >= 1 && q <= 500) return q;
   }
-  const explicitMatch = normMsg.match(/so luong\s*:?\s*(\d{1,3})\b/);
+  const explicitMatch = normMsg.match(/(?:so luong|lay|mua|dat)\s*:?\s*(\d{1,3})\b/);
   if (explicitMatch) {
     const q = parseInt(explicitMatch[1], 10);
     if (q >= 1 && q <= 500) return q;
   }
-  return 1;
+  return null;
+}
+
+/**
+ * Extract requested purchase quantity without colliding with product model codes or phone numbers.
+ */
+function extractQuantity(normMsg) {
+  return extractExplicitQuantity(normMsg) ?? 1;
+}
+
+/**
+ * Normalize & extract 10-digit Vietnamese phone number (tolerates spaces/dots/dashes).
+ */
+function extractPhoneNumber(rawMsg) {
+  if (!rawMsg) return null;
+  const candidates = rawMsg.match(/(?:0|\+84)[\s.\-\d]{8,14}\d/g);
+  if (!candidates) return null;
+  for (const cand of candidates) {
+    const normalized = cand.replace(/^\+84/, '0').replace(/[\s.\-]/g, '');
+    if (/^0[35789]\d{8}$/.test(normalized)) {
+      return normalized;
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract customer name cleanly (supports bare replies during guided order step 'ask_name').
+ */
+function extractCustomerName(rawMsg, allowBare = false) {
+  if (!rawMsg || typeof rawMsg !== 'string') return null;
+  const cleaned = rawMsg.trim();
+  const explicitMatch = cleaned.match(
+    /(?:ten la|toi ten|minh ten|em ten|anh ten|chi ten|ten toi la|ten minh la|ten em la|toi la|minh la|goi toi la)\s+([A-ZÀ-Ỹa-zà-ỹ\s]{2,36})(?:[,.;!?]|$|\s+(?:sdt|so|dien thoai|0[35789]))/i
+  );
+  if (explicitMatch?.[1]) {
+    return explicitMatch[1].trim();
+  }
+  // Accent-sensitive fallback via normalized pattern preserving original casing
+  const norm = removeVietnameseTones(cleaned);
+  const normPrefix = norm.match(/^(?:ten la|toi ten|minh ten|em ten|anh ten|chi ten|toi la|minh la|em la|anh la|chi la|goi toi la)\s+(.+)$/);
+  if (normPrefix) {
+    const words = cleaned.split(/\s+/);
+    const prefixWords = normPrefix[0].length - normPrefix[1].length;
+    const sliced = cleaned.slice(prefixWords).replace(/[,.;!?]+$/, '').trim();
+    if (sliced.length >= 2 && sliced.length <= 45 && !/\d{5,}/.test(sliced)) {
+      return sliced;
+    }
+  }
+
+  if (!allowBare) return null;
+  if (cleaned.includes('?') || /\d{4,}/.test(cleaned) || cleaned.includes('@')) return null;
+  const blockedBare = ['bao hanh', 'bao nhieu', 'gia', 'so sanh', 'huy', 'khong mua', 'thoi', 'tu van', 'ship', 'ton kho'];
+  if (blockedBare.some((w) => norm.includes(w))) return null;
+  const bare = cleaned.replace(/^(?:ten\s+)?(?:anh|chi|em|toi|minh|chu|co|bac)\s+/i, '').replace(/[,.;!?]+$/, '').trim();
+  const finalName = bare.length >= 2 ? bare : cleaned.replace(/[,.;!?]+$/, '').trim();
+  if (finalName.length >= 2 && finalName.length <= 45 && finalName.split(/\s+/).length <= 6) {
+    return finalName;
+  }
+  return null;
 }
 
 const STOP_WORDS = new Set([
@@ -303,34 +363,91 @@ export class SalesEngine {
       ]
     );
 
-    // 4. Fetch recent conversation history
-    const history = await db.all(
-      `SELECT sender_type, content, metadata_json FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 14`,
+    // 4. Fetch latest 14 conversation messages (ordered chronologically)
+    const recentDesc = await db.all(
+      `SELECT sender_type, content, metadata_json FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 14`,
       [convId]
     );
+    const history = recentDesc.reverse();
+
+    // Recover any active multi-step purchase flow from latest assistant metadata
+    let prevOrderFlow = null;
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].sender_type === 'assistant' && history[i].metadata_json) {
+        try {
+          const meta = JSON.parse(history[i].metadata_json);
+          if (meta.orderFlow && meta.orderFlow.active) {
+            prevOrderFlow = meta.orderFlow;
+          }
+          break;
+        } catch {}
+      }
+    }
 
     // 5. Resolve referenced product & quantity from text or selection
     const normMessage = removeVietnameseTones(message || '');
+    const normAction = removeVietnameseTones(actionType || '');
     const matchedFromText = findMatchingProducts(normMessage, allProducts);
     const activeProduct = matchedFromText[0] || selectedProduct || null;
-    const detectedQty = extractQuantity(normMessage);
+    const explicitQty = extractExplicitQuantity(normMessage);
+    const detectedQty = explicitQty ?? 1;
 
     // 6. Detect Phone, Email, Name & auto-capture Lead into CRM
-    const phoneRegex = /(0[3|5|7|8|9][0-9]{8})\b/g;
-    const phoneMatches = message ? message.match(phoneRegex) : null;
     const emailMatches = message ? message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) : null;
-    const extractedPhone = phoneMatches ? phoneMatches[0] : (customerInfo?.phone || null);
+    const extractedPhone = extractPhoneNumber(message) || (customerInfo?.phone ? extractPhoneNumber(customerInfo.phone) : null);
     const extractedEmail = emailMatches ? emailMatches[0] : (customerInfo?.email || null);
     let leadCreated = null;
+    let nextOrderFlow = null;
+    let orderFlowReply = null;
 
-    if (extractedPhone) {
-      let customerName = customerInfo?.name || 'Quý Khách';
-      const nameMatch = message
-        ? message.match(/(?:tên là|tôi tên|mình tên|tôi là|mình là|gọi tôi là)\s+([A-ZÀ-Ỹa-zà-ỹ\s]{2,28})(?:[,.;]|$|\s+(?:sđt|sdt|số|điện thoại|0[35789]))/i)
-        : null;
-      if (nameMatch?.[1]) {
-        customerName = nameMatch[1].trim();
+    // 6A. Guided Step-by-Step Purchase Flow ("khi bấm mua thì hỏi khách hàng cung cấp thông tin từ từ")
+    const wantsToStartOrder =
+      normAction.includes('dat mua') ||
+      normMessage.includes('dat mua') ||
+      normMessage.includes('mua ngay') ||
+      normMessage.includes('dat hang');
+
+    const wantsToCancelOrder =
+      prevOrderFlow &&
+      (['huy don', 'huy dat', 'khong mua nua', 'thoi khong mua', 'dung dat'].some((k) => normMessage.includes(k)) ||
+        normMessage === 'huy');
+
+    const switchedToOtherButton =
+      prevOrderFlow &&
+      Boolean(actionType) &&
+      !normAction.includes('dat mua');
+
+    if (wantsToCancelOrder) {
+      nextOrderFlow = null;
+      orderFlowReply = `Dạ không sao đâu ạ! Em đã hủy thao tác đặt mua hiện tại. Anh/chị cứ thoải mái xem thêm sản phẩm hoặc nhắn câu hỏi bất cứ lúc nào để em hỗ trợ nhé ạ!`;
+    } else if (!switchedToOtherButton && (wantsToStartOrder || prevOrderFlow)) {
+      const resultFlow = await this.handleOrderFlowStep({
+        convId,
+        now,
+        message,
+        normMessage,
+        allProducts,
+        targetProd: matchedFromText[0] || (prevOrderFlow?.productId ? allProducts.find((p) => p.id === prevOrderFlow.productId) : null) || selectedProduct || allProducts[0],
+        prevOrderFlow: wantsToStartOrder && !prevOrderFlow ? null : prevOrderFlow,
+        wantsToStartOrder,
+        explicitQty,
+        extractedPhone,
+        extractedEmail,
+        customerInfo,
+        ownerName,
+        hotline,
+        showHotline
+      });
+
+      if (resultFlow) {
+        orderFlowReply = resultFlow.reply;
+        nextOrderFlow = resultFlow.orderFlow;
+        if (resultFlow.leadCreated) leadCreated = resultFlow.leadCreated;
       }
+    }
+
+    if (!orderFlowReply && extractedPhone) {
+      let customerName = customerInfo?.name || extractCustomerName(message, false) || 'Quý Khách';
 
       const existingLead = await db.get(
         'SELECT id FROM leads WHERE conversation_id = ? AND phone = ?',
@@ -376,12 +493,12 @@ export class SalesEngine {
       }
     }
 
-    // 7. Generate Smart Response (LLM when configured, otherwise Smart Catalog AI Brain)
-    let replyText = '';
+    // 7. Generate Smart Response (Guided Order Flow -> LLM -> Smart Catalog AI Brain)
+    let replyText = orderFlowReply || '';
     const apiKey = settings.openai_api_key || process.env.OPENAI_API_KEY;
     const hasOpenAiKey = Boolean(apiKey && !apiKey.includes('your_') && apiKey.trim().length > 12);
 
-    if (hasOpenAiKey && !detectSecurityViolation(normMessage)) {
+    if (!replyText && hasOpenAiKey && !detectSecurityViolation(normMessage)) {
       try {
         const catalogSummary = allProducts
           .map(
@@ -452,7 +569,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     await db.run(
       `INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, metadata_json, created_at)
        VALUES (?, ?, 'assistant', 'tri-ai-sales-robot', ?, ?, ?)`,
-      [assistantMsgId, convId, replyText, JSON.stringify({ leadCreated, activeProduct, actionType }), assistantNow]
+      [assistantMsgId, convId, replyText, JSON.stringify({ leadCreated, activeProduct, actionType, orderFlow: nextOrderFlow }), assistantNow]
     );
 
     await db.run('UPDATE conversations SET updated_at = ?, last_message_at = ? WHERE id = ?', [assistantNow, assistantNow, convId]);
@@ -469,8 +586,197 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       messageId: assistantMsgId,
       reply: replyText,
       leadCreated,
+      orderFlow: nextOrderFlow,
       recommendedProduct: isNonProductIntent ? null : (matchedFromText[0] || null),
-      botState: leadCreated ? 'success' : (actionType === 'Đặt mua' ? 'thinking' : 'speaking')
+      botState: leadCreated ? 'success' : (actionType === 'Đặt mua ngay' ? 'speaking' : 'speaking')
+    };
+  }
+
+  /**
+   * Handle guided multi-step order flow so customers provide quantity -> name -> phone -> optional note one step at a time.
+   */
+  static async handleOrderFlowStep({
+    convId,
+    now,
+    message,
+    normMessage,
+    targetProd,
+    prevOrderFlow,
+    wantsToStartOrder,
+    explicitQty,
+    extractedPhone,
+    extractedEmail,
+    customerInfo,
+    ownerName,
+    hotline,
+    showHotline
+  }) {
+    const isSideInquiry =
+      prevOrderFlow &&
+      !wantsToStartOrder &&
+      prevOrderFlow.step !== 'ask_note' &&
+      !extractedPhone &&
+      explicitQty === null &&
+      (['bao nhieu', 'duoi ', 'tren ', 'so sanh', 'bao hanh', 'ban gi', 'danh muc', 'san pham nao', 'con hang', 'ton kho', 'api key', 'system prompt', 'so dien thoai chu'].some((k) =>
+        normMessage.includes(k)
+      ) ||
+        detectSecurityViolation(normMessage));
+    if (isSideInquiry) {
+      return null;
+    }
+
+    const flow = prevOrderFlow
+      ? { ...prevOrderFlow }
+      : {
+          active: true,
+          step: 'ask_quantity',
+          productId: targetProd?.id || null,
+          productName: targetProd?.name || 'Sản phẩm tư vấn',
+          unitPrice: targetProd?.price || 0,
+          unitPriceFormatted: formatPrice(targetProd),
+          quantity: null,
+          name: null,
+          phone: null,
+          note: null,
+          leadId: null
+        };
+
+    // If customer clicked "Đặt mua ngay" on a different product mid-flow, switch to that product
+    if (wantsToStartOrder && prevOrderFlow && targetProd && targetProd.id !== prevOrderFlow.productId) {
+      flow.productId = targetProd.id;
+      flow.productName = targetProd.name;
+      flow.unitPrice = targetProd.price || 0;
+      flow.unitPriceFormatted = formatPrice(targetProd);
+      flow.quantity = null;
+      flow.step = 'ask_quantity';
+      flow.leadId = null;
+    }
+
+    // Step 4: Customer replying with delivery note / feedback after phone was saved
+    if (flow.step === 'ask_note' && !wantsToStartOrder) {
+      const isSkip = ['xong', 'khong', 'khong co', 'ko', 'ok', 'du roi', 'cam on'].includes(normMessage.replace(/[.!,?]+/g, '').trim());
+      const trimmedNote = (message || '').trim();
+      if (!isSkip && trimmedNote && flow.leadId) {
+        const noteText = `SL: ${flow.quantity || 1} | Ghi chú khách hàng: ${trimmedNote}`;
+        await db.run('UPDATE leads SET notes = ?, updated_at = ? WHERE id = ?', [noteText, now, flow.leadId]);
+        return {
+          orderFlow: null,
+          reply: `Dạ em đã ghi nhận đầy đủ phản hồi của anh/chị (**"${trimmedNote}"**) vào đơn đặt hàng **${flow.productName}** rồi ạ!\n\nChủ nhân **${ownerName}** sẽ gọi tới số **${flow.phone}** để xác nhận và giao hỗ trợ chu đáo nhất cho anh/chị **${flow.name}** nhé ạ.${showHotline ? ` Hotline: **${hotline}**.` : ''}`
+        };
+      }
+      return {
+        orderFlow: null,
+        reply: `Dạ hoàn tất rồi ạ! Em đã chuyển đầy đủ đơn đặt hàng **${flow.productName}** (SL: **${flow.quantity || 1}**) cho chủ nhân **${ownerName}**.\n\nChủ nhân sẽ liên hệ lại với anh/chị **${flow.name}** qua số **${flow.phone}** trong thời gian sớm nhất ạ!`
+      };
+    }
+
+    // Collect fields from current turn according to active step
+    if (!flow.quantity) {
+      let parsedQty = explicitQty;
+      if (parsedQty === null && flow.step === 'ask_quantity' && !wantsToStartOrder) {
+        const bareNum = normMessage.match(/^\s*(\d{1,3})\s*$/);
+        if (bareNum) {
+          const n = parseInt(bareNum[1], 10);
+          if (n >= 1 && n <= 500) parsedQty = n;
+        }
+      }
+      if (parsedQty !== null) {
+        flow.quantity = parsedQty;
+      }
+    }
+
+    if (!flow.name) {
+      const parsedName = extractCustomerName(message, flow.step === 'ask_name' && !wantsToStartOrder);
+      if (parsedName) {
+        flow.name = parsedName;
+      }
+    }
+
+    if (!flow.phone && extractedPhone) {
+      flow.phone = extractedPhone;
+    }
+
+    // Validate bare numeric typo when specifically asking for phone number
+    if (flow.step === 'ask_phone' && !wantsToStartOrder && !flow.phone && /\d{4,}/.test(normMessage)) {
+      return {
+        orderFlow: flow,
+        reply: `Dạ số điện thoại anh/chị vừa nhập chưa đủ **10 chữ số hợp lệ** (bắt đầu bằng 03, 05, 07, 08, 09).\n\n👉 Anh/chị kiểm tra và nhập lại **Số điện thoại** giúp em nhé ạ!`
+      };
+    }
+
+    // Step 1: Ask quantity first
+    if (!flow.quantity) {
+      flow.step = 'ask_quantity';
+      return {
+        orderFlow: flow,
+        reply: `Dạ tuyệt vời ạ! Em đã ghi nhận sản phẩm anh/chị chọn là **${flow.productName}** (đơn giá niêm yết **${flow.unitPriceFormatted}**).\n\nĐể lên đơn hỗ trợ chu đáo, mình đi từng bước nhé ạ:\n👉 **Bước 1/3:** Anh/chị dự kiến đặt mua **số lượng bao nhiêu** sản phẩm ạ? *(Anh/chị chỉ cần nhập số, ví dụ: 1, 2...)*`
+      };
+    }
+
+    const subtotalText = flow.unitPrice > 0 ? ` — tạm tính **${formatVnd(flow.unitPrice * flow.quantity)}**` : '';
+
+    // Step 2: Ask customer name
+    if (!flow.name) {
+      flow.step = 'ask_name';
+      return {
+        orderFlow: flow,
+        reply: `Dạ em đã ghi nhận **${flow.quantity} sản phẩm** (**${flow.productName}**${subtotalText}).\n\n👉 **Bước 2/3:** Anh/chị cho em xin **Họ và tên** (hoặc tên thường gọi) để em ghi vào phiếu đặt hàng ạ?`
+      };
+    }
+
+    // Step 3: Ask phone number
+    if (!flow.phone) {
+      flow.step = 'ask_phone';
+      return {
+        orderFlow: flow,
+        reply: `Dạ chào anh/chị **${flow.name}**!\n\n👉 **Bước 3/3:** Anh/chị vui lòng nhập **Số điện thoại liên hệ** (10 chữ số) để chủ nhân **${ownerName}** trực tiếp gọi xác nhận đơn và báo ưu đãi tốt nhất ạ?`
+      };
+    }
+
+    // All required info collected (quantity + name + phone) -> Save CRM Lead & ask optional note/feedback
+    let leadCreated = null;
+    const existingLead = await db.get('SELECT id FROM leads WHERE conversation_id = ? AND phone = ?', [convId, flow.phone]);
+    if (!existingLead) {
+      const leadId = `lead_${randomUUID().slice(0, 8)}`;
+      await db.run(
+        `INSERT INTO leads (
+          id, customer_name, phone, email, product_id, product_name, quantity, customer_requirement,
+          conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRÍ AI Humanoid Widget', 'WIDGET_HUMANOID_V1', 1, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?)`,
+        [
+          leadId,
+          flow.name,
+          flow.phone,
+          extractedEmail || customerInfo?.email || null,
+          flow.productId,
+          flow.productName,
+          flow.quantity,
+          'Đặt mua ngay',
+          convId,
+          now,
+          `Đơn đặt hàng từng bước: ${flow.productName} × ${flow.quantity}${subtotalText}.`,
+          now
+        ]
+      );
+      flow.leadId = leadId;
+      leadCreated = {
+        id: leadId,
+        name: flow.name,
+        phone: flow.phone,
+        product: flow.productName,
+        quantity: flow.quantity,
+        status: 'NEW – WAITING FOR OWNER CONTACT'
+      };
+      console.log(`[CRM INTEGRATION] Step-by-step Order Lead created: ${leadId} (${flow.name} - ${flow.phone})`);
+    } else {
+      flow.leadId = existingLead.id;
+    }
+
+    flow.step = 'ask_note';
+    return {
+      orderFlow: flow,
+      leadCreated,
+      reply: `Dạ cảm ơn anh/chị **${flow.name}**! Em đã lưu đơn đặt hàng vào hệ thống CRM thành công:\n- **Sản phẩm:** ${flow.productName} (SL: **${flow.quantity}**${subtotalText})\n- **Số điện thoại:** **${flow.phone}**\n\n👉 **Phản hồi thêm (không bắt buộc):** Anh/chị có muốn nhắn thêm **địa chỉ nhận hàng, khung giờ tiện nghe máy, hoặc yêu cầu riêng** gửi chủ nhân **${ownerName}** không ạ? *(Hoặc gõ "Xong" nếu đã đủ thông tin ạ)*`
     };
   }
 

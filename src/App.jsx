@@ -25,6 +25,8 @@ export const App = () => {
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [orderStep, setOrderStep] = useState(null);
+  const [inputFocusTick, setInputFocusTick] = useState(0);
 
   // Products & Hierarchy
   const [products, setProducts] = useState([]);
@@ -183,6 +185,7 @@ export const App = () => {
       if (data.recommendedProduct) {
         setSelectedProduct(data.recommendedProduct);
       }
+      setOrderStep(data.orderFlow?.step || null);
 
       const fullReply = data.reply;
       const replyWords = fullReply.split(' ');
@@ -300,7 +303,13 @@ export const App = () => {
       return;
     }
 
-    const promptMessage = `Tôi quan tâm ${prodName} và muốn: ${actionKey}.`;
+    const promptMessage =
+      actionKey === 'Đặt mua ngay'
+        ? `Tôi muốn đặt mua sản phẩm ${prodName}.`
+        : `Tôi quan tâm ${prodName} và muốn: ${actionKey}.`;
+    if (actionKey === 'Đặt mua ngay') {
+      setInputFocusTick((t) => t + 1);
+    }
     handleSendMessage(promptMessage, targetProd, actionKey);
   };
 
@@ -343,6 +352,7 @@ export const App = () => {
       };
       setMessages([initialWelcome]);
       setBotState('idle');
+      setOrderStep(null);
     }
   };
 
@@ -471,6 +481,8 @@ export const App = () => {
           isListening={botState === 'listening'}
           isThinking={isThinking}
           isStreaming={isStreaming}
+          orderStep={orderStep}
+          focusTick={inputFocusTick}
         />
       </main>
 

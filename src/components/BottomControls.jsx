@@ -1,5 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Paperclip, Mic, Send, PhoneCall } from 'lucide-react';
+
+const ORDER_STEP_PLACEHOLDERS = {
+  ask_quantity: 'Nhập số lượng muốn mua (ví dụ: 1, 2 chiếc)...',
+  ask_name: 'Nhập họ và tên của anh/chị...',
+  ask_phone: 'Nhập số điện thoại liên hệ (10 chữ số)...',
+  ask_note: 'Nhập địa chỉ, giờ tiện nghe máy hoặc phản hồi thêm...'
+};
 
 export const BottomControls = ({
   onSendMessage,
@@ -7,9 +14,21 @@ export const BottomControls = ({
   onMicClick,
   isListening = false,
   isThinking = false,
-  isStreaming = false
+  isStreaming = false,
+  orderStep = null,
+  focusTick = 0
 }) => {
   const [inputText, setInputText] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if ((orderStep || focusTick > 0) && !isThinking && !isStreaming) {
+      inputRef.current?.focus();
+    }
+  }, [orderStep, focusTick, isThinking, isStreaming]);
+
+  const placeholderText =
+    ORDER_STEP_PLACEHOLDERS[orderStep] || 'Nhập câu hỏi hoặc nhu cầu của anh/chị...';
 
   const handleSubmit = (e) => {
     e?.preventDefault();
@@ -40,11 +59,12 @@ export const BottomControls = ({
 
           {/* Text Input */}
           <input
+            ref={inputRef}
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Nhập câu hỏi hoặc nhu cầu của anh/chị..."
+            placeholder={placeholderText}
             disabled={isThinking || isStreaming}
             className="flex-1 bg-transparent text-xs sm:text-sm text-slate-100 placeholder-slate-400 outline-none"
           />
