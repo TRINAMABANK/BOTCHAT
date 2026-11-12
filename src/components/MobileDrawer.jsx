@@ -1,64 +1,67 @@
 import React from 'react';
 import { ShoppingBag, X, ChevronUp } from 'lucide-react';
-import ProductSelector from './ProductSelector';
+import ProductSelectorCard from './ProductSelectorCard';
 
 export const MobileDrawer = ({
   isOpen = false,
   onClose,
   onOpen,
-  hierarchy = [],
   products = [],
   selectedProduct = null,
-  onSelectProductAction,
-  isLoading = false
+  onSelectProduct,
+  onTriggerAction,
+  onViewProductDetail
 }) => {
   return (
     <>
       {/* Floating Bottom Action Pill (Visible on Mobile only when drawer is closed) */}
       {!isOpen && (
-        <div className="lg:hidden fixed bottom-4 inset-x-4 z-40 flex justify-center animate-bounce">
+        <div className="lg:hidden fixed bottom-4 inset-x-4 z-40 flex justify-center">
           <button
             onClick={onOpen}
-            className="flex items-center space-x-2 px-5 py-3 rounded-full bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 text-white font-bold text-sm shadow-2xl shadow-pink-500/40 border border-pink-300"
+            className="flex items-center space-x-2 px-5 py-3 rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 text-slate-950 font-bold text-sm shadow-[0_0_24px_rgba(0,240,255,0.5)] border border-cyan-300 active:scale-95 transition-all"
           >
             <ShoppingBag size={18} />
-            <span>📦 Chọn Hàng Hóa (Cột 2)</span>
+            <span>Chọn Sản Phẩm & Tư Vấn</span>
             <ChevronUp size={16} />
           </button>
         </div>
       )}
 
-      {/* Slide-up Bottom Panel on Mobile */}
+      {/* Slide-up Bottom Panel on Mobile (Luxury Tech 3D) */}
       {isOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/60 backdrop-blur-md animate-fade-in">
-          <div className="w-full h-[88vh] bg-white border-t-2 border-pink-400 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden text-slate-800 animate-slide-up">
-            {/* Drawer Drag Bar & Close */}
-            <div className="flex items-center justify-between px-5 py-3.5 bg-pink-50 border-b border-pink-100">
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end bg-black/75 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-h-[88vh] bg-[#061128] border-t-2 border-cyan-500/60 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100 animate-slide-up">
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-[#091a3d] border-b border-cyan-500/30">
               <div className="flex items-center space-x-2">
-                <span className="w-3 h-3 rounded-full bg-pink-500 animate-ping"></span>
-                <span className="font-bold text-sm text-slate-900 font-display">
-                  CỘT 2: PRODUCT SELECTOR (MOBILE PANEL)
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="font-bold text-sm text-white font-display">
+                  CHỌN SẢN PHẨM & NHU CẦU
                 </span>
               </div>
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-xl bg-pink-100 hover:bg-pink-200 text-slate-600 hover:text-slate-900"
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Inner Product Selector */}
-            <div className="flex-1 overflow-hidden p-2">
-              <ProductSelector
-                hierarchy={hierarchy}
+            {/* Inner Horizontal Swipe ProductSelectorCard */}
+            <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+              <ProductSelectorCard
                 products={products}
                 selectedProduct={selectedProduct}
-                onSelectProductAction={(prod, act) => {
-                  onSelectProductAction(prod, act);
+                onSelectProduct={onSelectProduct}
+                onTriggerAction={(act, prod) => {
                   onClose();
+                  if (onTriggerAction) onTriggerAction(act, prod);
                 }}
-                isLoading={isLoading}
+                onViewProductDetail={(prod) => {
+                  onClose();
+                  if (onViewProductDetail) onViewProductDetail(prod);
+                }}
               />
             </div>
           </div>

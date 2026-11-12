@@ -290,16 +290,18 @@ export const App = () => {
   };
 
   // When customer clicks an action button
-  const handleTriggerAction = (actionKey) => {
-    const prodName = selectedProduct ? selectedProduct.name : 'máy đếm tiền';
+  const handleTriggerAction = (actionKey, overrideProd = null) => {
+    const targetProd = overrideProd || selectedProduct;
+    const prodName = targetProd ? targetProd.name : 'máy đếm tiền';
 
     if (actionKey === 'Yêu cầu chủ nhân gọi lại') {
+      if (overrideProd) setSelectedProduct(overrideProd);
       setIsPhoneModalOpen(true);
       return;
     }
 
     const promptMessage = `Tôi quan tâm ${prodName} và muốn: ${actionKey}.`;
-    handleSendMessage(promptMessage, selectedProduct, actionKey);
+    handleSendMessage(promptMessage, targetProd, actionKey);
   };
 
   // When customer clicks `👁️ Xem chi tiết`
@@ -479,10 +481,9 @@ export const App = () => {
         onClose={() => setIsMobileDrawerOpen(false)}
         products={products}
         selectedProduct={selectedProduct}
-        onSelectProductAction={(prod, act) => {
-          setSelectedProduct(prod);
-          handleTriggerAction(act);
-        }}
+        onSelectProduct={handleSelectProduct}
+        onTriggerAction={handleTriggerAction}
+        onViewProductDetail={handleViewProductDetail}
       />
 
       {/* Product Detail Specifications Modal */}
