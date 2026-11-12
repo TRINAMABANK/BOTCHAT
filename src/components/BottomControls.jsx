@@ -4,6 +4,8 @@ import { MessageSquare, Paperclip, Mic, Send, PhoneCall } from 'lucide-react';
 export const BottomControls = ({
   onSendMessage,
   onOpenPhoneModal,
+  onMicClick,
+  isListening = false,
   isThinking = false,
   isStreaming = false
 }) => {
@@ -59,8 +61,13 @@ export const BottomControls = ({
           {/* Mic Icon */}
           <button
             type="button"
-            className="text-slate-400 hover:text-cyan-300 p-1 flex-shrink-0 transition-colors"
-            title="Nói để nhập văn bản"
+            onClick={onMicClick}
+            className={`p-1.5 rounded-full flex-shrink-0 transition-all ${
+              isListening
+                ? 'bg-rose-500 text-white animate-pulse shadow-[0_0_12px_rgba(244,63,94,0.8)]'
+                : 'text-slate-400 hover:text-cyan-300'
+            }`}
+            title={isListening ? 'Đang nghe... Nhấn để dừng' : 'Nói để nhập câu hỏi tiếng Việt'}
           >
             <Mic size={18} />
           </button>

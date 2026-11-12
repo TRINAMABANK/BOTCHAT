@@ -24,6 +24,7 @@ export const App = () => {
   const [botState, setBotState] = useState('idle'); // 'idle' | 'listening' | 'thinking' | 'speaking' | 'success' | 'error'
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
 
   // Products & Hierarchy
   const [products, setProducts] = useState([]);
@@ -179,9 +180,24 @@ export const App = () => {
       setIsStreaming(true);
       setBotState('speaking');
 
+      if (data.recommendedProduct) {
+        setSelectedProduct(data.recommendedProduct);
+      }
+
       const fullReply = data.reply;
       const replyWords = fullReply.split(' ');
       const assistantMsgId = data.messageId || `msg_a_${Date.now()}`;
+
+      if (voiceEnabled && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const plain = fullReply.replace(/[*_`#]/g, '');
+          const utter = new SpeechSynthesisUtterance(plain);
+          utter.lang = 'vi-VN';
+          utter.rate = 1.05;
+          window.speechSynthesis.speak(utter);
+        } catch {}
+      }
 
       setMessages(prev => [
         ...prev,
@@ -200,7 +216,7 @@ export const App = () => {
         setMessages(prev =>
           prev.map(m => (m.id === assistantMsgId ? { ...m, content: accumulated } : m))
         );
-        await new Promise(r => setTimeout(r, 20));
+        await new Promise(r => setTimeout(r, 14));
       }
 
       setIsStreaming(false);
@@ -229,6 +245,42 @@ export const App = () => {
         }
       ]);
       setTimeout(() => setBotState('idle'), 4000);
+    }
+  };
+
+  // Real Vietnamese Speech-to-Text voice capture
+  const handleVoiceInput = () => {
+    if (botState === 'listening') {
+      setBotState('idle');
+      return;
+    }
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      alert('Trình duyệt hiện tại chưa hỗ trợ nhận diện giọng nói. Anh/chị vui lòng gõ câu hỏi vào ô bên dưới hoặc dùng Chrome/Edge.');
+      return;
+    }
+    const recognition = new SpeechRec();
+    recognition.lang = 'vi-VN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    setBotState('listening');
+
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript;
+      if (transcript) {
+        handleSendMessage(transcript, selectedProduct, null);
+      } else {
+        setBotState('idle');
+      }
+    };
+    recognition.onerror = () => setBotState('idle');
+    recognition.onend = () => {
+      setBotState((prev) => (prev === 'listening' ? 'idle' : prev));
+    };
+    try {
+      recognition.start();
+    } catch {
+      setBotState('idle');
     }
   };
 
@@ -384,8 +436,16 @@ export const App = () => {
               isThinking={isThinking}
               isStreaming={isStreaming}
               botState={botState}
+              voiceEnabled={voiceEnabled}
+              onToggleVoice={() => {
+                if (voiceEnabled && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                  window.speechSynthesis.cancel();
+                }
+                setVoiceEnabled(!voiceEnabled);
+              }}
+              onQuickPrompt={(prompt) => handleSendMessage(prompt, selectedProduct, null)}
               onResetChat={handleResetChat}
-              onMicClick={() => setBotState(botState === 'listening' ? 'idle' : 'listening')}
+              onMicClick={handleVoiceInput}
             />
           </section>
 
@@ -405,6 +465,8 @@ export const App = () => {
         <BottomControls
           onSendMessage={handleSendMessage}
           onOpenPhoneModal={() => setIsPhoneModalOpen(true)}
+          onMicClick={handleVoiceInput}
+          isListening={botState === 'listening'}
           isThinking={isThinking}
           isStreaming={isStreaming}
         />

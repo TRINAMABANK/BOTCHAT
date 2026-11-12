@@ -26,6 +26,7 @@ export const ProductSelectorCard = ({
   onViewProductDetail
 }) => {
   const [activeCategory, setActiveCategory] = useState('Máy đếm tiền');
+  const [showAllProducts, setShowAllProducts] = useState(false);
 
   // Categories corresponding directly to the mockup
   const categories = [
@@ -36,11 +37,16 @@ export const ProductSelectorCard = ({
     { id: 'Sản phẩm khác', name: 'Sản phẩm khác', icon: <Package size={20} /> }
   ];
 
-  // Filter products by selected category
-  const currentCategoryProducts = products.filter(p => p.field === activeCategory);
+  const allDynamicFields = ['Tất cả', ...Array.from(new Set(products.map(p => p.field)))];
+  const [allFilterField, setAllFilterField] = useState('Tất cả');
 
-  // If no products found for category, fallback to all or general
-  const displayProducts = currentCategoryProducts.length > 0 ? currentCategoryProducts : products.slice(0, 3);
+  // Filter products by selected category
+  const currentCategoryProducts = showAllProducts
+    ? (allFilterField === 'Tất cả' ? products : products.filter(p => p.field === allFilterField))
+    : products.filter(p => p.field === activeCategory);
+
+  // If no products found for category, fallback to all
+  const displayProducts = currentCategoryProducts.length > 0 ? currentCategoryProducts : products;
 
   // Badges matching mockup: 1: Bán chạy (flame orange), 2: Đề xuất (gold star), 3: Cao cấp (crown)
   const getBadge = (index) => {
@@ -67,16 +73,19 @@ export const ProductSelectorCard = ({
             return (
               <button
                 key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
+                onClick={() => {
+                  setActiveCategory(cat.id);
+                  setShowAllProducts(false);
+                }}
                 className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all text-center group ${
-                  isActive
+                  !showAllProducts && isActive
                     ? 'bg-gradient-to-b from-cyan-950/90 to-[#0A1A3A] border-cyan-400 shadow-[0_0_18px_rgba(0,240,255,0.4)] scale-[1.02]'
                     : 'bg-[#091530]/80 border-slate-700/60 hover:border-cyan-500/40 hover:bg-[#0c1c40]'
                 }`}
               >
                 <div
                   className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 transition-colors ${
-                    isActive
+                    !showAllProducts && isActive
                       ? 'text-cyan-300 bg-cyan-500/20 shadow-inner'
                       : 'text-slate-400 group-hover:text-cyan-400 bg-slate-800/60'
                   }`}
@@ -85,7 +94,7 @@ export const ProductSelectorCard = ({
                 </div>
                 <span
                   className={`text-[11px] font-medium leading-tight ${
-                    isActive ? 'text-white font-bold' : 'text-slate-300 group-hover:text-slate-100'
+                    !showAllProducts && isActive ? 'text-white font-bold' : 'text-slate-300 group-hover:text-slate-100'
                   }`}
                 >
                   {cat.name}
@@ -96,25 +105,46 @@ export const ProductSelectorCard = ({
         </div>
       </div>
 
-      {/* 2. SECTION 2: SẢN PHẨM NỔI BẬT: MÁY ĐẾM TIỀN */}
+      {/* 2. SECTION 2: SẢN PHẨM NỔI BẬT / TẤT CẢ SẢN PHẨM */}
       <div className="relative z-10 my-1">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-bold text-slate-100 font-display flex items-center space-x-1.5">
             <span className="text-amber-400 text-sm">⭐</span>
-            <span>Sản phẩm nổi bật: {activeCategory}</span>
+            <span>{showAllProducts ? `Tất cả danh mục (${displayProducts.length} sản phẩm)` : `Sản phẩm nổi bật: ${activeCategory}`}</span>
           </h3>
           <button
-            onClick={() => {}}
+            type="button"
+            onClick={() => setShowAllProducts((v) => !v)}
             className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center space-x-0.5 group"
           >
-            <span>Xem tất cả</span>
+            <span>{showAllProducts ? 'Thu gọn' : 'Xem tất cả'}</span>
             <span className="text-cyan-400 font-bold group-hover:translate-x-0.5 transition-transform">&gt;&gt;</span>
           </button>
         </div>
 
-        {/* 3 Featured Product Cards Grid with Sub-Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {displayProducts.slice(0, 3).map((prod, idx) => {
+        {/* Dynamic Field Filter Bar when viewing all products */}
+        {showAllProducts && (
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-2 mb-1">
+            {allDynamicFields.map((fld) => (
+              <button
+                key={fld}
+                type="button"
+                onClick={() => setAllFilterField(fld)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap border transition-all ${
+                  allFilterField === fld
+                    ? 'bg-cyan-500 text-slate-950 border-cyan-400'
+                    : 'bg-[#091530] text-slate-300 border-slate-700 hover:border-cyan-500/40'
+                }`}
+              >
+                {fld}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Featured Product Cards Grid with Sub-Buttons */}
+        <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 ${showAllProducts ? 'max-h-[260px] overflow-y-auto pr-1 custom-scrollbar' : ''}`}>
+          {(showAllProducts ? displayProducts : displayProducts.slice(0, 3)).map((prod, idx) => {
             const isSelected = selectedProduct?.id === prod.id;
             const badge = getBadge(idx);
             const priceNumberStr = (prod.price || 0).toLocaleString('vi-VN');

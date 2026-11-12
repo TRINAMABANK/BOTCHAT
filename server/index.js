@@ -61,7 +61,18 @@ app.get('/api/settings', async (req, res) => {
   try {
     const rows = await db.all('SELECT key, value, description FROM bot_settings');
     const settings = {};
-    rows.forEach(r => { settings[r.key] = r.value; });
+    let hasDbKey = false;
+    rows.forEach((r) => {
+      if (r.key === 'openai_api_key') {
+        hasDbKey = Boolean(r.value && r.value.trim().length > 12 && !r.value.includes('your_'));
+        return; // Never expose raw API keys to the frontend
+      }
+      settings[r.key] = r.value;
+    });
+    const hasEnvKey = Boolean(process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes('your_') && process.env.OPENAI_API_KEY.trim().length > 12);
+    settings.has_openai_key = (hasDbKey || hasEnvKey) ? '1' : '0';
+    if (!settings.openai_model) settings.openai_model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    if (!settings.openai_base_url) settings.openai_base_url = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
     res.json({ success: true, settings });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -74,6 +85,10 @@ app.put('/api/settings', async (req, res) => {
     const now = new Date().toISOString();
 
     for (const [key, value] of Object.entries(updates)) {
+      if (key === 'has_openai_key') continue;
+      if (key === 'openai_api_key' && (!value || String(value).trim() === '' || String(value).includes('••••'))) {
+        continue; // Keep existing key if blank or masked
+      }
       const existing = await db.get('SELECT key FROM bot_settings WHERE key = ?', [key]);
       if (existing) {
         await db.run('UPDATE bot_settings SET value = ?, updated_at = ? WHERE key = ?', [String(value), now, key]);

@@ -703,6 +703,71 @@ export const OwnerDashboard = ({
                 </div>
               </div>
 
+              {/* SECTION 2: AI ENGINE & LLM BRAIN CONFIGURATION */}
+              <div className="bg-[#081838] p-6 rounded-2xl border border-cyan-500/30 space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-bold text-cyan-300 font-display flex items-center space-x-2">
+                    <Sliders size={18} />
+                    <span>2. CẤU HÌNH TRÍ TUỆ AI & LLM ENGINE</span>
+                  </h3>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                      settings.has_openai_key === '1'
+                        ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+                        : 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
+                    }`}
+                  >
+                    {settings.has_openai_key === '1'
+                      ? '⚡ LLM API Đang kết nối + Catalog Intelligence'
+                      : '🧠 Smart Catalog AI Engine 24/7 (Chưa gắn LLM API Key)'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      OpenAI / LLM API Key (Lưu bảo mật phía Server):
+                    </label>
+                    <input
+                      type="password"
+                      value={settingsForm.openai_api_key || ''}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, openai_api_key: e.target.value })}
+                      placeholder={settings.has_openai_key === '1' ? '•••••••• (Đã lưu - nhập để thay mới)' : 'sk-... hoặc API key tương thích OpenAI'}
+                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-white font-mono text-sm outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      Model AI:
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsForm.openai_model || 'gpt-4o-mini'}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, openai_model: e.target.value })}
+                      placeholder="gpt-4o-mini"
+                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-cyan-300 font-mono text-sm outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">
+                      API Base URL (OpenAI / Groq / DeepSeek / Gemini):
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsForm.openai_base_url || 'https://api.openai.com/v1'}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, openai_base_url: e.target.value })}
+                      placeholder="https://api.openai.com/v1"
+                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-slate-200 font-mono text-sm outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Bảo mật: API Key chỉ lưu trực tiếp trong cơ sở dữ liệu phía server, không bao giờ gửi ngược ra trình duyệt khách hàng.
+                </p>
+              </div>
+
               <div className="flex justify-end">
                 <button
                   type="submit"
