@@ -21,8 +21,15 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+app.use(express.json({ limit: '8mb' }));
+app.use(express.urlencoded({ extended: true, limit: '8mb' }));
+
+// Persistent local uploads directory served directly at /uploads
+const uploadsDir = path.resolve(__dirname, '../public/uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // Anti-tamper & Security headers
 app.use((req, res, next) => {
@@ -213,6 +220,48 @@ app.put('/api/products/:id', async (req, res) => {
 
     await db.run(updateSql, params);
     res.json({ success: true, message: 'Cập nhật sản phẩm thành công!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// 3B. LOCAL IMAGE UPLOAD FROM COMPUTER
+// -----------------------------------------------------------------------------
+app.post('/api/upload/image', (req, res) => {
+  try {
+    const { fileName, dataUrl } = req.body;
+    if (!dataUrl || typeof dataUrl !== 'string') {
+      return res.status(400).json({ success: false, error: 'Thiếu dữ liệu ảnh tải lên.' });
+    }
+
+    const match = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) {
+      return res.status(400).json({ success: false, error: 'Định dạng ảnh không hợp lệ (chỉ hỗ trợ PNG, JPG, WEBP, GIF).' });
+    }
+
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    if (buffer.length > 5 * 1024 * 1024) {
+      return res.status(413).json({ success: false, error: 'Kích thước ảnh vượt quá giới hạn 5MB.' });
+    }
+
+    const safeBase = (fileName || 'product')
+      .replace(/\.[^/.]+$/, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '_')
+      .slice(0, 40) || 'image';
+
+    const finalName = `${Date.now()}_${safeBase}.${ext}`;
+    const targetPath = path.join(uploadsDir, finalName);
+    fs.writeFileSync(targetPath, buffer);
+
+    res.json({
+      success: true,
+      url: `/uploads/${finalName}`,
+      fileName: finalName,
+      size: buffer.length
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

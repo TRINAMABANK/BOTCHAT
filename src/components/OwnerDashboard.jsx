@@ -22,7 +22,9 @@ import {
   Shield,
   Layers,
   Check,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  Image
 } from 'lucide-react';
 
 export const OwnerDashboard = ({
@@ -45,6 +47,8 @@ export const OwnerDashboard = ({
 
   // New Product Modal Form State
   const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingProductId, setUploadingProductId] = useState(null);
   const [newProd, setNewProd] = useState({
     field: 'Máy đếm tiền',
     group_name: 'Dòng máy phổ thông',
@@ -213,6 +217,86 @@ export const OwnerDashboard = ({
   const showMessage = (msg) => {
     setStatusMessage(msg);
     setTimeout(() => setStatusMessage(null), 3500);
+  };
+
+  /**
+   * Đọc file ảnh từ máy tính và upload lên /api/upload/image, trả về URL công khai.
+   */
+  const uploadImageFileToServer = async (file) => {
+    if (!file) return null;
+    if (!file.type || !file.type.startsWith('image/')) {
+      showMessage('Vui lòng chọn file hình ảnh hợp lệ (PNG, JPG, WEBP, GIF).');
+      return null;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showMessage('Kích thước ảnh vượt quá 5MB. Vui lòng chọn ảnh nhẹ hơn.');
+      return null;
+    }
+
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Không đọc được file ảnh từ máy tính.'));
+      reader.readAsDataURL(file);
+    });
+
+    const res = await fetch('/api/upload/image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: file.name, dataUrl })
+    });
+    const data = await res.json();
+    if (!data.success || !data.url) {
+      throw new Error(data.error || 'Tải ảnh lên thất bại.');
+    }
+    return data.url;
+  };
+
+  const handleSelectNewProdImage = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setUploadingImage(true);
+      const url = await uploadImageFileToServer(file);
+      if (url) {
+        setNewProd((prev) => ({ ...prev, image_url: url }));
+        showMessage('Đã tải ảnh sản phẩm từ máy tính lên thành công!');
+      }
+    } catch (err) {
+      console.error(err);
+      showMessage(err.message || 'Lỗi khi tải ảnh lên.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleUpdateProductImage = async (productId, file) => {
+    if (!file) return;
+    try {
+      setUploadingProductId(productId);
+      const url = await uploadImageFileToServer(file);
+      if (!url) return;
+
+      const res = await fetch(`/api/products/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: url })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showMessage('Đã cập nhật hình ảnh sản phẩm từ máy tính!');
+        fetchData();
+        if (onRefreshData) onRefreshData();
+      } else {
+        showMessage(data.error || 'Không thể lưu URL ảnh cho sản phẩm.');
+      }
+    } catch (err) {
+      console.error(err);
+      showMessage(err.message || 'Lỗi khi đổi ảnh sản phẩm.');
+    } finally {
+      setUploadingProductId(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -613,11 +697,35 @@ export const OwnerDashboard = ({
                         }`}
                       >
                         <td className="py-3 px-3 align-middle">
-                          <img
-                            src={p.image_url}
-                            alt={p.name}
-                            className="w-14 h-14 rounded-xl object-cover bg-slate-950 border border-cyan-500/40 shadow-sm"
-                          />
+                          <div className="flex flex-col items-center gap-1.5 w-16">
+                            <img
+                              src={p.image_url}
+                              alt={p.name}
+                              className="w-14 h-14 rounded-xl object-cover bg-slate-950 border border-cyan-500/40 shadow-sm"
+                            />
+                            <label
+                              className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-pointer border transition-colors ${
+                                uploadingProductId === p.id
+                                  ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 cursor-wait'
+                                  : 'bg-[#0a1f44] hover:bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                              }`}
+                              title="Chọn ảnh mới từ máy tính"
+                            >
+                              <Upload className="w-3 h-3" />
+                              <span>{uploadingProductId === p.id ? 'Đang tải...' : 'Đổi ảnh'}</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                disabled={uploadingProductId === p.id}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  e.target.value = '';
+                                  if (file) handleUpdateProductImage(p.id, file);
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
                         </td>
                         <td className="py-3 px-3 align-middle text-cyan-300 font-bold break-words whitespace-normal">{p.field}</td>
                         <td className="py-3 px-3 align-middle text-slate-200 break-words whitespace-normal">{p.group_name}</td>
@@ -911,14 +1019,46 @@ export const OwnerDashboard = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Link hình ảnh:</label>
-                <input
-                  type="text"
-                  value={newProd.image_url}
-                  onChange={(e) => setNewProd({ ...newProd, image_url: e.target.value })}
-                  placeholder="/assets/machine_2166.png hoặc URL ảnh"
-                  className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2.5 text-white text-xs outline-none focus:border-cyan-400"
-                />
+                <label className="block text-slate-300 font-bold mb-1.5">Hình ảnh sản phẩm (Tải từ máy tính):</label>
+                <div className="flex items-center gap-3 bg-[#050c1f] border border-cyan-500/30 rounded-xl p-2.5">
+                  <div className="w-16 h-16 rounded-xl bg-slate-950 border border-cyan-500/40 flex items-center justify-center overflow-hidden shrink-0">
+                    {newProd.image_url ? (
+                      <img
+                        src={newProd.image_url}
+                        alt="Xem trước ảnh"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Image className="w-6 h-6 text-slate-500" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <label
+                      className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold cursor-pointer border transition-all shadow-sm ${
+                        uploadingImage
+                          ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 cursor-wait'
+                          : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white border-cyan-400/50'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingImage ? 'Đang tải ảnh lên...' : 'Chọn ảnh từ máy tính'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingImage}
+                        onChange={handleSelectNewProdImage}
+                        className="hidden"
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      value={newProd.image_url}
+                      onChange={(e) => setNewProd({ ...newProd, image_url: e.target.value })}
+                      placeholder="Hoặc dán đường dẫn ảnh (/uploads/..., https://...)"
+                      className="w-full bg-[#0a1f44] border border-cyan-500/30 rounded-lg px-2.5 py-1.5 text-slate-200 text-[11px] outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>
