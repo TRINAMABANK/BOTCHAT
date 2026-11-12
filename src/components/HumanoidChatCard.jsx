@@ -118,7 +118,7 @@ export const HumanoidChatCard = ({
       </div>
 
       {/* RIGHT SUB-COLUMN: HỘI THOẠI TƯ VẤN (~58% width) */}
-      <div className="flex flex-col flex-1 min-h-[340px] relative z-10">
+      <div className="flex flex-col flex-1 min-w-0 min-h-[340px] relative z-10">
         {/* Header: Hội thoại tư vấn */}
         <div className="flex items-center justify-between pb-2.5 mb-2 border-b border-cyan-500/20">
           <div className="flex items-center space-x-2">
@@ -160,7 +160,7 @@ export const HumanoidChatCard = ({
         {/* Scrollable Chat Area */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar text-xs leading-relaxed max-h-[340px] md:max-h-[370px]"
+          className="flex-1 overflow-y-auto overflow-x-hidden space-y-3 pr-1.5 custom-scrollbar text-xs leading-relaxed max-h-[340px] md:max-h-[370px]"
         >
           {messages.map((msg, idx) => {
             const isUser = msg.senderType === 'user' || msg.role === 'user';
@@ -171,7 +171,7 @@ export const HumanoidChatCard = ({
             return (
               <div
                 key={msg.id || idx}
-                className={`flex items-start space-x-2 animate-slide-up ${
+                className={`flex items-start space-x-2 min-w-0 animate-slide-up ${
                   isUser ? 'flex-row-reverse space-x-reverse' : ''
                 }`}
               >
@@ -189,7 +189,7 @@ export const HumanoidChatCard = ({
                   )}
                 </div>
 
-                <div className="flex flex-col max-w-[85%]">
+                <div className="flex flex-col min-w-0 max-w-[calc(100%-2.5rem)]">
                   <div
                     className={`rounded-2xl px-3.5 py-2.5 shadow-md ${
                       isUser
@@ -238,7 +238,7 @@ export const HumanoidChatCard = ({
 
         {/* Smart Quick-Prompt Chips */}
         {onQuickPrompt && (
-          <div className="mt-2 pt-2 border-t border-cyan-500/15 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="w-full min-w-0 mt-2 pt-2 border-t border-cyan-500/15 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             <Sparkles size={12} className="text-cyan-400 flex-shrink-0" />
             {QUICK_SUGGESTIONS.map((q) => (
               <button

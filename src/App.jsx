@@ -432,7 +432,7 @@ export const App = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 md:p-6 flex flex-col justify-between">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 items-stretch">
           {/* CỘT 1: HUMANOID AI ROBOT & CHAT TƯ VẤN (Exact 50% width on Desktop) */}
-          <section className="flex flex-col h-full">
+          <section className="flex flex-col h-full min-w-0">
             <HumanoidChatCard
               messages={messages}
               isThinking={isThinking}
@@ -452,7 +452,7 @@ export const App = () => {
           </section>
 
           {/* CỘT 2: PRODUCT SELECTOR & NHU CẦU (Exact 50% width on Desktop) */}
-          <section className="hidden lg:flex flex-col h-full">
+          <section className="hidden lg:flex flex-col h-full min-w-0">
             <ProductSelectorCard
               products={products}
               selectedProduct={selectedProduct}
