@@ -76,3 +76,62 @@
 .animate-float {
   animation: float 4.5s ease-in-out infinite;
 }
+
+/* Chạy viền Tím - Đỏ - Đen - Sáng trắng nhẹ khi rê chuột vào ô sản phẩm */
+@keyframes productBorderSpin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.product-hover-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
+}
+
+.product-hover-card:hover {
+  box-shadow:
+    0 0 18px rgba(168, 85, 247, 0.38),
+    0 0 28px rgba(239, 68, 68, 0.26),
+    0 0 10px rgba(255, 255, 255, 0.16);
+}
+
+.product-hover-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  overflow: hidden;
+  z-index: 20;
+}
+
+.product-hover-card:hover .product-hover-ring {
+  opacity: 1;
+}
+
+.product-hover-ring::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 240%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%) rotate(0deg);
+  background: conic-gradient(
+    from 0deg,
+    #070910 0deg 48deg,
+    #9333ea 88deg,
+    #ef4444 138deg,
+    rgba(255, 255, 255, 0.88) 168deg,
+    #070910 198deg 245deg,
+    #a855f7 282deg,
+    #dc2626 322deg,
+    rgba(255, 255, 255, 0.78) 344deg,
+    #070910 360deg
+  );
+  animation: productBorderSpin 2.6s linear infinite;
+}

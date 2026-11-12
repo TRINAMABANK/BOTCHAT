@@ -290,7 +290,7 @@ export const ProductSelectorCard = ({
             onMouseUp={handleMouseUpOrLeave}
             onMouseLeave={handleMouseUpOrLeave}
             onWheel={handleWheelScroll}
-            className="flex gap-3 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory py-1 px-0.5 cursor-grab active:cursor-grabbing select-none"
+            className="flex gap-3 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory py-2 px-1 cursor-grab active:cursor-grabbing select-none"
           >
             {displayProducts.map((prod, idx) => {
               const isSelected = selectedProduct?.id === prod.id;
@@ -305,12 +305,14 @@ export const ProductSelectorCard = ({
                     if (dragState.current.moved) return;
                     onSelectProduct(prod);
                   }}
-                  className={`relative flex-shrink-0 w-[198px] sm:w-[205px] snap-start rounded-2xl p-2.5 sm:p-3 border cursor-pointer transition-all flex flex-col justify-between group overflow-hidden ${
+                  className={`product-hover-card relative flex-shrink-0 w-[198px] sm:w-[205px] snap-start rounded-2xl p-2.5 sm:p-3 border cursor-pointer transition-all flex flex-col justify-between group overflow-hidden ${
                     isSelected
                       ? 'bg-gradient-to-b from-[#0e214d] to-[#071330] border-cyan-400 shadow-[0_0_20px_rgba(0,240,255,0.45)] ring-1 ring-cyan-400'
-                      : 'bg-[#081533]/85 border-slate-700/70 hover:border-cyan-500/50 hover:bg-[#0c1f4d]'
+                      : 'bg-[#081533]/85 border-slate-700/70 hover:border-transparent hover:bg-[#0c1f4d]'
                   }`}
                 >
+                  {/* Animated running hover border (Tím - Đỏ - Đen - Sáng trắng nhẹ) */}
+                  <span aria-hidden="true" className="product-hover-ring" />
                   {/* Product Machine Image */}
                   <div className="w-full h-24 rounded-xl bg-slate-950/60 border border-slate-800/80 overflow-hidden flex items-center justify-center p-1.5 mb-2 relative">
                     <img
