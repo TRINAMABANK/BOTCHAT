@@ -225,6 +225,52 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
+/**
+ * Chuẩn hóa danh sách ID hợp lệ cho thao tác xóa hàng loạt.
+ */
+function sanitizeIdList(ids) {
+  if (!Array.isArray(ids)) return [];
+  return [...new Set(ids.filter((id) => typeof id === 'string' && id.trim().length > 0).map((id) => id.trim()))];
+}
+
+app.delete('/api/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.run('DELETE FROM products WHERE id = ?', [id]);
+    if (!result.changes) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy sản phẩm để xóa.' });
+    }
+    res.json({ success: true, message: 'Đã xóa sản phẩm thành công!', deletedId: id });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/products/bulk-delete', async (req, res) => {
+  try {
+    const { ids, deleteAll } = req.body || {};
+    let result;
+    if (deleteAll === true) {
+      result = await db.run('DELETE FROM products');
+    } else {
+      const cleanIds = sanitizeIdList(ids);
+      if (cleanIds.length === 0) {
+        return res.status(400).json({ success: false, error: 'Vui lòng chọn ít nhất 1 sản phẩm để xóa.' });
+      }
+      const placeholders = cleanIds.map(() => '?').join(', ');
+      result = await db.run(`DELETE FROM products WHERE id IN (${placeholders})`, cleanIds);
+    }
+
+    res.json({
+      success: true,
+      deletedCount: result.changes || 0,
+      message: `Đã xóa ${result.changes || 0} sản phẩm thành công!`
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // -----------------------------------------------------------------------------
 // 3B. LOCAL IMAGE UPLOAD FROM COMPUTER
 // -----------------------------------------------------------------------------
@@ -475,6 +521,47 @@ app.put('/api/crm/leads/:id/status', async (req, res) => {
     );
 
     res.json({ success: true, message: 'Cập nhật trạng thái Lead thành công!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/crm/leads/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.run('DELETE FROM lead_activities WHERE lead_id = ?', [id]);
+    const result = await db.run('DELETE FROM leads WHERE id = ?', [id]);
+    if (!result.changes) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy khách hàng để xóa.' });
+    }
+    res.json({ success: true, message: 'Đã xóa khách hàng khỏi danh sách CRM!', deletedId: id });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/crm/leads/bulk-delete', async (req, res) => {
+  try {
+    const { ids, deleteAll } = req.body || {};
+    let result;
+    if (deleteAll === true) {
+      await db.run('DELETE FROM lead_activities');
+      result = await db.run('DELETE FROM leads');
+    } else {
+      const cleanIds = sanitizeIdList(ids);
+      if (cleanIds.length === 0) {
+        return res.status(400).json({ success: false, error: 'Vui lòng chọn ít nhất 1 khách hàng để xóa.' });
+      }
+      const placeholders = cleanIds.map(() => '?').join(', ');
+      await db.run(`DELETE FROM lead_activities WHERE lead_id IN (${placeholders})`, cleanIds);
+      result = await db.run(`DELETE FROM leads WHERE id IN (${placeholders})`, cleanIds);
+    }
+
+    res.json({
+      success: true,
+      deletedCount: result.changes || 0,
+      message: `Đã xóa ${result.changes || 0} khách hàng khỏi danh sách!`
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

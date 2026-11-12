@@ -236,9 +236,10 @@ export async function initDatabase() {
     }
   }
 
-  // 7. Seed Initial Products if table is empty
+  // 7. Seed Initial Products only once (skip if admin intentionally cleared catalog)
   const countRow = await db.get('SELECT COUNT(*) as count FROM products');
-  if (countRow.count === 0) {
+  const prodSeedFlag = await db.get("SELECT value FROM bot_settings WHERE key = 'initial_products_seeded'");
+  if (countRow.count === 0 && !prodSeedFlag) {
     console.log('[DB SEED] Seeding curated product catalog approved by Administrator...');
     const now = new Date().toISOString();
 
@@ -439,10 +440,15 @@ export async function initDatabase() {
     }
     console.log(`[DB SEED] Successfully inserted ${sampleProducts.length} approved products.`);
   }
+  await db.run(
+    "INSERT OR REPLACE INTO bot_settings (key, value, description, updated_at) VALUES ('initial_products_seeded', '1', 'Đánh dấu đã khởi tạo danh mục sản phẩm mẫu', ?)",
+    [new Date().toISOString()]
+  );
 
-  // 8. Seed Sample Leads if empty for owner dashboard visualization
+  // 8. Seed Sample Leads only once (skip if admin intentionally cleared leads)
   const leadCountRow = await db.get('SELECT COUNT(*) as count FROM leads');
-  if (leadCountRow.count === 0) {
+  const leadSeedFlag = await db.get("SELECT value FROM bot_settings WHERE key = 'initial_leads_seeded'");
+  if (leadCountRow.count === 0 && !leadSeedFlag) {
     console.log('[DB SEED] Seeding sample leads for Owner Dashboard demonstration...');
     const now = new Date();
     const isoNow = now.toISOString();
@@ -530,6 +536,10 @@ export async function initDatabase() {
       ]);
     }
   }
+  await db.run(
+    "INSERT OR REPLACE INTO bot_settings (key, value, description, updated_at) VALUES ('initial_leads_seeded', '1', 'Đánh dấu đã khởi tạo dữ liệu Lead mẫu', ?)",
+    [new Date().toISOString()]
+  );
 
   // ---------------------------------------------------------------------------
   // 8. ENTERPRISE & SAAS SCHEMA EXPANSION (SECTION VII - 31 TABLES)
