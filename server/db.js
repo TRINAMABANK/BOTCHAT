@@ -200,7 +200,7 @@ export async function initDatabase() {
         'Trợ lý bán hàng của chủ nhân',
         '/assets/robot_avatar.png',
         'Trợ lý bán hàng AI Humanoid thông minh tư vấn sản phẩm, giải đáp thắc mắc, so sánh, báo giá và tiếp nhận nhu cầu mua hàng cho chủ nhân.',
-        'Xin chào anh/chị! Tôi là TRÍ AI Sales Robot - trợ lý bán hàng của chủ nhân. Tôi rất vinh hạnh được hỗ trợ anh/chị chọn sản phẩm phù hợp nhất hôm nay.',
+        'Xin chào bạn! Tôi là TRÍ AI Sales Robot - trợ lý bán hàng của chủ nhân. Xin lỗi, bạn vui lòng cho tôi biết thông tin để thuận tiện xưng hô và hỗ trợ bạn chọn sản phẩm phù hợp nhất nhé.',
         JSON.stringify(['Tư vấn sản phẩm', 'So sánh & Báo giá', 'Tiếp nhận Lead', 'Chăm sóc khách hàng 24/7']),
         JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.7 }),
         now,
@@ -218,20 +218,25 @@ export async function initDatabase() {
     { key: 'owner_name', value: 'Quang Nhựt Trí', description: 'Tên chủ nhân shop' },
     { key: 'robot_model', value: 'cyber_valkyrie', description: 'Mô hình robot 3D (cyber_valkyrie, tron_humanoid, quantum_sphere, nano_sentinel)' },
     { key: 'avatar_url', value: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80', description: 'Ảnh đại diện Robot' },
-    { key: 'greeting', value: 'Xin chào anh/chị! Tôi là TRÍ AI Sales Robot - trợ lý bán hàng của chủ nhân. Tôi có thể hỗ trợ anh/chị tìm hiểu sản phẩm hoặc báo giá gì hôm nay ạ?', description: 'Lời chào mặc định khi mở chat' },
+    { key: 'greeting', value: 'Xin chào bạn! Tôi là TRÍ AI Sales Robot - trợ lý bán hàng của chủ nhân. Xin lỗi, bạn vui lòng cho tôi biết thông tin để thuận tiện xưng hô nhé!', description: 'Lời chào mặc định khi mở chat' },
     { key: 'ai_tone', value: 'Chuyên nghiệp, thân thiện, lịch thiệp', description: 'Giọng điệu AI khi giao tiếp' },
-    { key: 'phone_invitation_prompt', value: 'Tôi có thể ghi nhận yêu cầu để chủ nhân trực tiếp liên hệ với anh/chị. Anh/chị vui lòng để lại số điện thoại nhé.', description: 'Lời mời để lại số điện thoại chuẩn kịch bản' },
+    { key: 'phone_invitation_prompt', value: 'Tôi có thể ghi nhận yêu cầu để chủ nhân trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.', description: 'Lời mời để lại số điện thoại chuẩn kịch bản' },
     { key: 'lead_notification_email', value: 'triqnnamabank@gmail.com', description: 'Email nhận thông báo Lead mới' },
     { key: 'hotline', value: '0982441446', description: 'Số hotline hỗ trợ' },
     { key: 'show_hotline', value: '1', description: 'Bật/tắt công khai số hotline trên giao diện (1: Bật, 0: Tắt)' }
   ];
 
   for (const s of defaultSettings) {
-    const existing = await db.get('SELECT key FROM bot_settings WHERE key = ?', [s.key]);
+    const existing = await db.get('SELECT key, value FROM bot_settings WHERE key = ?', [s.key]);
     if (!existing) {
       await db.run(
         'INSERT INTO bot_settings (key, value, description, updated_at) VALUES (?, ?, ?, ?)',
         [s.key, s.value, s.description, new Date().toISOString()]
+      );
+    } else if ((s.key === 'greeting' || s.key === 'phone_invitation_prompt') && /anh\/chị/i.test(existing.value || '')) {
+      await db.run(
+        'UPDATE bot_settings SET value = ?, updated_at = ? WHERE key = ?',
+        [s.value, new Date().toISOString(), s.key]
       );
     }
   }

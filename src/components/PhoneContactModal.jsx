@@ -90,7 +90,7 @@ export const PhoneContactModal = ({
         {/* Form Fields */}
         <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
           <div>
-            <label className="block text-slate-300 mb-1 font-semibold">Họ và tên của anh/chị:</label>
+            <label className="block text-slate-300 mb-1 font-semibold">Họ và tên của bạn:</label>
             <div className="relative">
               <User size={15} className="absolute left-3 top-2.5 text-slate-400" />
               <input

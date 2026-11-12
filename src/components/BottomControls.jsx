@@ -3,7 +3,7 @@ import { MessageSquare, Paperclip, Mic, Send, PhoneCall } from 'lucide-react';
 
 const ORDER_STEP_PLACEHOLDERS = {
   ask_quantity: 'Nhập số lượng muốn mua (ví dụ: 1, 2 chiếc)...',
-  ask_name: 'Nhập họ và tên của anh/chị...',
+  ask_name: 'Nhập họ và tên của bạn...',
   ask_phone: 'Nhập số điện thoại liên hệ (10 chữ số)...',
   ask_note: 'Nhập địa chỉ, giờ tiện nghe máy hoặc phản hồi thêm...'
 };
@@ -29,7 +29,7 @@ export const BottomControls = ({
   }, [orderStep, focusTick, isThinking, isStreaming]);
 
   const placeholderText =
-    ORDER_STEP_PLACEHOLDERS[orderStep] || 'Nhập câu hỏi hoặc nhu cầu của anh/chị...';
+    ORDER_STEP_PLACEHOLDERS[orderStep] || 'Nhập thông tin xưng hô hoặc câu hỏi của bạn...';
 
   const handleSubmit = (e) => {
     e?.preventDefault();

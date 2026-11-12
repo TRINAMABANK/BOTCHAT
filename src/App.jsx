@@ -21,7 +21,7 @@ const createWelcomeMessage = () => ({
   id: `msg_welcome_${Date.now()}`,
   senderType: 'assistant',
   content:
-    'Xin chào anh/chị! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng thông minh của chủ nhân.\n\nHôm nay anh/chị đang quan tâm **lĩnh vực sản phẩm nào**? Hãy **chọn nhanh lĩnh vực bên dưới** hoặc nhắn câu hỏi bất kỳ (ví dụ: *"Cho xem máy đếm tiền dưới 5 triệu"*, *"Tư vấn trà thượng hạng"*), em sẽ mở ngay bộ sản phẩm trực quan ở **Cột 2** để anh/chị xem và lựa chọn nhé!',
+    'Xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng thông minh của chủ nhân.\n\n**Xin lỗi, bạn vui lòng cho tôi biết thông tin (tên hoặc cách xưng hô) để tôi thuận tiện xưng hô nhé!**\n\nHôm nay bạn đang quan tâm **lĩnh vực sản phẩm nào**? Bạn có thể **chọn nhanh lĩnh vực bên dưới** hoặc nhắn câu hỏi bất kỳ (ví dụ: *"Tôi là anh Minh, cho xem máy đếm tiền dưới 5 triệu"*), tôi sẽ mở ngay bộ sản phẩm trực quan ở **Cột 2** để bạn xem và lựa chọn!',
   createdAt: new Date().toISOString()
 });
 
@@ -81,7 +81,8 @@ export const App = () => {
     }
     const isLegacyMockOnly =
       parsedSaved.length > 0 &&
-      parsedSaved.every((m) => ['msg_init_1', 'msg_init_2', 'msg_init_3'].includes(m.id));
+      (parsedSaved.every((m) => ['msg_init_1', 'msg_init_2', 'msg_init_3'].includes(m.id)) ||
+        (parsedSaved.length === 1 && (parsedSaved[0].content || '').includes('Xin chào anh/chị')));
 
     if (parsedSaved.length === 0 || isLegacyMockOnly) {
       const initialMessages = [createWelcomeMessage()];
@@ -262,7 +263,7 @@ export const App = () => {
         {
           id: `msg_err_${Date.now()}`,
           senderType: 'assistant',
-          content: `⚠️ Xin lỗi anh/chị, kết nối với AI Sales Engine tạm thời gián đoạn. Anh/chị có thể gọi hotline: ${settings.hotline}.`,
+          content: `⚠️ Xin lỗi bạn, kết nối với AI Sales Engine tạm thời gián đoạn. Bạn có thể gọi hotline: ${settings.hotline}.`,
           createdAt: new Date().toISOString()
         }
       ]);
@@ -278,7 +279,7 @@ export const App = () => {
     }
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRec) {
-      alert('Trình duyệt hiện tại chưa hỗ trợ nhận diện giọng nói. Anh/chị vui lòng gõ câu hỏi vào ô bên dưới hoặc dùng Chrome/Edge.');
+      alert('Trình duyệt hiện tại chưa hỗ trợ nhận diện giọng nói. Bạn vui lòng gõ câu hỏi vào ô bên dưới hoặc dùng Chrome/Edge.');
       return;
     }
     const recognition = new SpeechRec();
