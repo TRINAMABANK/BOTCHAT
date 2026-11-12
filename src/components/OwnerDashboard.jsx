@@ -616,7 +616,7 @@ export const OwnerDashboard = ({
                           <img
                             src={p.image_url}
                             alt={p.name}
-                            className="w-10 h-10 rounded-xl object-contain bg-slate-950 p-1 border border-cyan-500/40 shadow-sm"
+                            className="w-14 h-14 rounded-xl object-cover bg-slate-950 border border-cyan-500/40 shadow-sm"
                           />
                         </td>
                         <td className="py-3 px-3 align-middle text-cyan-300 font-bold break-words whitespace-normal">{p.field}</td>

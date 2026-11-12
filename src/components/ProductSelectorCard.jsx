@@ -130,11 +130,11 @@ export const ProductSelectorCard = ({
                 }`}
               >
                 {/* Product Machine Image */}
-                <div className="w-full h-22 rounded-xl bg-slate-950/60 border border-slate-800/80 overflow-hidden flex items-center justify-center p-1 mb-1.5 relative">
+                <div className="w-full h-24 rounded-xl bg-slate-950/60 border border-slate-800/80 overflow-hidden flex items-center justify-center p-1.5 mb-2 relative">
                   <img
                     src={prod.image_url}
                     alt={prod.name}
-                    className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300 drop-shadow-md"
+                    className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-300 drop-shadow-md rounded-lg"
                   />
                 </div>
 
