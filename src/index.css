@@ -135,3 +135,34 @@
   );
   animation: productBorderSpin 2.6s linear infinite;
 }
+
+/* Smooth cinematic reveal when Column 2 opens after choosing/asking product field */
+@keyframes catalogReveal {
+  0% {
+    opacity: 0;
+    transform: translateX(28px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.animate-catalog-reveal {
+  animation: catalogReveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes slideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.28s ease-out forwards;
+}

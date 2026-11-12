@@ -15,6 +15,7 @@ export const BottomControls = ({
   isListening = false,
   isThinking = false,
   isStreaming = false,
+  isCatalogRevealed = false,
   orderStep = null,
   focusTick = 0
 }) => {
@@ -45,7 +46,11 @@ export const BottomControls = ({
   };
 
   return (
-    <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3.5">
+    <div
+      className={`w-full grid gap-3.5 mt-3.5 transition-all duration-500 ${
+        isCatalogRevealed ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 sm:grid-cols-[1fr_auto]'
+      }`}
+    >
       {/* LEFT CONTROL: CHAT INPUT CAPSULE BAR (Directly under Left Card) */}
       <div className="flex items-center w-full">
         <form

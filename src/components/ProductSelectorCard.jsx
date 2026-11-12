@@ -16,12 +16,31 @@ import {
   Flame,
   Star,
   Crown,
-  Layers
+  Layers,
+  Coffee,
+  Bot,
+  Building2,
+  Shield
 } from 'lucide-react';
+
+function getCategoryIcon(fieldName = '') {
+  const f = fieldName.toLowerCase();
+  if (f.includes('đếm tiền')) return <CircleDollarSign size={18} />;
+  if (f.includes('trà')) return <Coffee size={18} />;
+  if (f.includes('ai') || f.includes('công nghệ') && f.includes('nền tảng')) return <Bot size={18} />;
+  if (f.includes('bất động sản') || f.includes('nghỉ dưỡng')) return <Building2 size={18} />;
+  if (f.includes('văn phòng')) return <Printer size={18} />;
+  if (f.includes('công nghệ')) return <Laptop size={18} />;
+  if (f.includes('bảo trì')) return <Wrench size={18} />;
+  if (f.includes('khác') || f.includes('két')) return <Shield size={18} />;
+  return <Package size={18} />;
+}
 
 export const ProductSelectorCard = ({
   products = [],
   selectedProduct = null,
+  externalField = null,
+  externalFieldTick = 0,
   onSelectProduct,
   onTriggerAction,
   onViewProductDetail
@@ -36,15 +55,14 @@ export const ProductSelectorCard = ({
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
-  const categories = [
-    { id: 'Máy đếm tiền', name: 'Máy đếm tiền', icon: <CircleDollarSign size={20} /> },
-    { id: 'Thiết bị văn phòng', name: 'Thiết bị văn phòng', icon: <Printer size={20} /> },
-    { id: 'Thiết bị công nghệ', name: 'Thiết bị công nghệ', icon: <Laptop size={20} /> },
-    { id: 'Dịch vụ bảo trì', name: 'Dịch vụ bảo trì', icon: <Wrench size={20} /> },
-    { id: 'Sản phẩm khác', name: 'Sản phẩm khác', icon: <Package size={20} /> }
-  ];
+  const uniqueFields = Array.from(new Set(products.map(p => p.field).filter(Boolean)));
+  const categories = uniqueFields.map((fld) => ({
+    id: fld,
+    name: fld,
+    icon: getCategoryIcon(fld)
+  }));
 
-  const allDynamicFields = ['Tất cả', ...Array.from(new Set(products.map(p => p.field)))];
+  const allDynamicFields = ['Tất cả', ...uniqueFields];
 
   // Prioritize active category products; in "Xem tất cả" show filtered or entire catalog in horizontal carousel
   const categoryProducts = products.filter(p => p.field === activeCategory);
@@ -68,17 +86,27 @@ export const ProductSelectorCard = ({
     };
   }, [displayProducts.length, activeCategory, showAllProducts, allFilterField]);
 
+  // Sync category immediately when customer asks or picks a field in chat
+  useEffect(() => {
+    if (!externalField) return;
+    if (externalField === 'Tất cả') {
+      setShowAllProducts(true);
+      setAllFilterField('Tất cả');
+    } else {
+      setShowAllProducts(false);
+      setActiveCategory(externalField);
+    }
+    if (carouselRef.current) {
+      carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  }, [externalField, externalFieldTick]);
+
   // Auto-sync category & scroll selected card into view when AI picks a product
   useEffect(() => {
     if (!selectedProduct) return;
     const isInMainCategories = categories.some(c => c.id === selectedProduct.field);
-    if (!showAllProducts && selectedProduct.field && selectedProduct.field !== activeCategory) {
-      if (isInMainCategories) {
-        setActiveCategory(selectedProduct.field);
-      } else {
-        setShowAllProducts(true);
-        setAllFilterField(selectedProduct.field);
-      }
+    if (!showAllProducts && selectedProduct.field && selectedProduct.field !== activeCategory && isInMainCategories) {
+      setActiveCategory(selectedProduct.field);
     }
     const cardEl = cardRefs.current[selectedProduct.id];
     if (cardEl) {
@@ -147,7 +175,7 @@ export const ProductSelectorCard = ({
           <span>Chọn lĩnh vực / sản phẩm</span>
         </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        <div className="flex items-stretch gap-2 overflow-x-auto no-scrollbar pb-1">
           {categories.map((cat) => {
             const isActive = activeCategory === cat.id;
             return (
@@ -158,14 +186,14 @@ export const ProductSelectorCard = ({
                   setShowAllProducts(false);
                   if (carouselRef.current) carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
                 }}
-                className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all text-center group ${
+                className={`flex-shrink-0 min-w-[106px] max-w-[138px] flex flex-col items-center justify-center p-2 rounded-2xl border transition-all text-center group ${
                   !showAllProducts && isActive
                     ? 'bg-gradient-to-b from-cyan-950/90 to-[#0A1A3A] border-cyan-400 shadow-[0_0_18px_rgba(0,240,255,0.4)] scale-[1.02]'
                     : 'bg-[#091530]/80 border-slate-700/60 hover:border-cyan-500/40 hover:bg-[#0c1c40]'
                 }`}
               >
                 <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 transition-colors ${
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center mb-1 transition-colors ${
                     !showAllProducts && isActive
                       ? 'text-cyan-300 bg-cyan-500/20 shadow-inner'
                       : 'text-slate-400 group-hover:text-cyan-400 bg-slate-800/60'
@@ -174,7 +202,7 @@ export const ProductSelectorCard = ({
                   {cat.icon}
                 </div>
                 <span
-                  className={`text-[11px] font-medium leading-tight ${
+                  className={`text-[11px] font-medium leading-tight line-clamp-2 ${
                     !showAllProducts && isActive ? 'text-white font-bold' : 'text-slate-300 group-hover:text-slate-100'
                   }`}
                 >

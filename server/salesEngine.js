@@ -282,6 +282,58 @@ function findMatchingProducts(normMsg, allProducts) {
 }
 
 /**
+ * Detect which product field (category) in the live catalog the customer is asking about.
+ */
+function findMatchingField(normMsg, allProducts) {
+  if (!normMsg) return null;
+  const fields = [...new Set(allProducts.map((p) => p.field).filter(Boolean))];
+
+  // 1. Direct normalized field name match
+  for (const f of fields) {
+    if (normMsg.includes(removeVietnameseTones(f))) {
+      return f;
+    }
+  }
+
+  // 2. Domain keyword mapping matched against existing catalog fields
+  const fieldHints = [
+    { match: ['may dem tien', 'dem tien', 'xiudun', '2166', '6688', '9999'], fieldPattern: 'may dem tien' },
+    { match: ['tra thuong hang', 'doi dep', 'oolong', 'hoang tra', 'hac tra', 'hong tra', 'tra xanh', 'ngu vi tra', 'tra'], fieldPattern: 'tra thuong hang' },
+    { match: ['giai phap ai', 'nen tang', 'chatbot', 'humanoid', '33 ky nang', 'ky nang'], fieldPattern: 'giai phap ai' },
+    { match: ['bat dong san', 'nghi duong', 'biet thu', 'villa', 'eco-villa', 'bao loc'], fieldPattern: 'bat dong san' },
+    { match: ['van phong', 'may in', 'canon', 'lbp'], fieldPattern: 'thiet bi van phong' },
+    { match: ['cong nghe', 'laptop', 'dell', 'vostro', 'may tinh'], fieldPattern: 'thiet bi cong nghe' },
+    { match: ['bao tri', 'bao duong', 've sinh may', 'sua chua'], fieldPattern: 'dich vu bao tri' },
+    { match: ['ket sat', 'bofa', 'van tay', 'san pham khac'], fieldPattern: 'san pham khac' }
+  ];
+
+  for (const hint of fieldHints) {
+    if (hint.match.some((kw) => normMsg.includes(kw))) {
+      const found = fields.find((f) => removeVietnameseTones(f).includes(hint.fieldPattern));
+      if (found) return found;
+    }
+  }
+
+  return null;
+}
+
+const CATALOG_OVERVIEW_KEYWORDS = [
+  'ban gi',
+  'ban nhung gi',
+  'co nhung gi',
+  'co gi ban',
+  'san pham gi',
+  'san pham nao',
+  'danh muc',
+  'linh vuc',
+  'xem tat ca'
+];
+
+function isCatalogOverviewQuery(normMsg) {
+  return CATALOG_OVERVIEW_KEYWORDS.some((k) => normMsg.includes(k));
+}
+
+/**
  * Build a clean, persuasive side-by-side comparison using live specs from DB.
  */
 function buildProductComparisonReply(productsToCompare, ownerName) {
@@ -384,10 +436,11 @@ export class SalesEngine {
       }
     }
 
-    // 5. Resolve referenced product & quantity from text or selection
+    // 5. Resolve referenced field, product & quantity from text or selection
     const normMessage = removeVietnameseTones(message || '');
     const normAction = removeVietnameseTones(actionType || '');
     const matchedFromText = findMatchingProducts(normMessage, allProducts);
+    const matchedField = findMatchingField(normMessage, allProducts);
     const activeProduct = matchedFromText[0] || selectedProduct || null;
     const explicitQty = extractExplicitQuantity(normMessage);
     const detectedQty = explicitQty ?? 1;
@@ -549,6 +602,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         normMessage,
         allProducts,
         matchedFromText,
+        matchedField,
         selectedProduct,
         activeProduct,
         actionType,
@@ -580,6 +634,28 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('chu nhan') ||
       normMessage.includes('cho xin so');
 
+    const asksGeneralCatalog = isCatalogOverviewQuery(normMessage);
+    const hasBudgetQuery = Boolean(extractBudget(normMessage));
+    const hasCompareQuery = normMessage.includes('so sanh') || normMessage.includes('khac nhau');
+
+    const revealCatalog =
+      !isNonProductIntent &&
+      (Boolean(matchedField) ||
+        matchedFromText.length > 0 ||
+        hasBudgetQuery ||
+        hasCompareQuery ||
+        asksGeneralCatalog ||
+        Boolean(actionType) ||
+        Boolean(nextOrderFlow));
+
+    const recommendedProduct = isNonProductIntent
+      ? null
+      : matchedFromText[0] || (matchedField ? allProducts.find((p) => p.field === matchedField) || null : null);
+
+    const recommendedField = isNonProductIntent
+      ? null
+      : matchedField || matchedFromText[0]?.field || (asksGeneralCatalog ? 'Tất cả' : null);
+
     return {
       success: true,
       conversationId: convId,
@@ -587,8 +663,10 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       reply: replyText,
       leadCreated,
       orderFlow: nextOrderFlow,
-      recommendedProduct: isNonProductIntent ? null : (matchedFromText[0] || null),
-      botState: leadCreated ? 'success' : (actionType === 'Đặt mua ngay' ? 'speaking' : 'speaking')
+      revealCatalog,
+      recommendedField,
+      recommendedProduct,
+      botState: leadCreated ? 'success' : 'speaking'
     };
   }
 
@@ -788,6 +866,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     normMessage,
     allProducts,
     matchedFromText,
+    matchedField,
     selectedProduct,
     activeProduct,
     actionType,
@@ -945,13 +1024,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     }
 
     // 8. Catalog Overview / What do you sell? ("co nhung gi", "ban gi", "danh muc")
-    if (
-      normMessage.includes('ban gi') ||
-      normMessage.includes('co nhung gi') ||
-      normMessage.includes('san pham nao') ||
-      normMessage.includes('danh muc') ||
-      normMessage.includes('linh vuc')
-    ) {
+    if (!matchedField && isCatalogOverviewQuery(normMessage)) {
       const fields = [...new Set(allProducts.map((p) => p.field))];
       const overview = fields
         .map((f) => {
@@ -960,7 +1033,22 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           return `• **${f}:** ${names}${items.length > 3 ? ` và ${items.length - 3} mẫu khác` : ''}`;
         })
         .join('\n');
-      return `Dạ chào anh/chị! Tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Hiện hệ thống đang phân phối **${allProducts.length} sản phẩm & giải pháp** đã qua kiểm duyệt ở các lĩnh vực:\n\n${overview}\n\nAnh/chị đang muốn tìm hiểu lĩnh vực nào hoặc ngân sách khoảng bao nhiêu để tôi lọc mẫu chuẩn nhất ạ?`;
+      return `Dạ chào anh/chị! Tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Em đã mở toàn bộ danh mục sản phẩm bên **Cột 2** để anh/chị dễ lướt xem trực quan:\n\n${overview}\n\nAnh/chị đang muốn tìm hiểu **lĩnh vực nào** hoặc ngân sách khoảng bao nhiêu để em lọc mẫu chuẩn nhất ạ?`;
+    }
+
+    // 8B. Field / Category Discovery ("cho xem may dem tien", "tu van tra", "xem ket sat")
+    if (matchedField && !isExplicitButtonAction) {
+      const fieldProducts = allProducts.filter((p) => p.field === matchedField);
+      const asksSpecificModel = matchedFromText.length > 0 && normMessage.split(/\s+/).some((t) => /\d{3,}/.test(t));
+      if (fieldProducts.length > 0 && !asksSpecificModel) {
+        const previewLines = fieldProducts
+          .slice(0, 4)
+          .map((p, i) => `${i + 1}. **${p.name}** — **${formatPrice(p)}**\n   • ${p.description}`)
+          .join('\n');
+        const extraNote =
+          fieldProducts.length > 4 ? `\n*(Và ${fieldProducts.length - 4} mẫu khác nữa đang hiển thị ở bảng bên phải ạ)*` : '';
+        return `Dạ tuyệt vời ạ! Em đã mở ngay bộ sưu tập **${matchedField}** ở khung sản phẩm bên phải (**Cột 2**) để anh/chị lướt xem hình ảnh và chọn trực tiếp:\n\n${previewLines}${extraNote}\n\nAnh/chị ưng mẫu nào có thể bấm vào thẻ bên phải để **Xem chi tiết / Đặt mua**, hoặc nhắn em **so sánh các mẫu** này nhé ạ!`;
+      }
     }
 
     // 9. Smart Product Match from Customer's Text (Prioritize what the user ACTUALLY typed!)

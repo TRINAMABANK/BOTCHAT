@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import HumanoidChatCard from './components/HumanoidChatCard';
 import ProductSelectorCard from './components/ProductSelectorCard';
 import BottomControls from './components/BottomControls';
@@ -17,6 +17,14 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+const createWelcomeMessage = () => ({
+  id: `msg_welcome_${Date.now()}`,
+  senderType: 'assistant',
+  content:
+    'Xin chào anh/chị! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng thông minh của chủ nhân.\n\nHôm nay anh/chị đang quan tâm **lĩnh vực sản phẩm nào**? Hãy **chọn nhanh lĩnh vực bên dưới** hoặc nhắn câu hỏi bất kỳ (ví dụ: *"Cho xem máy đếm tiền dưới 5 triệu"*, *"Tư vấn trà thượng hạng"*), em sẽ mở ngay bộ sản phẩm trực quan ở **Cột 2** để anh/chị xem và lựa chọn nhé!',
+  createdAt: new Date().toISOString()
+});
+
 export const App = () => {
   // Chat & Conversation States
   const [conversationId, setConversationId] = useState(null);
@@ -27,6 +35,10 @@ export const App = () => {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [orderStep, setOrderStep] = useState(null);
   const [inputFocusTick, setInputFocusTick] = useState(0);
+  const [isCatalogRevealed, setIsCatalogRevealed] = useState(false);
+  const [activeCatalogField, setActiveCatalogField] = useState(null);
+  const [fieldSyncTick, setFieldSyncTick] = useState(0);
+  const skipStreamingRef = useRef(false);
 
   // Products & Hierarchy
   const [products, setProducts] = useState([]);
@@ -59,33 +71,24 @@ export const App = () => {
     }
     setConversationId(currentConvId);
 
-    // Initial mock demo messages matching the approved mockup exactly
+    // Smart welcoming opening (focused Column 1 until customer asks/picks a product field)
     const saved = localStorage.getItem('triai_chat_history');
-    if (!saved || JSON.parse(saved).length === 0) {
-      const initialMessages = [
-        {
-          id: 'msg_init_1',
-          senderType: 'assistant',
-          content: 'Xin chào anh/chị! 👋\nTôi là TRÍ AI SALES ROBOT, trợ lý bán hàng của chủ nhân.\nTôi có thể giúp anh/chị:\n✅ Tư vấn sản phẩm phù hợp\n✅ Cung cấp thông tin, báo giá\n✅ So sánh các mẫu\n✅ Ghi nhận yêu cầu để chủ nhân liên hệ trực tiếp.',
-          createdAt: new Date(Date.now() - 120000).toISOString()
-        },
-        {
-          id: 'msg_init_2',
-          senderType: 'user',
-          content: 'Tôi muốn tìm máy đếm tiền.',
-          createdAt: new Date(Date.now() - 60000).toISOString()
-        },
-        {
-          id: 'msg_init_3',
-          senderType: 'assistant',
-          content: 'Dạ, anh/chị đang quan tâm đến máy đếm tiền. Bên em có nhiều dòng máy chính hãng, phát hiện tiền giả, đếm nhanh và chính xác. Anh/chị muốn xem các mẫu nổi bật hay cần tư vấn theo nhu cầu sử dụng?',
-          createdAt: new Date().toISOString()
-        }
-      ];
+    let parsedSaved = [];
+    try {
+      parsedSaved = saved ? JSON.parse(saved) : [];
+    } catch {
+      parsedSaved = [];
+    }
+    const isLegacyMockOnly =
+      parsedSaved.length > 0 &&
+      parsedSaved.every((m) => ['msg_init_1', 'msg_init_2', 'msg_init_3'].includes(m.id));
+
+    if (parsedSaved.length === 0 || isLegacyMockOnly) {
+      const initialMessages = [createWelcomeMessage()];
       setMessages(initialMessages);
       localStorage.setItem('triai_chat_history', JSON.stringify(initialMessages));
     } else {
-      setMessages(JSON.parse(saved));
+      setMessages(parsedSaved);
     }
 
     fetchSettings();
@@ -182,6 +185,13 @@ export const App = () => {
       setIsStreaming(true);
       setBotState('speaking');
 
+      if (data.revealCatalog) {
+        setIsCatalogRevealed(true);
+      }
+      if (data.recommendedField) {
+        setActiveCatalogField(data.recommendedField);
+        setFieldSyncTick((t) => t + 1);
+      }
       if (data.recommendedProduct) {
         setSelectedProduct(data.recommendedProduct);
       }
@@ -190,6 +200,7 @@ export const App = () => {
       const fullReply = data.reply;
       const replyWords = fullReply.split(' ');
       const assistantMsgId = data.messageId || `msg_a_${Date.now()}`;
+      skipStreamingRef.current = false;
 
       if (voiceEnabled && typeof window !== 'undefined' && 'speechSynthesis' in window) {
         try {
@@ -197,7 +208,7 @@ export const App = () => {
           const plain = fullReply.replace(/[*_`#]/g, '');
           const utter = new SpeechSynthesisUtterance(plain);
           utter.lang = 'vi-VN';
-          utter.rate = 1.05;
+          utter.rate = 1.0;
           window.speechSynthesis.speak(utter);
         } catch {}
       }
@@ -215,11 +226,19 @@ export const App = () => {
 
       let accumulated = '';
       for (let i = 0; i < replyWords.length; i++) {
-        accumulated += (i > 0 ? ' ' : '') + replyWords[i];
+        if (skipStreamingRef.current) {
+          setMessages(prev =>
+            prev.map(m => (m.id === assistantMsgId ? { ...m, content: fullReply } : m))
+          );
+          break;
+        }
+        const word = replyWords[i];
+        accumulated += (i > 0 ? ' ' : '') + word;
         setMessages(prev =>
           prev.map(m => (m.id === assistantMsgId ? { ...m, content: accumulated } : m))
         );
-        await new Promise(r => setTimeout(r, 14));
+        const wordDelay = /[.!?]\**$|\n/.test(word) ? 150 : /[,;:]\**$/.test(word) ? 110 : 68;
+        await new Promise(r => setTimeout(r, wordDelay));
       }
 
       setIsStreaming(false);
@@ -344,16 +363,23 @@ export const App = () => {
       localStorage.setItem('triai_conversation_id', newConvId);
       localStorage.removeItem('triai_chat_history');
 
-      const initialWelcome = {
-        id: `msg_init_${Date.now()}`,
-        senderType: 'assistant',
-        content: 'Xin chào anh/chị! 👋\nTôi là TRÍ AI SALES ROBOT, trợ lý bán hàng của chủ nhân.\nTôi có thể giúp anh/chị:\n✅ Tư vấn sản phẩm phù hợp\n✅ Cung cấp thông tin, báo giá\n✅ So sánh các mẫu\n✅ Ghi nhận yêu cầu để chủ nhân liên hệ trực tiếp.',
-        createdAt: new Date().toISOString()
-      };
+      const initialWelcome = createWelcomeMessage();
       setMessages([initialWelcome]);
       setBotState('idle');
       setOrderStep(null);
+      setIsCatalogRevealed(false);
+      setActiveCatalogField(null);
     }
+  };
+
+  const availableFields = Array.from(new Set(products.map(p => p.field).filter(Boolean)));
+
+  const handlePickFieldInChat = (fieldName) => {
+    setActiveCatalogField(fieldName);
+    setFieldSyncTick((t) => t + 1);
+    const firstInField = products.find((p) => p.field === fieldName) || null;
+    if (firstInField) setSelectedProduct(firstInField);
+    handleSendMessage(`Tôi muốn xem các sản phẩm thuộc lĩnh vực ${fieldName}.`, firstInField, null);
   };
 
   return (
@@ -438,10 +464,18 @@ export const App = () => {
         </div>
       </header>
 
-      {/* 2. MAIN TWO-COLUMN ARENA (50% - 50% Desktop Layout) */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 md:p-6 flex flex-col justify-between">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 items-stretch">
-          {/* CỘT 1: HUMANOID AI ROBOT & CHAT TƯ VẤN (Exact 50% width on Desktop) */}
+      {/* 2. MAIN PROGRESSIVE ARENA (Centered Column 1 first -> Smoothly expands to 2 Columns on field discovery) */}
+      <main
+        className={`flex-1 w-full mx-auto p-3 md:p-6 flex flex-col justify-between transition-all duration-500 ${
+          isCatalogRevealed ? 'max-w-7xl' : 'max-w-4xl'
+        }`}
+      >
+        <div
+          className={`grid gap-4 flex-1 items-stretch ${
+            isCatalogRevealed ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
+          }`}
+        >
+          {/* CỘT 1: HUMANOID AI ROBOT & CHAT TƯ VẤN */}
           <section className="flex flex-col h-full min-w-0">
             <HumanoidChatCard
               messages={messages}
@@ -449,6 +483,10 @@ export const App = () => {
               isStreaming={isStreaming}
               botState={botState}
               voiceEnabled={voiceEnabled}
+              availableFields={availableFields}
+              isCatalogRevealed={isCatalogRevealed}
+              onPickField={handlePickFieldInChat}
+              onSkipStreaming={() => { skipStreamingRef.current = true; }}
               onToggleVoice={() => {
                 if (voiceEnabled && typeof window !== 'undefined' && 'speechSynthesis' in window) {
                   window.speechSynthesis.cancel();
@@ -461,19 +499,23 @@ export const App = () => {
             />
           </section>
 
-          {/* CỘT 2: PRODUCT SELECTOR & NHU CẦU (Exact 50% width on Desktop) */}
-          <section className="hidden lg:flex flex-col h-full min-w-0">
-            <ProductSelectorCard
-              products={products}
-              selectedProduct={selectedProduct}
-              onSelectProduct={handleSelectProduct}
-              onTriggerAction={handleTriggerAction}
-              onViewProductDetail={handleViewProductDetail}
-            />
-          </section>
+          {/* CỘT 2: PRODUCT SELECTOR & NHU CẦU (Tự động xuất hiện sau khi chọn/hỏi lĩnh vực) */}
+          {isCatalogRevealed && (
+            <section className="hidden lg:flex flex-col h-full min-w-0 animate-catalog-reveal">
+              <ProductSelectorCard
+                products={products}
+                selectedProduct={selectedProduct}
+                externalField={activeCatalogField}
+                externalFieldTick={fieldSyncTick}
+                onSelectProduct={handleSelectProduct}
+                onTriggerAction={handleTriggerAction}
+                onViewProductDetail={handleViewProductDetail}
+              />
+            </section>
+          )}
         </div>
 
-        {/* 3. SYMMETRICAL BOTTOM CONTROLS (Input Left + Royal Purple CTA Right) */}
+        {/* 3. SYMMETRICAL BOTTOM CONTROLS */}
         <BottomControls
           onSendMessage={handleSendMessage}
           onOpenPhoneModal={() => setIsPhoneModalOpen(true)}
@@ -481,6 +523,7 @@ export const App = () => {
           isListening={botState === 'listening'}
           isThinking={isThinking}
           isStreaming={isStreaming}
+          isCatalogRevealed={isCatalogRevealed}
           orderStep={orderStep}
           focusTick={inputFocusTick}
         />
@@ -489,10 +532,13 @@ export const App = () => {
       {/* Mobile Bottom Responsive Drawer */}
       <MobileDrawer
         isOpen={isMobileDrawerOpen}
+        isCatalogRevealed={isCatalogRevealed}
         onOpen={() => setIsMobileDrawerOpen(true)}
         onClose={() => setIsMobileDrawerOpen(false)}
         products={products}
         selectedProduct={selectedProduct}
+        externalField={activeCatalogField}
+        externalFieldTick={fieldSyncTick}
         onSelectProduct={handleSelectProduct}
         onTriggerAction={handleTriggerAction}
         onViewProductDetail={handleViewProductDetail}
@@ -504,10 +550,10 @@ export const App = () => {
         onClose={() => setIsProductDetailOpen(false)}
         product={detailProduct || selectedProduct}
         onConsult={(prod) => {
-          handleSendMessage(`Tôi muốn tư vấn chi tiết về máy ${prod.name}`, prod, 'Tìm hiểu sản phẩm');
+          handleSendMessage(`Tôi muốn tư vấn chi tiết về ${prod.name}`, prod, 'Tìm hiểu sản phẩm');
         }}
         onOrder={(prod) => {
-          handleSendMessage(`Tôi muốn đặt mua ${prod.name}`, prod, 'Đặt mua');
+          handleTriggerAction('Đặt mua ngay', prod);
         }}
         onCallOwner={(prod) => {
           setSelectedProduct(prod);

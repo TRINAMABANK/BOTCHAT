@@ -4,18 +4,21 @@ import ProductSelectorCard from './ProductSelectorCard';
 
 export const MobileDrawer = ({
   isOpen = false,
+  isCatalogRevealed = false,
   onClose,
   onOpen,
   products = [],
   selectedProduct = null,
+  externalField = null,
+  externalFieldTick = 0,
   onSelectProduct,
   onTriggerAction,
   onViewProductDetail
 }) => {
   return (
     <>
-      {/* Floating Bottom Action Pill (Visible on Mobile only when drawer is closed) */}
-      {!isOpen && (
+      {/* Floating Bottom Action Pill (Visible on Mobile once catalog is revealed by chat/field choice) */}
+      {!isOpen && isCatalogRevealed && (
         <div className="lg:hidden fixed bottom-4 inset-x-4 z-40 flex justify-center">
           <button
             onClick={onOpen}
@@ -53,6 +56,8 @@ export const MobileDrawer = ({
               <ProductSelectorCard
                 products={products}
                 selectedProduct={selectedProduct}
+                externalField={externalField}
+                externalFieldTick={externalFieldTick}
                 onSelectProduct={onSelectProduct}
                 onTriggerAction={(act, prod) => {
                   onClose();

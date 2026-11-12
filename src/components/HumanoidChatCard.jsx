@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Mic, MessageSquare, User, CheckCircle2, RotateCcw, Volume2, VolumeX, Sparkles } from 'lucide-react';
+import { Mic, MessageSquare, User, CheckCircle2, RotateCcw, Volume2, VolumeX, Sparkles, Layers, FastForward } from 'lucide-react';
 import AudioWaveform from './AudioWaveform';
 
 /**
@@ -49,6 +49,10 @@ export const HumanoidChatCard = ({
   isStreaming = false,
   botState = 'idle',
   voiceEnabled = false,
+  availableFields = [],
+  isCatalogRevealed = false,
+  onPickField,
+  onSkipStreaming,
   onToggleVoice,
   onQuickPrompt,
   onResetChat,
@@ -131,6 +135,18 @@ export const HumanoidChatCard = ({
           </div>
 
           <div className="flex items-center space-x-1.5">
+            {isStreaming && onSkipStreaming && (
+              <button
+                type="button"
+                onClick={onSkipStreaming}
+                className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 text-[11px] text-cyan-300 border border-cyan-400/50 transition-colors animate-pulse"
+                title="Hiển thị toàn bộ nội dung ngay"
+              >
+                <FastForward size={11} />
+                <span className="hidden sm:inline">Hiện nhanh</span>
+              </button>
+            )}
+
             {onToggleVoice && (
               <button
                 onClick={onToggleVoice}
@@ -236,11 +252,41 @@ export const HumanoidChatCard = ({
           )}
         </div>
 
+        {/* Dynamic Field Discovery Bar (Guides customer to pick a field & unlocks Column 2!) */}
+        {availableFields.length > 0 && onPickField && (
+          <div className="w-full min-w-0 mt-2 pt-2 border-t border-cyan-500/20">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1">
+                <Layers size={11} className="text-cyan-400" />
+                <span>
+                  {isCatalogRevealed ? 'Đổi nhanh lĩnh vực sản phẩm:' : 'Chọn lĩnh vực để mở sản phẩm trực quan:'}
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+              {availableFields.map((fld) => (
+                <button
+                  key={fld}
+                  type="button"
+                  disabled={isThinking || isStreaming}
+                  onClick={() => onPickField(fld)}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#0b234d] to-[#0a1938] hover:from-cyan-500 hover:to-blue-500 hover:text-slate-950 border border-cyan-400/45 hover:border-cyan-300 text-[11px] font-bold text-cyan-100 whitespace-nowrap transition-all shadow-[0_0_12px_rgba(0,240,255,0.14)] hover:shadow-[0_0_18px_rgba(0,240,255,0.45)] active:scale-95 disabled:opacity-50"
+                >
+                  {fld}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Smart Quick-Prompt Chips */}
         {onQuickPrompt && (
-          <div className="w-full min-w-0 mt-2 pt-2 border-t border-cyan-500/15 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="w-full min-w-0 mt-1.5 pt-1.5 border-t border-cyan-500/15 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             <Sparkles size={12} className="text-cyan-400 flex-shrink-0" />
-            {QUICK_SUGGESTIONS.map((q) => (
+            {(isCatalogRevealed
+              ? QUICK_SUGGESTIONS
+              : ['Bên em đang bán những gì?', 'Máy nào giá dưới 5 triệu?', 'So sánh 3 mẫu máy đếm tiền', 'Xin số điện thoại chủ nhân']
+            ).map((q) => (
               <button
                 key={q}
                 type="button"
