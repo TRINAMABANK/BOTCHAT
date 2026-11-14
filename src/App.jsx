@@ -264,7 +264,6 @@ export const App = () => {
           content: '',
           metadata: {
             leadCreated: data.leadCreated,
-            products: data.products || (data.recommendedProduct ? [data.recommendedProduct] : []),
             recommendedProduct: data.recommendedProduct
           },
           createdAt: new Date().toISOString()
