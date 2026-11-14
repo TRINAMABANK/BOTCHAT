@@ -92,7 +92,7 @@ app.get('/api/settings', async (req, res) => {
     const envGemini = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     const hasGeminiEnvKey = Boolean(envGemini && !envGemini.includes('your_') && envGemini.trim().length > 8);
     settings.has_gemini_key = (hasGeminiDbKey || hasGeminiEnvKey) ? '1' : '0';
-    if (!settings.gemini_model) settings.gemini_model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    if (!settings.gemini_model) settings.gemini_model = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
     if (!settings.llm_provider) settings.llm_provider = 'gemini';
 
     res.json({ success: true, settings });
@@ -136,7 +136,7 @@ app.post('/api/settings/test-gemini', async (req, res) => {
       const row = await db.get("SELECT value FROM bot_settings WHERE key = 'gemini_api_key'");
       apiKey = row?.value || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     }
-    const result = await testGeminiConnection(apiKey, model || 'gemini-1.5-flash');
+    const result = await testGeminiConnection(apiKey, model || 'gemini-flash-lite-latest');
     res.json({
       success: true,
       message: `Kết nối Google Gemini AI thành công! (Model: ${result.model})`,
@@ -216,7 +216,7 @@ app.post('/api/products/analyze-url', async (req, res) => {
     const geminiSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'gemini_api_key'");
     const modelSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'gemini_model'");
     const geminiApiKey = geminiSetting?.value || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    const geminiModel = modelSetting?.value || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const geminiModel = modelSetting?.value || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 
     console.log(`[AI CRAWLER] Fetching product webpage: ${targetUrl}`);
 

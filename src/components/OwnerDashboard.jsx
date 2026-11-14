@@ -1308,13 +1308,15 @@ export const OwnerDashboard = ({
                         Model Google Gemini:
                       </label>
                       <select
-                        value={settingsForm.gemini_model || 'gemini-1.5-flash'}
+                        value={settingsForm.gemini_model || 'gemini-flash-lite-latest'}
                         onChange={(e) => setSettingsForm({ ...settingsForm, gemini_model: e.target.value })}
                         className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-cyan-300 font-semibold text-sm outline-none focus:border-cyan-400"
                       >
-                        <option value="gemini-1.5-flash">gemini-1.5-flash (Khuyên dùng - Nhanh & thông minh)</option>
-                        <option value="gemini-2.0-flash">gemini-2.0-flash (Thế hệ mới nhất)</option>
-                        <option value="gemini-1.5-pro">gemini-1.5-pro (Chuyên sâu đa nhiệm)</option>
+                        <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Khuyên dùng - Siêu tốc & ổn định)</option>
+                        <option value="gemini-flash-latest">gemini-flash-latest (Đa năng & thông minh)</option>
+                        <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Thế hệ 3.5)</option>
+                        <option value="gemini-3.7-flash">gemini-3.7-flash (Phiên bản cao cấp mới nhất)</option>
+                        <option value="gemini-pro-latest">gemini-pro-latest (Chuyên sâu phân tích đa nhiệm)</option>
                       </select>
                     </div>
 

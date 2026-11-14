@@ -81,7 +81,7 @@ export async function callGemini(promptOrContents, options = {}) {
     return null;
   }
 
-  const model = options.model || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  const requestedModel = options.model || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
   const temperature = options.temperature !== undefined ? options.temperature : 0.4;
   const maxOutputTokens = options.maxOutputTokens || 2048;
   const jsonMode = Boolean(options.jsonMode);
@@ -121,30 +121,63 @@ export async function callGemini(promptOrContents, options = {}) {
     bodyPayload.generationConfig.responseMimeType = 'application/json';
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
+  // Fallback candidate list to automatically handle model deprecation (404) or overload (503)
+  const candidateModels = [
+    requestedModel,
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
+    'gemini-3.7-flash',
+    'gemini-3.8-flash',
+    'gemini-pro-latest'
+  ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(bodyPayload)
-  });
+  let lastError = null;
+  for (const model of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Google Gemini API HTTP ${res.status}: ${errText}`);
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyPayload)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        if (res.status === 404 || res.status === 503) {
+          console.warn(`[GEMINI API] Model "${model}" returned HTTP ${res.status}. Auto-trying next candidate model...`);
+          lastError = new Error(`Google Gemini API (${model}) HTTP ${res.status}: ${errText}`);
+          continue;
+        }
+        throw new Error(`Google Gemini API (${model}) HTTP ${res.status}: ${errText}`);
+      }
+
+      const data = await res.json();
+      const candidate = data.candidates?.[0];
+      const textOutput = candidate?.content?.parts?.[0]?.text || null;
+      if (textOutput !== null) {
+        return textOutput;
+      }
+    } catch (err) {
+      lastError = err;
+      if (err.message?.includes('HTTP 404') || err.message?.includes('HTTP 503')) {
+        continue;
+      }
+      throw err;
+    }
   }
 
-  const data = await res.json();
-  const candidate = data.candidates?.[0];
-  const textOutput = candidate?.content?.parts?.[0]?.text || null;
-
-  return textOutput;
+  if (lastError) {
+    throw lastError;
+  }
+  return null;
 }
 
 /**
  * Test connectivity with Google Gemini API.
  */
-export async function testGeminiConnection(apiKey, model = 'gemini-1.5-flash') {
+export async function testGeminiConnection(apiKey, model = 'gemini-flash-lite-latest') {
   if (!apiKey || apiKey.trim().length < 8) {
     throw new Error('API Key của Google Gemini không được để trống hoặc quá ngắn.');
   }
@@ -168,7 +201,7 @@ export async function analyzeProductFromWebpage(html, sourceUrl, options = {}) {
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_API_KEY;
 
-  const model = options.model || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  const model = options.model || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 
   if (apiKey && apiKey.trim().length > 10 && !apiKey.includes('your_')) {
     try {
