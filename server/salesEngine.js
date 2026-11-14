@@ -70,6 +70,13 @@ function formatVnd(amount) {
   return `${Math.round(amount).toLocaleString('vi-VN')} ₫`;
 }
 
+function formatShortDesc(desc, maxLen = 85) {
+  if (!desc) return '';
+  const firstLine = desc.split(/[\r\n]+/)[0].replace(/^[-•*]\s*/, '').trim();
+  if (firstLine.length <= maxLen) return firstLine;
+  return firstLine.slice(0, maxLen).trim() + '...';
+}
+
 /**
  * Detect prompt injection or unauthorized price/secret tampering attempts.
  */
@@ -434,28 +441,11 @@ function buildProductComparisonReply(productsToCompare, ownerName, customerRef =
   const capRef = capitalizeFirst(customerRef);
   const sorted = [...productsToCompare].sort((a, b) => (a.price || 0) - (b.price || 0));
   const lines = sorted.map((p, idx) => {
-    const specs = parseSpecs(p);
-    const specSummary = Object.entries(specs)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(' • ');
-    return `${idx + 1}. **${p.name}** — **${formatPrice(p)}**\n   • Điểm mạnh: ${p.description}\n   • Thông số: ${specSummary || 'Đang cập nhật'}`;
+    const short = formatShortDesc(p.description, 75);
+    return `${idx + 1}. **${p.name}** — **${formatPrice(p)}**${short ? ` (${short})` : ''}`;
   });
 
-  let recommendation = '';
-  const hasMoneyCounters = sorted.some((p) => (p.field || '').includes('Máy đếm tiền'));
-  if (hasMoneyCounters && sorted.length >= 2) {
-    const cheapest = sorted[0];
-    const highest = sorted[sorted.length - 1];
-    const diff = (highest.price || 0) - (cheapest.price || 0);
-    recommendation = `\n\n💡 **Tư vấn chọn nhanh từ chuyên gia AI:**\n` +
-      `• Cần **kinh tế, đếm nhanh chuẩn xác** → chọn **${cheapest.name}** (${formatPrice(cheapest)}).\n` +
-      (sorted.length >= 3
-        ? `• Cần **phát hiện tiền giả siêu chuẩn, băng tải dài cho cửa hàng/thu ngân** → chọn **${sorted[1].name}** (${formatPrice(sorted[1])}).\n`
-        : '') +
-      `• Cần **đếm đa ngoại tệ USD/EUR/GBP bằng cảm biến CIS kép & bảo hành 36 tháng** (tiệm vàng, ngân hàng, doanh nghiệp lớn) → chọn **${highest.name}** (chênh lệch ${formatVnd(diff)} so với mẫu cơ bản nhưng vượt trội về công nghệ).`;
-  }
-
-  return `Dạ, tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Dưới đây là **bảng so sánh chi tiết** các mẫu phù hợp để ${customerRef} dễ quyết định:\n\n${lines.join('\n\n')}${recommendation}\n\n${capRef} đang thiên về mẫu nào để tôi gửi thông số sâu hơn hoặc kết nối chủ nhân tư vấn trực tiếp nhé?`;
+  return `Dạ, tôi xin gửi ${customerRef} so sánh nhanh các mẫu đang có:\n\n${lines.join('\n')}\n\nThông số chi tiết và hình ảnh từng mẫu đã được mở sẵn ở **Cột 2**. ${capRef} đang quan tâm mẫu nào để tôi tư vấn sâu hơn ạ?`;
 }
 
 export class SalesEngine {
@@ -675,15 +665,14 @@ export class SalesEngine {
           .join('\n');
 
         const systemPrompt = `
-Bạn là ${botName}, xưng hô là "Tôi" ("Tôi là trợ lý bán hàng của chủ nhân ${ownerName}").
-Phong cách: ${tone}. Tư vấn thông minh, sắc bén, thấu hiểu nhu cầu khách hàng và trả lời tự nhiên bằng tiếng Việt.
-
-QUY TẮC XƯNG HÔ BẮT BUỘC:
-- Tuyệt đối KHÔNG tự ý gọi khách hàng là "anh/chị".
-- ${
+Bạn là ${botName}, trợ lý bán hàng của chủ nhân ${ownerName}.
+YÊU CẦU PHONG CÁCH BẮT BUỘC:
+- NGẮN GỌN VÀ LỊCH SỰ: Luôn mở đầu lễ độ (dùng "Dạ", "Dạ cảm ơn"). Trả lời ngắn gọn súc tích từ 2 đến 4 câu, đi thẳng vào trọng tâm câu hỏi.
+- KHÔNG viết dài dòng hoặc chép lại toàn bộ thông số kỹ thuật vì khách hàng xem được trực quan ở Cột 2.
+- QUY TẮC XƯNG HÔ: Xưng "tôi", tuyệt đối KHÔNG tự ý gọi khách hàng là "anh/chị". ${
           hasAddressingInfo
-            ? `Khách hàng đã cho biết thông tin, hãy xưng hô với khách là "${customerRef}".`
-            : `Hiện chưa biết thông tin khách hàng: hãy gọi khách là "bạn" (xưng "tôi") và nhẹ nhàng hỏi: "Xin lỗi, bạn vui lòng cho tôi biết thông tin để thuận tiện xưng hô nhé".`
+            ? `Xưng hô với khách là "${customerRef}".`
+            : `Gọi khách là "bạn" và nhẹ nhàng hỏi: "Dạ xin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!".`
         }
 
 QUY TẮC BẮT BUỘC KHÁC:
@@ -733,7 +722,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       !extractedPhone &&
       !actionType
     ) {
-      replyText = `Cảm ơn **${customerRef}** đã cho tôi biết thông tin! Từ giờ tôi xin phép xưng hô là **tôi** và gọi **${customerRef}** cho thật thân thiện và chu đáo.\n\nHiện **${customerRef}** đang quan tâm tìm hiểu lĩnh vực hay sản phẩm nào để tôi hỗ trợ ngay nhé?`;
+      replyText = `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHiện **${customerRef}** đang cần tìm sản phẩm thuộc lĩnh vực nào để tôi tư vấn ngay ạ?`;
     }
 
     if (!replyText) {
@@ -1045,12 +1034,12 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const normAction = removeVietnameseTones(actionType || '');
     const isExplicitButtonAction = Boolean(actionType);
     const politeAskBanner = shouldAskAddressing
-      ? 'Xin lỗi, bạn vui lòng cho tôi biết thông tin để thuận tiện xưng hô nhé!\n\n'
+      ? 'Dạ xin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\n'
       : '';
 
     // 0. Security & Anti-Prompt-Injection
     if (detectSecurityViolation(normMessage)) {
-      return `Tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Tôi không thể tiết lộ thông tin hệ thống bảo mật nội bộ hoặc thay đổi mức giá đã được quản trị viên phê duyệt.\n\nTôi rất sẵn lòng tư vấn thông số chuẩn xác và mức giá niêm yết chính thức để giúp ${customerRef} chọn sản phẩm phù hợp nhất!`;
+      return `Dạ, tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Tôi xin phép chỉ tư vấn thông tin và giá niêm yết chính thức của các sản phẩm đã được phê duyệt ạ. ${capRef} đang quan tâm sản phẩm nào để tôi hỗ trợ nhé?`;
     }
 
     // 1. Lead Captured Confirmation
@@ -1060,7 +1049,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         detectedQty > 1 && unitPrice > 0
           ? `\n- **Số lượng & Tạm tính:** ${detectedQty} sản phẩm (~${formatVnd(unitPrice * detectedQty)})`
           : '';
-      return `Cảm ơn ${customerRef}! Tôi là trợ lý bán hàng của chủ nhân (${ownerName}).\n\nTôi đã ghi nhận đầy đủ thông tin yêu cầu vào hệ thống CRM:\n- **Khách hàng:** ${leadCreated?.name || 'Quý khách'}\n- **Số điện thoại:** ${extractedPhone}\n- **Sản phẩm quan tâm:** ${activeProduct ? activeProduct.name : 'Tư vấn chuyên sâu'}${qtyLine}\n- **Trạng thái:** NEW – WAITING FOR OWNER CONTACT\n\nChủ nhân sẽ trực tiếp gọi lại tư vấn chu đáo và hỗ trợ ưu đãi tốt nhất cho ${customerRef} trong thời gian sớm nhất.${showHotline ? ` Hotline hỗ trợ nhanh: **${hotline}**.` : ''}`;
+      return `Dạ cảm ơn ${customerRef}! Tôi đã ghi nhận thông tin đặt hàng vào hệ thống:\n- **Sản phẩm:** ${activeProduct ? activeProduct.name : 'Tư vấn chuyên sâu'}${qtyLine}\n- **Số điện thoại:** ${extractedPhone}\n\nChủ nhân (${ownerName}) sẽ trực tiếp liên hệ hỗ trợ ${customerRef} sớm nhất.${showHotline ? ` Hotline: **${hotline}**.` : ''}`;
     }
 
     // 2. Owner Phone / Contact Request
@@ -1073,7 +1062,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normAction.includes('chu nhan') ||
       normMessage.includes('goi lai cho toi')
     ) {
-      return `${politeAskBanner}Tôi là trợ lý bán hàng của chủ nhân (${ownerName}).\n\n${phonePrompt}\n\nNgay khi ${customerRef} để lại số điện thoại, tôi sẽ tạo hồ sơ ưu tiên để chủ nhân trực tiếp liên hệ tư vấn.`;
+      return `${politeAskBanner}Dạ, tôi là trợ lý bán hàng của chủ nhân (${ownerName}). ${phonePrompt}\n\n${capRef} vui lòng để lại số điện thoại để chủ nhân liên hệ trực tiếp nhé!`;
     }
 
     // 3. Explicit Buy / Order Flow fallback
@@ -1088,10 +1077,10 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       const totalEstimate = (targetProd?.price || 0) * detectedQty;
       const qtyText =
         detectedQty > 1
-          ? `- **Số lượng dự kiến:** ${detectedQty} chiếc\n- **Tạm tính theo giá phê duyệt:** **${formatVnd(totalEstimate)}**\n`
+          ? `- **Số lượng:** ${detectedQty} chiếc (~${formatVnd(totalEstimate)})\n`
           : '';
 
-      return `${politeAskBanner}Tuyệt vời! Tôi xin xác nhận sản phẩm ${customerRef} đang quan tâm đặt mua:\n- **Sản phẩm:** ${targetProd.name}\n- **Đơn giá niêm yết phê duyệt:** ${formatPrice(targetProd)}\n${qtyText}\n${capRef} vui lòng nhập số lượng hoặc họ tên & số điện thoại để tôi lên phiếu chuyển chủ nhân xác nhận nhé.`;
+      return `${politeAskBanner}Dạ tuyệt vời! Tôi xin xác nhận sản phẩm ${customerRef} quan tâm đặt mua:\n- **Sản phẩm:** ${targetProd.name}\n- **Đơn giá:** ${formatPrice(targetProd)}\n${qtyText}${capRef} vui lòng cho biết số lượng hoặc để lại SĐT để chủ nhân liên hệ giao hàng nhé.`;
     }
 
     // 4. Comparison Engine (Compare 2+ matched models or all products in same category)
@@ -1153,15 +1142,15 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
 
       if (pool.length === 0) {
         const cheapest = [...allProducts].sort((a, b) => (a.price || 0) - (b.price || 0))[0];
-        return `${politeAskBanner}Tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Trong tầm ngân sách ${customerRef} vừa nêu hiện chưa có sản phẩm khớp trực tiếp trên bảng giá niêm yết.\n\nSản phẩm có mức giá tốt nhất hiện tại là **${cheapest.name}** (${formatPrice(cheapest)}). ${capRef} có thể để lại SĐT để chủ nhân tư vấn giải pháp phù hợp ngân sách hơn nhé!`;
+        return `${politeAskBanner}Dạ, trong tầm giá này hiện chưa có mẫu khớp sẵn. Mẫu có giá tốt nhất là **${cheapest.name}** (${formatPrice(cheapest)}).\n\n${capRef} có thể để lại SĐT để chủ nhân tư vấn giải pháp phù hợp ngân sách hơn nhé!`;
       }
 
       const picks = pool.slice(0, 3);
       const listText = picks
-        .map((p, i) => `${i + 1}. **${p.name}** — **${formatPrice(p)}**\n   • ${p.description}`)
+        .map((p, i) => `${i + 1}. **${p.name}** — **${formatPrice(p)}**`)
         .join('\n');
 
-      return `${politeAskBanner}Theo tầm ngân sách ${customerRef} đang tìm, tôi xin đề xuất ${picks.length} lựa chọn tối ưu nhất trong danh mục đã phê duyệt:\n\n${listText}\n\n${capRef} muốn tôi phân tích sâu thông số mẫu nào, hay bấm chọn trực tiếp ở **Cột 2** để xem chi tiết?`;
+      return `${politeAskBanner}Dạ, theo mức ngân sách của ${customerRef}, tôi xin gợi ý các lựa chọn phù hợp:\n\n${listText}\n\nTôi đã mở danh sách ở **Cột 2**, ${capRef} có thể bấm xem chi tiết hoặc nhắn tôi tư vấn sâu hơn nhé!`;
     }
 
     // 6. Warranty, Inventory, Delivery & Discount Objections
@@ -1170,24 +1159,24 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       const specs = parseSpecs(target);
       const warranty = specs['Bảo hành'] || specs['Bảo hành & Support'];
       if (target && warranty) {
-        return `${politeAskBanner}Về chế độ bảo hành của **${target.name}**, thông tin đã được quản trị viên xác nhận là: **${warranty}**.\n\nNgoài ra bên tôi còn có **Gói bảo trì máy đếm tiền định kỳ 1 năm (1.200.000 ₫)** vệ sinh mắt đọc cảm biến & cân chỉnh tốc độ 3 tháng/lần. ${capRef} cần tư vấn thêm điểm nào không?`;
+        return `${politeAskBanner}Dạ, **${target.name}** có chế độ bảo hành chính hãng là: **${warranty}**.\n\n${capRef} cần tìm hiểu thêm thông tin nào về sản phẩm này không ạ?`;
       }
-      return `${politeAskBanner}Chế độ bảo hành sẽ áp dụng theo thông số niêm yết riêng của từng dòng máy (ví dụ dòng Xiudun XD-2166/6688 bảo hành **24 tháng**, XD-9999 bảo hành **36 tháng**). Với sản phẩm chưa ghi rõ thời hạn bảo hành, ${customerRef} vui lòng để lại SĐT để chủ nhân (${ownerName}) xác nhận chính xác nhé.`;
+      return `${politeAskBanner}Dạ, tất cả sản phẩm bên tôi đều được bảo hành chính hãng từ 12 - 36 tháng. ${capRef} đang quan tâm mẫu nào để tôi gửi thông tin bảo hành cụ thể ạ?`;
     }
 
     if (normMessage.includes('con hang') || normMessage.includes('ton kho') || normMessage.includes('giao hang') || normMessage.includes('ship') || normMessage.includes('bao lau nhan')) {
-      return `${politeAskBanner}Tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Hiện hệ thống AI chưa kết nối kiểm tra tồn kho thực tế theo từng kho và chưa tự cam kết thời gian giao hàng cố định.\n\n${capRef} vui lòng để lại **Số điện thoại** hoặc nhấn nút **Yêu cầu chủ nhân gọi lại**, chủ nhân sẽ kiểm tra kho ngay và báo lịch giao nhận chính xác nhất cho ${customerRef} nhé!`;
+      return `${politeAskBanner}Dạ, bên tôi hỗ trợ giao hàng tận nơi toàn quốc. ${capRef} vui lòng để lại số điện thoại hoặc địa chỉ để chủ nhân kiểm tra kho và báo lịch giao chính xác nhất nhé!`;
     }
 
     if (normMessage.includes('giam gia') || normMessage.includes('chiet khau') || normMessage.includes('dat qua') || normMessage.includes('bot gia') || normMessage.includes('uu dai')) {
       const target = matchedFromText[0] || selectedProduct;
-      return `${politeAskBanner}Tôi hiểu ${customerRef} luôn mong muốn mức chi phí tối ưu nhất! Giá niêm yết của **${target ? target.name : 'sản phẩm'}** (${target ? formatPrice(target) : ''}) là giá chính hãng đã được quản trị viên phê duyệt.\n\nTuy nhiên, chủ nhân (${ownerName}) **luôn có chính sách chiết khấu riêng** cho khách mua số lượng từ 2 sản phẩm trở lên hoặc khách hàng doanh nghiệp. ${capRef} để lại **Tên & Số điện thoại** để chủ nhân trực tiếp trao đổi mức giá tốt nhất nhé!`;
+      return `${politeAskBanner}Dạ, giá niêm yết của **${target ? target.name : 'sản phẩm'}** (${target ? formatPrice(target) : ''}) là giá chính hãng đã được phê duyệt. Khi đặt mua từ 2 sản phẩm trở lên, chủ nhân luôn có chính sách chiết khấu riêng. ${capRef} để lại SĐT để nhận ưu đãi tốt nhất nhé!`;
     }
 
     // 7. Quote Action
     if (normAction.includes('bao gia') || normMessage.includes('bao gia')) {
       const target = activeProduct || allProducts[0];
-      return `${politeAskBanner}Tôi là trợ lý bán hàng của chủ nhân (${ownerName}).\n\nThông tin báo giá chính thức cho **${target.name}**:\n- **Đơn giá phê duyệt:** ${formatPrice(target)}\n- **Ưu đãi:** Có chính sách giá sỉ / doanh nghiệp khi đặt từ 2 sản phẩm trở lên.\n\n${capRef} vui lòng cho biết **số lượng dự kiến** và **Họ tên + SĐT (hoặc Email)** để tôi chuyển hồ sơ báo giá chi tiết sang chủ nhân nhé!`;
+      return `${politeAskBanner}Dạ, báo giá chính thức cho **${target.name}** là: **${formatPrice(target)}**.\n\n${capRef} vui lòng cho biết số lượng dự kiến và SĐT để tôi chuyển chủ nhân gửi báo giá ưu đãi chi tiết nhé!`;
     }
 
     // 8. Catalog Overview / What do you sell? ("co nhung gi", "ban gi", "danh muc")
@@ -1196,11 +1185,11 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       const overview = fields
         .map((f) => {
           const items = allProducts.filter((p) => p.field === f);
-          const names = items.slice(0, 3).map((x) => `${x.name} (${formatPrice(x)})`).join(', ');
-          return `• **${f}:** ${names}${items.length > 3 ? ` và ${items.length - 3} mẫu khác` : ''}`;
+          const names = items.slice(0, 2).map((x) => `${x.name} (${formatPrice(x)})`).join(', ');
+          return `• **${f}:** ${names}${items.length > 2 ? ` và ${items.length - 2} mẫu khác` : ''}`;
         })
         .join('\n');
-      return `${politeAskBanner}Tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Tôi đã mở toàn bộ danh mục sản phẩm bên **Cột 2** để ${customerRef} dễ lướt xem trực quan:\n\n${overview}\n\n${capRef} đang muốn tìm hiểu **lĩnh vực nào** hoặc ngân sách khoảng bao nhiêu để tôi lọc mẫu chuẩn nhất?`;
+      return `${politeAskBanner}Dạ, bên tôi đang có các danh mục sản phẩm chính sau:\n\n${overview}\n\nTôi đã mở danh mục trực quan ở **Cột 2**. ${capRef} muốn xem chi tiết nhóm nào ạ?`;
     }
 
     // 8B. Field / Category Discovery ("cho xem may dem tien", "tu van tra", "xem ket sat")
@@ -1210,39 +1199,26 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       if (fieldProducts.length > 0 && !asksSpecificModel) {
         const previewLines = fieldProducts
           .slice(0, 4)
-          .map((p, i) => `${i + 1}. **${p.name}** — **${formatPrice(p)}**\n   • ${p.description}`)
+          .map((p, i) => {
+            const short = formatShortDesc(p.description, 70);
+            return `${i + 1}. **${p.name}** — **${formatPrice(p)}**${short ? ` (${short})` : ''}`;
+          })
           .join('\n');
-        const extraNote =
-          fieldProducts.length > 4 ? `\n*(Và ${fieldProducts.length - 4} mẫu khác nữa đang hiển thị ở bảng bên phải)*` : '';
-        return `${politeAskBanner}Tôi đã mở ngay bộ sưu tập **${matchedField}** ở khung sản phẩm bên phải (**Cột 2**) để ${customerRef} lướt xem hình ảnh và chọn trực tiếp:\n\n${previewLines}${extraNote}\n\n${capRef} ưng mẫu nào có thể bấm vào thẻ bên phải để **Xem chi tiết / Đặt mua**, hoặc nhắn tôi **so sánh các mẫu** này nhé!`;
+        return `${politeAskBanner}Dạ, tôi đã mở danh mục **${matchedField}** ở khung bên phải (**Cột 2**):\n\n${previewLines}\n\n${capRef} có thể bấm vào thẻ sản phẩm để xem chi tiết hoặc nhắn tôi hỗ trợ so sánh nhé!`;
       }
     }
 
     // 9. Smart Product Match from Customer's Text
     if (matchedFromText.length > 0) {
       const top = matchedFromText[0];
-      const specs = parseSpecs(top);
-      const specsText = Object.entries(specs)
-        .map(([k, v]) => `\n• **${k}:** ${v}`)
-        .join('');
-      const othersText =
-        matchedFromText.length > 1
-          ? `\n\n📌 *Sản phẩm liên quan khác:* ${matchedFromText
-              .slice(1, 3)
-              .map((x) => `${x.name} (${formatPrice(x)})`)
-              .join(' | ')}`
-          : '';
-
-      return `${politeAskBanner}Tôi đã tìm thấy đúng sản phẩm phù hợp nhất với nhu cầu của ${customerRef}:\n\n🌟 **${top.name}**\n🏷️ **Lĩnh vực:** ${top.field} → ${top.group_name}\n💵 **Giá niêm yết phê duyệt:** **${formatPrice(top)}**\n📝 **Mô tả:** ${top.description}${specsText ? `\n\n📋 **Thông số chi tiết:**${specsText}` : ''}${othersText}\n\n${capRef} muốn tôi **so sánh thêm mẫu khác**, **tính tổng theo số lượng**, hay **đặt mua để chủ nhân gọi tư vấn**?`;
+      const shortDesc = formatShortDesc(top.description, 85);
+      return `${politeAskBanner}Dạ, sản phẩm phù hợp nhất với nhu cầu của ${customerRef} là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n📝 **Đặc tính:** ${shortDesc || top.group_name || 'Chính hãng chất lượng cao'}\n\nThông số chi tiết đã được mở ở **Cột 2**. ${capRef} muốn tôi tư vấn thêm hay hỗ trợ đặt mua ngay?`;
     }
 
     // 10. Button-triggered detail / price inquiry for Selected Product
     if (selectedProduct && (isExplicitButtonAction || normMessage.includes('hoi gia') || normMessage.includes('gia bao nhieu') || normMessage.includes('chi tiet') || normMessage.includes('thong so'))) {
-      const specs = parseSpecs(selectedProduct);
-      const specsText = Object.entries(specs)
-        .map(([k, v]) => `\n• **${k}:** ${v}`)
-        .join('');
-      return `${politeAskBanner}Tôi là trợ lý bán hàng của chủ nhân (${ownerName}).\n\nThông tin chi tiết về **${selectedProduct.name}**:\n🏷️ **Phân loại:** ${selectedProduct.field} → ${selectedProduct.group_name}\n💵 **Giá niêm yết đã phê duyệt:** **${formatPrice(selectedProduct)}**\n📋 **Thông số & Đặc điểm nổi bật:**${specsText || '\n• ' + selectedProduct.description}\n\n${capRef} muốn **so sánh với mẫu khác**, **đặt mua**, hay **để lại SĐT để chủ nhân tư vấn sâu hơn**?`;
+      const shortDesc = formatShortDesc(selectedProduct.description, 85);
+      return `${politeAskBanner}Dạ, thông tin về **${selectedProduct.name}**:\n🏷️ **Phân loại:** ${selectedProduct.field} → ${selectedProduct.group_name}\n💵 **Giá niêm yết:** **${formatPrice(selectedProduct)}**\n📋 **Đặc tính nổi bật:** ${shortDesc || 'Sản phẩm chính hãng chất lượng cao'}\n\n${capRef} muốn so sánh với mẫu khác, đặt mua, hay để lại SĐT để chủ nhân tư vấn sâu hơn ạ?`;
     }
 
     // 11A. Robot Identity & Name Inquiry ("Bạn tên gì?", "Em tên gì?", "Bạn là ai?", "Robot là ai?")
@@ -1254,7 +1230,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('la ai') ||
       normMessage.includes('gioi thieu')
     ) {
-      return `${politeAskBanner}Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh độc quyền của chủ nhân (${ownerName})!\n\nTôi được thiết kế để phục vụ ${customerRef} 24/7:\n• **Tư vấn sản phẩm & tính năng** chính xác theo nhu cầu thực tế\n• **Báo giá & so sánh thông số** trực tiếp giữa các mẫu\n• **Lên đơn hàng & chuyển chủ nhân** liên hệ hỗ trợ nhanh nhất.\n\n${capRef} đang quan tâm đến dòng sản phẩm nào để tôi giới thiệu chi tiết nhé?`;
+      return `${politeAskBanner}Dạ, tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}). Rất hân hạnh được phục vụ ${customerRef}!\n\n${capRef} đang quan tâm đến sản phẩm nào để tôi gửi thông tin và ưu đãi ạ?`;
     }
 
     // 11B. Friendly Conversation / Asking Permission ("Tôi hỏi thăm bạn được không?", "Cho tôi hỏi chút", "Hỏi thăm")
@@ -1268,7 +1244,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('khoe khong') ||
       normMessage.includes('co khoe khong')
     ) {
-      return `${politeAskBanner}Dạ tôi rất sẵn lòng! Tôi luôn có mặt 24/7 để lắng nghe và hỗ trợ ${customerRef}.\n\n${capRef} cứ thoải mái chia sẻ câu hỏi hoặc nhu cầu về sản phẩm, giá cả và dịch vụ, tôi sẽ giải đáp tận tình ngay!`;
+      return `${politeAskBanner}Dạ cảm ơn ${customerRef} nhiều ạ! Tôi luôn có mặt 24/7 để phục vụ ${customerRef}. ${capRef} cứ thoải mái chia sẻ câu hỏi hoặc nhu cầu nhé!`;
     }
 
     // 11C. Capabilities / What can you do? ("Bạn giúp được gì?", "Làm được gì?")
@@ -1278,16 +1254,16 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('chuc nang gi') ||
       normMessage.includes('biet lam gi')
     ) {
-      return `${politeAskBanner}Dạ, tôi có thể hỗ trợ ${customerRef} giải quyết nhanh các nhu cầu sau:\n1. **Tìm kiếm & Đề xuất:** Gợi ý đúng sản phẩm theo mức giá hoặc tính năng mong muốn.\n2. **So sánh trực tiếp:** Đối chiếu chi tiết thông số và giá bán giữa các model.\n3. **Mở bộ sản phẩm trực quan:** Hiển thị toàn bộ hình ảnh và mô tả sản phẩm ở Cột 2.\n4. **Ghi nhận đặt mua:** Lưu thông tin vào hệ thống CRM để chủ nhân (${ownerName}) phục vụ tận nơi.\n\n${capRef} muốn tôi hỗ trợ nội dung nào trước nhé?`;
+      return `${politeAskBanner}Dạ, tôi có thể giúp ${customerRef}: tìm sản phẩm theo nhu cầu, so sánh thông số & giá bán, mở danh mục trực quan ở Cột 2 và ghi nhận đơn hàng gửi chủ nhân. ${capRef} cần hỗ trợ gì cứ nhắn tôi nhé!`;
     }
 
     // 11D. Conversational Greeting / Addressing Inquiry / Open-ended Consultation
     const isGreeting = isGreetingMessage(normMessage);
     if (isGreeting) {
       if (!hasAddressingInfo) {
-        return `Xin chào ${customerRef}! Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh của chủ nhân (${ownerName}).\n\n**Xin lỗi, bạn vui lòng cho tôi biết thông tin (tên hoặc cách xưng hô phù hợp) để tôi thuận tiện xưng hô nhé!**\n\nTrong lúc đó, ${customerRef} có thể chọn nhanh một lĩnh vực bên dưới hoặc hỏi bất kỳ sản phẩm nào để tôi mở bảng sản phẩm bên phải hỗ trợ ngay!`;
+        return `Dạ xin chào ${customerRef}! Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}).\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\n${capRef} có thể chọn nhanh lĩnh vực bên dưới hoặc nhắn sản phẩm để tôi mở bảng Cột 2 hỗ trợ ngay ạ!`;
       }
-      return `Xin chào **${customerRef}**! Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh của chủ nhân (${ownerName}).\n\nTôi có thể giúp **${customerRef}** ngay lập tức:\n• **Tìm & gợi ý sản phẩm theo nhu cầu** (ví dụ: *"máy đếm tiền cho tiệm vàng"*, *"máy nào dưới 5 triệu?"*)\n• **So sánh trực tiếp thông số & giá** giữa các mẫu\n• **Tính tổng chi phí theo số lượng** và kết nối chủ nhân báo giá ưu đãi.\n\nHôm nay **${customerRef}** đang tìm giải pháp cho nhu cầu gì?`;
+      return `Dạ xin chào **${customerRef}**! Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}). Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
     }
 
     // 12. Intelligent Clarification when request is ambiguous
@@ -1295,7 +1271,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       .slice(0, 5)
       .join(', ');
     const highlightText = catalogHighlights ? ` (${catalogHighlights})` : '';
-    return `${politeAskBanner}Dạ, tôi rất vui được hỗ trợ ${customerRef}!\n\nTôi là trợ lý bán hàng của chủ nhân (${ownerName}) và nắm đầy đủ thông số của các sản phẩm${highlightText}.\n\nĐể tôi tư vấn chính xác và sát nhu cầu nhất, ${customerRef} có thể chia sẻ thêm:\n1. ${capRef} đang tìm thuộc **lĩnh vực hoặc sản phẩm nào**?\n2. **Mức ngân sách dự kiến** hoặc mục đích sử dụng cụ thể của ${customerRef} là gì?\n\nHoặc ${customerRef} có thể chọn nhanh một danh mục bên dưới, tôi sẽ mở bộ sản phẩm ở Cột 2 để ${customerRef} lựa chọn ngay nhé!`;
+    return `${politeAskBanner}Dạ, tôi rất vui được hỗ trợ ${customerRef}!\n\nTôi là trợ lý bán hàng của chủ nhân (${ownerName}) và nắm đầy đủ thông tin các sản phẩm${highlightText}.\n\n${capRef} đang quan tâm đến dòng sản phẩm nào hoặc ngân sách khoảng bao nhiêu để tôi tư vấn chuẩn xác nhất ạ?`;
   }
 }
 

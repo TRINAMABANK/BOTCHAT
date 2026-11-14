@@ -22,7 +22,7 @@ const createWelcomeMessage = () => ({
   id: `msg_welcome_${Date.now()}`,
   senderType: 'assistant',
   content:
-    'Xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng thông minh của chủ nhân.\n\n**Xin lỗi, bạn vui lòng cho tôi biết thông tin (tên hoặc cách xưng hô) để tôi thuận tiện xưng hô nhé!**\n\nHôm nay bạn đang quan tâm **lĩnh vực sản phẩm nào**? Bạn có thể **chọn nhanh lĩnh vực bên dưới** hoặc nhắn câu hỏi bất kỳ (ví dụ: *"Tôi là anh Minh, cho xem máy đếm tiền dưới 5 triệu"*), tôi sẽ mở ngay bộ sản phẩm trực quan ở **Cột 2** để bạn xem và lựa chọn!',
+    'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng của chủ nhân Quang Nhựt Trí.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm thuộc lĩnh vực nào ạ? Bạn có thể chọn nhanh bên dưới hoặc nhắn câu hỏi, tôi sẽ mở bộ sản phẩm ở Cột 2 ngay!',
   createdAt: new Date().toISOString()
 });
 
