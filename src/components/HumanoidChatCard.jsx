@@ -60,12 +60,86 @@ export const HumanoidChatCard = ({
   onMicClick
 }) => {
   const scrollRef = useRef(null);
+  const latestMsgRef = useRef(null);
+  const isUserScrolledRef = useRef(false);
+  const lastAutoScrollTopRef = useRef(0);
 
+  /**
+   * Cuộn tin mới nhất vào chính giữa trung tâm khung hội thoại.
+   */
+  const scrollToLatestCenter = (smooth = true) => {
+    if (isUserScrolledRef.current) return;
+    const container = scrollRef.current;
+    const target = latestMsgRef.current;
+    if (!container || !target) return;
+
+    requestAnimationFrame(() => {
+      if (!container || !target) return;
+      const targetOffsetTop = target.offsetTop;
+      const targetHeight = target.offsetHeight;
+      const containerHeight = container.clientHeight;
+
+      let desiredScrollTop;
+      // Nếu tin nhắn dài hơn chiều cao khung nhìn, căn lề trên cách 16px để người đọc đọc từ đầu
+      if (targetHeight >= containerHeight - 30) {
+        desiredScrollTop = targetOffsetTop - 16;
+      } else {
+        // Căn tin nhắn ở chính giữa trung tâm chiều dọc
+        const targetCenter = targetOffsetTop + targetHeight / 2;
+        desiredScrollTop = targetCenter - containerHeight / 2;
+      }
+
+      const maxScroll = Math.max(0, container.scrollHeight - containerHeight);
+      const clampedScrollTop = Math.max(0, Math.min(desiredScrollTop, maxScroll));
+
+      lastAutoScrollTopRef.current = clampedScrollTop;
+      container.scrollTo({
+        top: clampedScrollTop,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    });
+  };
+
+  // Luôn căn giữa tin mới nhất mỗi khi có tin nhắn mới hoặc robot bắt đầu suy nghĩ
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    isUserScrolledRef.current = false;
+    scrollToLatestCenter(true);
+  }, [messages.length, isThinking]);
+
+  // Xử lý khi chữ chạy (streaming) và khi hoàn thành câu trả lời
+  useEffect(() => {
+    if (isStreaming) {
+      if (isUserScrolledRef.current) return;
+      const container = scrollRef.current;
+      const target = latestMsgRef.current;
+      if (!container || !target) return;
+
+      const targetOffsetTop = target.offsetTop;
+      const targetHeight = target.offsetHeight;
+      const containerHeight = container.clientHeight;
+
+      const messageBottom = targetOffsetTop + targetHeight;
+      const visibleBottom = container.scrollTop + containerHeight;
+      if (messageBottom > visibleBottom - 24) {
+        container.scrollTo({
+          top: messageBottom - containerHeight + 36,
+          behavior: 'auto'
+        });
+      }
+    } else {
+      scrollToLatestCenter(true);
     }
-  }, [messages, isThinking, isStreaming]);
+  }, [messages, isStreaming]);
+
+  const handleScroll = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    if (container.scrollTop < lastAutoScrollTopRef.current - 60) {
+      isUserScrolledRef.current = true;
+    } else if (container.scrollTop >= lastAutoScrollTopRef.current - 20) {
+      isUserScrolledRef.current = false;
+    }
+  };
 
   const currentMeta = STATE_META[botState] || STATE_META.idle;
 
@@ -182,10 +256,12 @@ export const HumanoidChatCard = ({
         {/* Scrollable Chat Area */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden space-y-3 pr-1.5 custom-scrollbar text-xs leading-relaxed max-h-[340px] md:max-h-[370px]"
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto overflow-x-hidden space-y-3.5 pr-1.5 custom-scrollbar text-xs leading-relaxed max-h-[340px] md:max-h-[370px] pb-36"
         >
           {messages.map((msg, idx) => {
             const isUser = msg.senderType === 'user' || msg.role === 'user';
+            const isLatest = idx === messages.length - 1;
             const timeStr = msg.createdAt
               ? new Date(msg.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
               : '10:25';
@@ -193,7 +269,8 @@ export const HumanoidChatCard = ({
             return (
               <div
                 key={msg.id || idx}
-                className={`flex items-start space-x-2 min-w-0 animate-slide-up ${
+                ref={isLatest ? latestMsgRef : null}
+                className={`flex items-start space-x-2 min-w-0 transition-all duration-300 ${
                   isUser ? 'flex-row-reverse space-x-reverse' : ''
                 }`}
               >
@@ -206,16 +283,22 @@ export const HumanoidChatCard = ({
                     <img
                       src="/assets/ai_avatar.png"
                       alt="TRÍ AI"
-                      className="w-7 h-7 rounded-full object-cover border border-cyan-400 shadow-[0_0_10px_rgba(0,240,255,0.6)]"
+                      className={`w-7 h-7 rounded-full object-cover border transition-all ${
+                        isLatest
+                          ? 'border-cyan-300 shadow-[0_0_14px_rgba(0,240,255,0.8)] scale-105'
+                          : 'border-cyan-400 shadow-[0_0_10px_rgba(0,240,255,0.6)]'
+                      }`}
                     />
                   )}
                 </div>
 
                 <div className="flex flex-col min-w-0 max-w-[calc(100%-2.5rem)]">
                   <div
-                    className={`rounded-2xl px-3.5 py-2.5 shadow-md ${
+                    className={`rounded-2xl px-3.5 py-2.5 shadow-md transition-all duration-300 ${
                       isUser
                         ? 'bg-[#0f2444] text-slate-100 border border-cyan-500/40 rounded-tr-none'
+                        : isLatest
+                        ? 'bg-[#0b1836]/95 text-slate-100 border-2 border-cyan-400/80 rounded-tl-none backdrop-blur-md shadow-[0_0_24px_rgba(0,240,255,0.22)] ring-1 ring-cyan-400/30'
                         : 'bg-[#0A1633]/90 text-slate-100 border border-cyan-500/30 rounded-tl-none backdrop-blur-sm'
                     }`}
                   >
