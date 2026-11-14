@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users,
   PhoneCall,
@@ -78,6 +78,19 @@ export const OwnerDashboard = ({
   const [urlError, setUrlError] = useState(null);
   const [testingGemini, setTestingGemini] = useState(false);
   const [geminiTestResult, setGeminiTestResult] = useState(null);
+  const [searchProduct, setSearchProduct] = useState('');
+
+  const filteredProducts = useMemo(() => {
+    if (!searchProduct.trim()) return products;
+    const q = searchProduct.toLowerCase().trim();
+    return products.filter((p) =>
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.field || '').toLowerCase().includes(q) ||
+      (p.group_name || '').toLowerCase().includes(q) ||
+      (p.description || '').toLowerCase().includes(q) ||
+      (p.price_formatted || '').toLowerCase().includes(q)
+    );
+  }, [products, searchProduct]);
 
   // Settings State Form
   const [settingsForm, setSettingsForm] = useState({
@@ -1005,6 +1018,34 @@ export const OwnerDashboard = ({
                 </div>
               </div>
 
+              {/* Product Search & Counter Bar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#081838] p-3 rounded-2xl border border-cyan-500/30">
+                <div className="relative flex-1 max-w-md">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400" />
+                  <input
+                    type="text"
+                    value={searchProduct}
+                    onChange={(e) => setSearchProduct(e.target.value)}
+                    placeholder="Tìm kiếm sản phẩm theo tên, lĩnh vực, giá..."
+                    className="w-full bg-[#0a1f44] border border-cyan-500/40 text-xs sm:text-sm text-white placeholder-slate-400 pl-10 pr-8 py-2 rounded-xl outline-none focus:border-cyan-400 shadow-inner"
+                  />
+                  {searchProduct && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchProduct('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2 text-xs text-slate-300">
+                  <span>
+                    Hiển thị: <strong className="text-cyan-300">{filteredProducts.length}</strong> / {products.length} sản phẩm
+                  </span>
+                </div>
+              </div>
+
               {/* Products Table - THẤY HẾT Ô GRID, XUỐNG DÒNG, KHÔNG CUỘN NGANG */}
               <div className="w-full rounded-2xl border-2 border-cyan-500/30 bg-[#071530] shadow-xl overflow-hidden">
                 <table className="w-full text-left text-xs sm:text-sm text-slate-200 table-fixed border-collapse">
@@ -1023,9 +1064,9 @@ export const OwnerDashboard = ({
                       <th className="py-3.5 px-2 text-center">
                         <input
                           type="checkbox"
-                          checked={products.length > 0 && products.every((p) => selectedProductIds.includes(p.id))}
-                          onChange={() => toggleSelectAll(products, selectedProductIds, setSelectedProductIds)}
-                          title="Chọn tất cả sản phẩm"
+                          checked={filteredProducts.length > 0 && filteredProducts.every((p) => selectedProductIds.includes(p.id))}
+                          onChange={() => toggleSelectAll(filteredProducts, selectedProductIds, setSelectedProductIds)}
+                          title="Chọn tất cả sản phẩm đang hiển thị"
                           className="w-4 h-4 rounded accent-cyan-400 cursor-pointer"
                         />
                       </th>
@@ -1039,90 +1080,91 @@ export const OwnerDashboard = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
-                    {products.length === 0 ? (
+                    {filteredProducts.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="py-12 text-center text-slate-400 text-sm">
-                          Chưa có sản phẩm nào trong danh mục. Nhấn &quot;Thêm sản phẩm mới&quot; để đăng bán.
+                          {searchProduct ? `Không tìm thấy sản phẩm nào khớp với "${searchProduct}".` : 'Chưa có sản phẩm nào trong danh mục.'}
                         </td>
                       </tr>
                     ) : (
-                      products.map((p, idx) => (
-                      <tr
-                        key={p.id}
-                        className={`hover:bg-[#0c2452] transition-colors ${
-                          idx % 2 === 0 ? 'bg-[#071530]' : 'bg-[#051126]'
-                        }`}
-                      >
-                        <td className="py-3 px-2 align-middle text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedProductIds.includes(p.id)}
-                            onChange={() => toggleSelectOne(p.id, setSelectedProductIds)}
-                            className="w-4 h-4 rounded accent-cyan-400 cursor-pointer"
-                          />
-                        </td>
-                        <td className="py-3 px-3 align-middle">
-                          <div className="flex flex-col items-center gap-1.5 w-16">
-                            <img
-                              src={p.image_url}
-                              alt={p.name}
-                              className="w-14 h-14 rounded-xl object-cover bg-slate-950 border border-cyan-500/40 shadow-sm"
+                      filteredProducts.map((p, idx) => (
+                        <tr
+                          key={p.id}
+                          className={`hover:bg-[#0c2452] transition-colors ${
+                            idx % 2 === 0 ? 'bg-[#071530]' : 'bg-[#051126]'
+                          }`}
+                        >
+                          <td className="py-3 px-2 align-middle text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedProductIds.includes(p.id)}
+                              onChange={() => toggleSelectOne(p.id, setSelectedProductIds)}
+                              className="w-4 h-4 rounded accent-cyan-400 cursor-pointer"
                             />
-                            <label
-                              className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-pointer border transition-colors ${
-                                uploadingProductId === p.id
-                                  ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 cursor-wait'
-                                  : 'bg-[#0a1f44] hover:bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                              }`}
-                              title="Chọn ảnh mới từ máy tính"
-                            >
-                              <Upload className="w-3 h-3" />
-                              <span>{uploadingProductId === p.id ? 'Đang tải...' : 'Đổi ảnh'}</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                disabled={uploadingProductId === p.id}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  e.target.value = '';
-                                  if (file) handleUpdateProductImage(p.id, file);
-                                }}
-                                className="hidden"
+                          </td>
+                          <td className="py-3 px-3 align-middle">
+                            <div className="flex flex-col items-center gap-1.5 w-16">
+                              <img
+                                src={p.image_url}
+                                alt={p.name}
+                                className="w-14 h-14 rounded-xl object-cover bg-slate-950 border border-cyan-500/40 shadow-sm"
                               />
-                            </label>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 align-middle text-cyan-300 font-bold break-words whitespace-normal">{p.field}</td>
-                        <td className="py-3 px-3 align-middle text-slate-200 break-words whitespace-normal">{p.group_name}</td>
-                        <td className="py-3 px-3 align-middle font-bold text-white text-xs sm:text-sm break-words whitespace-normal leading-relaxed">{p.name}</td>
-                        <td className="py-3 px-3 align-middle font-extrabold text-[#ff3864] font-display text-sm sm:text-base break-words whitespace-normal">
-                          {p.price_formatted || `${(p.price || 0).toLocaleString('vi-VN')} ₫`}
-                        </td>
-                        <td className="py-3 px-3 align-middle">
-                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold">
-                            <CheckCircle size={12} className="text-emerald-400" />
-                            <span>Đã duyệt</span>
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 align-middle text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              requestDeleteConfirmation({
-                                entity: 'product',
-                                mode: 'single',
-                                item: p
-                              })
-                            }
-                            className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white font-bold text-[11px] shadow-sm transition-all active:scale-95"
-                            title="Xóa sản phẩm này"
-                          >
-                            <Trash2 size={12} />
-                            <span>Xóa</span>
-                          </button>
-                        </td>
-                      </tr>
-                    )))}
+                              <label
+                                className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-pointer border transition-colors ${
+                                  uploadingProductId === p.id
+                                    ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 cursor-wait'
+                                    : 'bg-[#0a1f44] hover:bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                }`}
+                                title="Chọn ảnh mới từ máy tính"
+                              >
+                                <Upload className="w-3 h-3" />
+                                <span>{uploadingProductId === p.id ? 'Đang tải...' : 'Đổi ảnh'}</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  disabled={uploadingProductId === p.id}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    e.target.value = '';
+                                    if (file) handleUpdateProductImage(p.id, file);
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 align-middle text-cyan-300 font-bold break-words whitespace-normal">{p.field}</td>
+                          <td className="py-3 px-3 align-middle text-slate-200 break-words whitespace-normal">{p.group_name}</td>
+                          <td className="py-3 px-3 align-middle font-bold text-white text-xs sm:text-sm break-words whitespace-normal leading-relaxed">{p.name}</td>
+                          <td className="py-3 px-3 align-middle font-extrabold text-[#ff3864] font-display text-sm sm:text-base break-words whitespace-normal">
+                            {p.price_formatted || `${(p.price || 0).toLocaleString('vi-VN')} ₫`}
+                          </td>
+                          <td className="py-3 px-3 align-middle">
+                            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold">
+                              <CheckCircle size={12} className="text-emerald-400" />
+                              <span>Đã duyệt</span>
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 align-middle text-right">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                requestDeleteConfirmation({
+                                  entity: 'product',
+                                  mode: 'single',
+                                  item: p
+                                })
+                              }
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white font-bold text-[11px] shadow-sm transition-all active:scale-95"
+                              title="Xóa sản phẩm này"
+                            >
+                              <Trash2 size={12} />
+                              <span>Xóa</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

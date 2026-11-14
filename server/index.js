@@ -277,7 +277,12 @@ app.post('/api/products', async (req, res) => {
     }
 
     const id = `prod_${Date.now()}`;
-    const slug = name.toLowerCase().replace(/[^a-z0-9à-ỹ]+/g, '-').replace(/(^-|-$)/g, '');
+    const baseSlug = name.toLowerCase().replace(/[^a-z0-9à-ỹ]+/g, '-').replace(/(^-|-$)/g, '') || `product-${Date.now()}`;
+    let slug = baseSlug;
+    const existingSlug = await db.get('SELECT id FROM products WHERE slug = ?', [slug]);
+    if (existingSlug) {
+      slug = `${baseSlug}-${Date.now().toString().slice(-6)}`;
+    }
     const priceNum = parseInt(price, 10) || 0;
     const priceFormatted = `${priceNum.toLocaleString('vi-VN')} ₫`;
     const now = new Date().toISOString();

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   CircleDollarSign,
   Printer,
@@ -20,7 +20,9 @@ import {
   Coffee,
   Bot,
   Building2,
-  Shield
+  Shield,
+  Search,
+  X
 } from 'lucide-react';
 
 function getCategoryIcon(fieldName = '') {
@@ -64,11 +66,27 @@ export const ProductSelectorCard = ({
 
   const allDynamicFields = ['Tất cả', ...uniqueFields];
 
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Prioritize active category products; in "Xem tất cả" show filtered or entire catalog in horizontal carousel
-  const categoryProducts = products.filter(p => p.field === activeCategory);
-  const displayProducts = showAllProducts
-    ? (allFilterField === 'Tất cả' ? products : products.filter(p => p.field === allFilterField))
-    : (categoryProducts.length > 0 ? categoryProducts : products);
+  const categoryProducts = products.filter((p) => p.field === activeCategory);
+  const displayProducts = useMemo(() => {
+    let list = showAllProducts
+      ? (allFilterField === 'Tất cả' ? products : products.filter((p) => p.field === allFilterField))
+      : (categoryProducts.length > 0 ? categoryProducts : products);
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = products.filter((p) =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.field || '').toLowerCase().includes(q) ||
+        (p.group_name || '').toLowerCase().includes(q) ||
+        (p.description || '').toLowerCase().includes(q) ||
+        (p.price_formatted || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [products, showAllProducts, allFilterField, categoryProducts, searchQuery]);
 
   const updateScrollButtons = () => {
     const el = carouselRef.current;
@@ -261,6 +279,27 @@ export const ProductSelectorCard = ({
           </div>
         </div>
 
+        {/* Quick Product Search Input */}
+        <div className="relative mb-2">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm nhanh sản phẩm (tên, model, giá)..."
+            className="w-full bg-[#071530]/90 border border-cyan-500/30 rounded-xl pl-8 pr-7 py-1 text-xs text-white placeholder-slate-400 outline-none focus:border-cyan-400 shadow-inner"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
         {/* Dynamic Field Filter Bar when viewing all products */}
         {showAllProducts && (
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-2 mb-1">
@@ -286,35 +325,49 @@ export const ProductSelectorCard = ({
 
         {/* Horizontal Swipe / Drag Carousel Container */}
         <div className="relative group/carousel">
-          {/* Floating Left Overlay Button */}
-          {canScrollLeft && (
-            <button
-              type="button"
-              onClick={() => scrollCarousel('left')}
-              className="hidden sm:flex absolute left-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#06142e]/90 hover:bg-cyan-400 hover:text-slate-950 text-cyan-300 border border-cyan-400/60 shadow-[0_0_15px_rgba(0,240,255,0.45)] items-center justify-center transition-all backdrop-blur-md"
-              title="Lướt qua trái"
-            >
-              <ChevronLeft size={18} />
-            </button>
-          )}
+          {displayProducts.length === 0 ? (
+            <div className="py-10 px-4 text-center text-slate-400 text-xs bg-[#081838]/60 rounded-2xl border border-dashed border-cyan-500/30">
+              <Package size={24} className="mx-auto mb-2 text-slate-500" />
+              <p>Không tìm thấy sản phẩm nào khớp với &quot;{searchQuery}&quot;.</p>
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="mt-2 text-cyan-400 hover:underline font-bold"
+              >
+                Xóa tìm kiếm
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Floating Left Overlay Button */}
+              {canScrollLeft && (
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel('left')}
+                  className="hidden sm:flex absolute left-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#06142e]/90 hover:bg-cyan-400 hover:text-slate-950 text-cyan-300 border border-cyan-400/60 shadow-[0_0_15px_rgba(0,240,255,0.45)] items-center justify-center transition-all backdrop-blur-md"
+                  title="Lướt qua trái"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              )}
 
-          {/* Floating Right Overlay Button */}
-          {canScrollRight && (
-            <button
-              type="button"
-              onClick={() => scrollCarousel('right')}
-              className="hidden sm:flex absolute right-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#06142e]/90 hover:bg-cyan-400 hover:text-slate-950 text-cyan-300 border border-cyan-400/60 shadow-[0_0_15px_rgba(0,240,255,0.45)] items-center justify-center transition-all backdrop-blur-md"
-              title="Lướt qua phải"
-            >
-              <ChevronRight size={18} />
-            </button>
-          )}
+              {/* Floating Right Overlay Button */}
+              {canScrollRight && (
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel('right')}
+                  className="hidden sm:flex absolute right-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#06142e]/90 hover:bg-cyan-400 hover:text-slate-950 text-cyan-300 border border-cyan-400/60 shadow-[0_0_15px_rgba(0,240,255,0.45)] items-center justify-center transition-all backdrop-blur-md"
+                  title="Lướt qua phải"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              )}
 
-          <div
-            ref={carouselRef}
-            onScroll={updateScrollButtons}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
+              <div
+                ref={carouselRef}
+                onScroll={updateScrollButtons}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUpOrLeave}
             onMouseLeave={handleMouseUpOrLeave}
             onWheel={handleWheelScroll}
@@ -412,6 +465,8 @@ export const ProductSelectorCard = ({
               );
             })}
           </div>
+          </>
+          )}
         </div>
       </div>
 

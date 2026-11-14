@@ -240,6 +240,9 @@ const STOP_WORDS = new Set([
  * Score and match products in the catalog against the customer's natural-language message.
  */
 function findMatchingProducts(normMsg, allProducts) {
+  if (!normMsg || !allProducts || allProducts.length === 0) return [];
+  const cleanNormMsg = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
+
   const aliasRules = [
     { keywords: ['2166'], slugMatch: '2166', boost: 28 },
     { keywords: ['6688'], slugMatch: '6688', boost: 28 },
@@ -262,41 +265,62 @@ function findMatchingProducts(normMsg, allProducts) {
     { keywords: ['nhanh gon', 'pho thong', 'nho gon', 'tiet kiem'], slugMatch: '2166', boost: 12 }
   ];
 
-  const isAskingAboutCounters = normMsg.includes('dem tien') || normMsg.includes('xiudun');
+  const isAskingAboutCounters = cleanNormMsg.includes('dem tien') || cleanNormMsg.includes('xiudun') || cleanNormMsg.includes('xinda');
 
   const scores = allProducts.map((p) => {
     let score = 0;
     const normName = removeVietnameseTones(p.name);
     const normField = removeVietnameseTones(p.field);
     const normDesc = removeVietnameseTones(p.description);
-    const normSpecs = removeVietnameseTones(p.specs_json);
+    const normSpecs = removeVietnameseTones(typeof p.specs_json === 'string' ? p.specs_json : JSON.stringify(p.specs_json || {}));
     const normSlug = removeVietnameseTones(p.slug || p.id);
 
+    // 1. Direct full phrase or sub-phrase inclusion
+    if (cleanNormMsg.includes(normName)) {
+      score += 40;
+    } else if (normName.includes(cleanNormMsg.trim()) && cleanNormMsg.trim().length >= 3) {
+      score += 30;
+    }
+
+    // 2. Alias rules
     for (const rule of aliasRules) {
-      if (rule.keywords.some((kw) => normMsg.includes(kw))) {
+      if (rule.keywords.some((kw) => cleanNormMsg.includes(kw))) {
         if ((rule.slugMatch && normSlug.includes(rule.slugMatch)) || (rule.nameMatch && normName.includes(rule.nameMatch))) {
           score += rule.boost;
         }
       }
     }
 
-    if (isAskingAboutCounters && normField === 'may dem tien') {
-      score += 15;
+    if (isAskingAboutCounters && normField.includes('dem tien')) {
+      score += 12;
     }
 
-    // Meaningful token overlap (ignoring common Vietnamese filler words)
-    const tokens = normMsg.split(/\s+/).filter((t) => t.length >= 3 && !STOP_WORDS.has(t));
-    for (const t of tokens) {
-      if (normName.includes(t)) score += 6;
-      if (normField.includes(t)) score += 4;
-      if (normDesc.includes(t) || normSpecs.includes(t)) score += 3;
+    // 3. Meaningful query tokens matching against product attributes
+    const queryTokens = cleanNormMsg.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
+    for (const t of queryTokens) {
+      if (normName.includes(t)) {
+        // High boost for specific model identifiers or brand names (e.g. "xinda", "u7", "28", "bc", "206", "ml-2fs")
+        if (/\d/.test(t) || t.length <= 3) {
+          score += 20;
+        } else {
+          score += 15;
+        }
+      } else if (normSlug.includes(t)) {
+        score += 10;
+      }
+      if (normField.includes(t)) {
+        score += 6;
+      }
+      if (normDesc.includes(t) || normSpecs.includes(t)) {
+        score += 4;
+      }
     }
 
     return { product: p, score };
   });
 
   return scores
-    .filter((s) => s.score >= 10)
+    .filter((s) => s.score >= 6)
     .sort((a, b) => b.score - a.score)
     .map((s) => s.product);
 }
@@ -305,30 +329,43 @@ function findMatchingProducts(normMsg, allProducts) {
  * Detect which product field (category) in the live catalog the customer is asking about.
  */
 function findMatchingField(normMsg, allProducts) {
-  if (!normMsg) return null;
+  if (!normMsg || !allProducts || allProducts.length === 0) return null;
   const fields = [...new Set(allProducts.map((p) => p.field).filter(Boolean))];
+  const cleanNorm = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
 
   // 1. Direct normalized field name match
   for (const f of fields) {
-    if (normMsg.includes(removeVietnameseTones(f))) {
+    const normF = removeVietnameseTones(f);
+    if (cleanNorm.includes(normF) || normF.includes(cleanNorm.trim())) {
       return f;
     }
   }
 
-  // 2. Domain keyword mapping matched against existing catalog fields
+  // 2. Token overlap with any live field
+  const tokens = cleanNorm.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
+  for (const f of fields) {
+    const normF = removeVietnameseTones(f);
+    for (const t of tokens) {
+      if (normF.includes(t)) {
+        return f;
+      }
+    }
+  }
+
+  // 3. Domain keyword mapping matched against existing catalog fields
   const fieldHints = [
-    { match: ['may dem tien', 'dem tien', 'xiudun', '2166', '6688', '9999'], fieldPattern: 'may dem tien' },
-    { match: ['tra thuong hang', 'doi dep', 'oolong', 'hoang tra', 'hac tra', 'hong tra', 'tra xanh', 'ngu vi tra', 'tra'], fieldPattern: 'tra thuong hang' },
-    { match: ['giai phap ai', 'nen tang', 'chatbot', 'humanoid', '33 ky nang', 'ky nang'], fieldPattern: 'giai phap ai' },
+    { match: ['may dem tien', 'dem tien', 'xiudun', 'xinda', 'julong', 'lidix', '2166', '6688', '9999'], fieldPattern: 'may dem tien' },
+    { match: ['tra thuong hang', 'doi dep', 'oolong', 'hoang tra', 'hac tra', 'hong tra', 'tra xanh', 'ngu vi tra', 'tra'], fieldPattern: 'tra' },
+    { match: ['giai phap ai', 'nen tang', 'chatbot', 'humanoid', '33 ky nang', 'ky nang'], fieldPattern: 'ai' },
     { match: ['bat dong san', 'nghi duong', 'biet thu', 'villa', 'eco-villa', 'bao loc'], fieldPattern: 'bat dong san' },
-    { match: ['van phong', 'may in', 'canon', 'lbp'], fieldPattern: 'thiet bi van phong' },
-    { match: ['cong nghe', 'laptop', 'dell', 'vostro', 'may tinh'], fieldPattern: 'thiet bi cong nghe' },
-    { match: ['bao tri', 'bao duong', 've sinh may', 'sua chua'], fieldPattern: 'dich vu bao tri' },
-    { match: ['ket sat', 'bofa', 'van tay', 'san pham khac'], fieldPattern: 'san pham khac' }
+    { match: ['van phong', 'may in', 'canon', 'lbp', 'hp', 'epson'], fieldPattern: 'van phong' },
+    { match: ['cong nghe', 'laptop', 'dell', 'vostro', 'may tinh', 'dien thoai', 'iphone', 'samsung'], fieldPattern: 'cong nghe' },
+    { match: ['bao tri', 'bao duong', 've sinh may', 'sua chua'], fieldPattern: 'bao tri' },
+    { match: ['ket sat', 'bofa', 'van tay', 'viet tiep'], fieldPattern: 'ket sat' }
   ];
 
   for (const hint of fieldHints) {
-    if (hint.match.some((kw) => normMsg.includes(kw))) {
+    if (hint.match.some((kw) => cleanNorm.includes(kw))) {
       const found = fields.find((f) => removeVietnameseTones(f).includes(hint.fieldPattern));
       if (found) return found;
     }
@@ -423,10 +460,24 @@ function cleanInquiredProductName(str) {
 /**
  * Detect if customer is inquiring about a product/item not available in the database.
  */
-function detectMissingProductInquiry(message, normMessage, matchedProducts, matchedField) {
+function detectMissingProductInquiry(message, normMessage, matchedProducts, matchedField, allProducts = []) {
   if (!message || typeof message !== 'string') return null;
   // If matched a live product or live category in DB, it's NOT missing!
   if ((matchedProducts && matchedProducts.length > 0) || matchedField) return null;
+
+  // Extra safeguard: Check if candidate tokens match any product in database
+  if (allProducts && allProducts.length > 0) {
+    const cleanNorm = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
+    const tokens = cleanNorm.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
+    for (const p of allProducts) {
+      const normName = removeVietnameseTones(p.name);
+      for (const t of tokens) {
+        if (normName.includes(t)) {
+          return null; // Product is in DB!
+        }
+      }
+    }
+  }
 
   // Filter out non-product questions
   if (
@@ -679,7 +730,7 @@ export class SalesEngine {
 
     const matchedFromText = findMatchingProducts(normMessage, allProducts);
     const matchedField = findMatchingField(normMessage, allProducts);
-    const missingProductQuery = detectMissingProductInquiry(message, normMessage, matchedFromText, matchedField);
+    const missingProductQuery = detectMissingProductInquiry(message, normMessage, matchedFromText, matchedField, allProducts);
     if (missingProductQuery) {
       customerProfile.pendingMissingProduct = missingProductQuery;
     }
