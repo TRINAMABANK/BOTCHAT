@@ -16,6 +16,7 @@ import {
   ShoppingCart
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { speakVietnamese, stopSpeaking, isSpeechSupported } from './utils/speech';
 
 const createWelcomeMessage = () => ({
   id: `msg_welcome_${Date.now()}`,
@@ -32,7 +33,12 @@ export const App = () => {
   const [botState, setBotState] = useState('idle'); // 'idle' | 'listening' | 'thinking' | 'speaking' | 'success' | 'error'
   const [isThinking, setIsThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('triai_voice_enabled') === 'true';
+    }
+    return false;
+  });
   const [orderStep, setOrderStep] = useState(null);
   const [inputFocusTick, setInputFocusTick] = useState(0);
   const [isCatalogRevealed, setIsCatalogRevealed] = useState(false);
@@ -203,15 +209,11 @@ export const App = () => {
       const assistantMsgId = data.messageId || `msg_a_${Date.now()}`;
       skipStreamingRef.current = false;
 
-      if (voiceEnabled && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        try {
-          window.speechSynthesis.cancel();
-          const plain = fullReply.replace(/[*_`#]/g, '');
-          const utter = new SpeechSynthesisUtterance(plain);
-          utter.lang = 'vi-VN';
-          utter.rate = 1.0;
-          window.speechSynthesis.speak(utter);
-        } catch {}
+      if (voiceEnabled) {
+        speakVietnamese(fullReply, {
+          onStart: () => setBotState('speaking'),
+          onEnd: () => setBotState((prev) => (prev === 'speaking' ? 'idle' : prev))
+        });
       }
 
       setMessages(prev => [
@@ -249,7 +251,7 @@ export const App = () => {
         confetti({ particleCount: 90, spread: 60, origin: { y: 0.7 } });
         fetchStats();
         setTimeout(() => setBotState('idle'), 4500);
-      } else {
+      } else if (!voiceEnabled) {
         setBotState('idle');
       }
     } catch (err) {
@@ -307,6 +309,46 @@ export const App = () => {
     }
   };
 
+  // Toggle Text-to-Speech Vietnamese Voice
+  const handleToggleVoice = () => {
+    if (!isSpeechSupported()) {
+      alert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
+      return;
+    }
+    if (voiceEnabled) {
+      stopSpeaking();
+      setVoiceEnabled(false);
+      try {
+        localStorage.setItem('triai_voice_enabled', 'false');
+      } catch {}
+      setBotState('idle');
+    } else {
+      setVoiceEnabled(true);
+      try {
+        localStorage.setItem('triai_voice_enabled', 'true');
+      } catch {}
+      speakVietnamese(
+        'Dạ, tôi đã bật giọng nói tiếng Việt. Từ giờ tôi sẽ đọc câu trả lời cho bạn nghe nhé!',
+        {
+          onStart: () => setBotState('speaking'),
+          onEnd: () => setBotState((prev) => (prev === 'speaking' ? 'idle' : prev))
+        }
+      );
+    }
+  };
+
+  // Read a specific message aloud in Vietnamese
+  const handleSpeakMessage = (text) => {
+    if (!isSpeechSupported()) {
+      alert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
+      return;
+    }
+    speakVietnamese(text, {
+      onStart: () => setBotState('speaking'),
+      onEnd: () => setBotState((prev) => (prev === 'speaking' ? 'idle' : prev))
+    });
+  };
+
   // When customer clicks a product card
   const handleSelectProduct = (product) => {
     setSelectedProduct(product);
@@ -354,6 +396,7 @@ export const App = () => {
   // Reset conversation handler
   const handleResetChat = async () => {
     if (window.confirm('Bạn có muốn làm mới cuộc trò chuyện này không?')) {
+      stopSpeaking();
       if (conversationId) {
         try {
           await fetch(`/api/chat/conversations/${conversationId}`, { method: 'DELETE' });
@@ -488,12 +531,8 @@ export const App = () => {
               isCatalogRevealed={isCatalogRevealed}
               onPickField={handlePickFieldInChat}
               onSkipStreaming={() => { skipStreamingRef.current = true; }}
-              onToggleVoice={() => {
-                if (voiceEnabled && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-                  window.speechSynthesis.cancel();
-                }
-                setVoiceEnabled(!voiceEnabled);
-              }}
+              onToggleVoice={handleToggleVoice}
+              onSpeakMessage={handleSpeakMessage}
               onQuickPrompt={(prompt) => handleSendMessage(prompt, selectedProduct, null)}
               onResetChat={handleResetChat}
               onMicClick={handleVoiceInput}

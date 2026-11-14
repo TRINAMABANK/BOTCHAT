@@ -54,6 +54,7 @@ export const HumanoidChatCard = ({
   onPickField,
   onSkipStreaming,
   onToggleVoice,
+  onSpeakMessage,
   onQuickPrompt,
   onResetChat,
   onMicClick
@@ -149,16 +150,21 @@ export const HumanoidChatCard = ({
 
             {onToggleVoice && (
               <button
+                type="button"
                 onClick={onToggleVoice}
-                className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-[11px] border transition-colors ${
+                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[11px] border font-medium transition-all ${
                   voiceEnabled
-                    ? 'bg-cyan-950/80 text-cyan-300 border-cyan-400/60'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-cyan-300 border-slate-700'
+                    ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400/80 shadow-[0_0_12px_rgba(0,240,255,0.45)]'
+                    : 'bg-slate-800/90 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/60 border-slate-700'
                 }`}
-                title={voiceEnabled ? 'Tắt giọng đọc AI' : 'Bật giọng đọc tiếng Việt AI'}
+                title={voiceEnabled ? 'Nhấn để tắt giọng đọc tiếng Việt' : 'Nhấn để BẬT giọng đọc tiếng Việt của Robot'}
               >
-                {voiceEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
-                <span className="hidden sm:inline">{voiceEnabled ? 'Đang đọc' : 'Giọng nói'}</span>
+                {voiceEnabled ? (
+                  <Volume2 size={13} className="text-cyan-300 animate-pulse flex-shrink-0" />
+                ) : (
+                  <VolumeX size={13} className="flex-shrink-0" />
+                )}
+                <span>{voiceEnabled ? 'Giọng đọc: BẬT' : 'Bật giọng nói'}</span>
               </button>
             )}
 
@@ -228,13 +234,24 @@ export const HumanoidChatCard = ({
                     )}
                   </div>
 
-                  <span
-                    className={`text-[10px] text-slate-400 mt-1 px-1 ${
-                      isUser ? 'text-right' : 'text-left'
+                  <div
+                    className={`flex items-center text-[10px] text-slate-400 mt-1 px-1 ${
+                      isUser ? 'justify-end' : 'justify-between'
                     }`}
                   >
-                    {timeStr}
-                  </span>
+                    <span>{timeStr}</span>
+                    {!isUser && msg.content && onSpeakMessage && (
+                      <button
+                        type="button"
+                        onClick={() => onSpeakMessage(msg.content)}
+                        className="flex items-center space-x-1 text-cyan-400/80 hover:text-cyan-200 transition-colors py-0.5 px-1.5 rounded hover:bg-cyan-950/60 border border-transparent hover:border-cyan-500/30 ml-2"
+                        title="Nghe Robot đọc lại nội dung này bằng tiếng Việt"
+                      >
+                        <Volume2 size={11} />
+                        <span>Đọc lại</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
