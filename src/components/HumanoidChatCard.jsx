@@ -7,8 +7,6 @@ import {
   RotateCcw,
   Volume2,
   VolumeX,
-  Sparkles,
-  Layers,
   FastForward
 } from 'lucide-react';
 import AudioWaveform from './AudioWaveform';
@@ -46,13 +44,6 @@ const STATE_META = {
   success: { label: 'Đã ghi nhận Lead!', dot: 'bg-emerald-400', text: 'text-emerald-200 border-emerald-400/60 bg-emerald-950/80' },
   error: { label: 'Gián đoạn kết nối', dot: 'bg-rose-500', text: 'text-rose-200 border-rose-500/50 bg-rose-950/70' }
 };
-
-const QUICK_SUGGESTIONS = [
-  'So sánh 3 mẫu máy đếm tiền',
-  'Máy nào giá dưới 5 triệu?',
-  'Cần máy đếm ngoại tệ & chống tiền giả',
-  'Xin số điện thoại chủ nhân'
-];
 
 export const HumanoidChatCard = ({
   messages = [],
@@ -271,7 +262,7 @@ export const HumanoidChatCard = ({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto overflow-x-hidden space-y-3.5 pr-1.5 custom-scrollbar text-xs leading-relaxed max-h-[340px] md:max-h-[370px] pb-36"
+          className="flex-1 overflow-y-auto overflow-x-hidden space-y-3.5 pr-1.5 custom-scrollbar text-xs leading-relaxed max-h-[420px] md:max-h-[520px] pb-6"
         >
           {messages.map((msg, idx) => {
             const isUser = msg.senderType === 'user' || msg.role === 'user';
@@ -365,58 +356,6 @@ export const HumanoidChatCard = ({
             </div>
           )}
         </div>
-
-        {/* Dynamic Field Discovery Bar (Guides customer to pick a field & unlocks Column 2!) */}
-        {availableFields.length > 0 && onPickField && (
-          <div className="w-full min-w-0 mt-2 pt-2 border-t border-cyan-500/20">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1">
-                <Layers size={11} className="text-cyan-400" />
-                <span>
-                  {isCatalogRevealed
-                    ? 'Đổi nhanh lĩnh vực sản phẩm:'
-                    : isMobile
-                    ? 'Chọn lĩnh vực để xem sản phẩm:'
-                    : 'Chọn lĩnh vực để mở sản phẩm trực quan:'}
-                </span>
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-              {availableFields.map((fld) => (
-                <button
-                  key={fld}
-                  type="button"
-                  disabled={isThinking || isStreaming}
-                  onClick={() => onPickField(fld)}
-                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#0b234d] to-[#0a1938] hover:from-cyan-500 hover:to-blue-500 hover:text-slate-950 border border-cyan-400/45 hover:border-cyan-300 text-[11px] font-bold text-cyan-100 whitespace-nowrap transition-all shadow-[0_0_12px_rgba(0,240,255,0.14)] hover:shadow-[0_0_18px_rgba(0,240,255,0.45)] active:scale-95 disabled:opacity-50"
-                >
-                  {fld}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Smart Quick-Prompt Chips */}
-        {onQuickPrompt && (
-          <div className="w-full min-w-0 mt-1.5 pt-1.5 border-t border-cyan-500/15 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <Sparkles size={12} className="text-cyan-400 flex-shrink-0" />
-            {(isCatalogRevealed
-              ? QUICK_SUGGESTIONS
-              : ['Bên em đang bán những gì?', 'Máy nào giá dưới 5 triệu?', 'So sánh 3 mẫu máy đếm tiền', 'Xin số điện thoại chủ nhân']
-            ).map((q) => (
-              <button
-                key={q}
-                type="button"
-                disabled={isThinking || isStreaming}
-                onClick={() => onQuickPrompt(q)}
-                className="px-2.5 py-1 rounded-full bg-[#091a3d] hover:bg-cyan-950/80 border border-cyan-500/30 hover:border-cyan-400 text-[10px] text-cyan-200 whitespace-nowrap transition-all disabled:opacity-50"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
