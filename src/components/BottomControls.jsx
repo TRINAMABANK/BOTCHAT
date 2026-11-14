@@ -22,11 +22,40 @@ export const BottomControls = ({
   const [inputText, setInputText] = useState('');
   const inputRef = useRef(null);
 
+  // 1. Tự động focus con trỏ chuột ngay khi khách hàng vừa vào webapp
   useEffect(() => {
-    if ((orderStep || focusTick > 0) && !isThinking && !isStreaming) {
-      inputRef.current?.focus();
+    inputRef.current?.focus();
+
+    // Thử lại sau các khoảng trễ nhỏ để đảm bảo vượt qua render ban đầu của trình duyệt
+    const t1 = setTimeout(() => inputRef.current?.focus(), 100);
+    const t2 = setTimeout(() => inputRef.current?.focus(), 300);
+    const t3 = setTimeout(() => inputRef.current?.focus(), 600);
+
+    // Khi người dùng chuyển tab và quay lại webapp
+    const handleWindowFocus = () => {
+      if (!isThinking && !isStreaming) {
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, []);
+
+  // 2. Luôn luôn giữ con trỏ chuột sẵn sàng sau khi robot trả lời xong, đổi bước hoặc kích hoạt focus
+  useEffect(() => {
+    if (!isThinking && !isStreaming) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
     }
-  }, [orderStep, focusTick, isThinking, isStreaming]);
+  }, [isThinking, isStreaming, orderStep, focusTick]);
 
   const placeholderText =
     ORDER_STEP_PLACEHOLDERS[orderStep] || 'Nhập thông tin xưng hô hoặc câu hỏi của bạn...';
@@ -65,6 +94,7 @@ export const BottomControls = ({
           {/* Text Input */}
           <input
             ref={inputRef}
+            autoFocus
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}

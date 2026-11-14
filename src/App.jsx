@@ -247,6 +247,7 @@ export const App = () => {
       }
 
       setIsStreaming(false);
+      setInputFocusTick((t) => t + 1);
 
       if (data.leadCreated) {
         setBotState('success');
@@ -260,6 +261,7 @@ export const App = () => {
       console.error(err);
       setIsThinking(false);
       setIsStreaming(false);
+      setInputFocusTick((t) => t + 1);
       setBotState('error');
 
       setMessages(prev => [
@@ -415,6 +417,7 @@ export const App = () => {
       setOrderStep(null);
       setIsCatalogRevealed(false);
       setActiveCatalogField(null);
+      setInputFocusTick((t) => t + 1);
     }
   };
 
@@ -423,6 +426,7 @@ export const App = () => {
   const handlePickFieldInChat = (fieldName) => {
     setActiveCatalogField(fieldName);
     setFieldSyncTick((t) => t + 1);
+    setInputFocusTick((t) => t + 1);
     const firstInField = products.find((p) => p.field === fieldName) || null;
     if (firstInField) setSelectedProduct(firstInField);
     handleSendMessage(`Tôi muốn xem các sản phẩm thuộc lĩnh vực ${fieldName}.`, firstInField, null);
@@ -589,7 +593,10 @@ export const App = () => {
       {/* Product Detail Specifications Modal */}
       <ProductDetailModal
         isOpen={isProductDetailOpen}
-        onClose={() => setIsProductDetailOpen(false)}
+        onClose={() => {
+          setIsProductDetailOpen(false);
+          setInputFocusTick((t) => t + 1);
+        }}
         product={detailProduct || selectedProduct}
         onConsult={(prod) => {
           handleSendMessage(`Tôi muốn tư vấn chi tiết về ${prod.name}`, prod, 'Tìm hiểu sản phẩm');
@@ -606,13 +613,19 @@ export const App = () => {
       {/* Guide Modal */}
       <GuideModal
         isOpen={isGuideOpen}
-        onClose={() => setIsGuideOpen(false)}
+        onClose={() => {
+          setIsGuideOpen(false);
+          setInputFocusTick((t) => t + 1);
+        }}
       />
 
       {/* Quick Phone Contact Modal */}
       <PhoneContactModal
         isOpen={isPhoneModalOpen}
-        onClose={() => setIsPhoneModalOpen(false)}
+        onClose={() => {
+          setIsPhoneModalOpen(false);
+          setInputFocusTick((t) => t + 1);
+        }}
         onSubmit={handlePhoneFormSubmit}
         selectedProduct={selectedProduct}
         ownerName={settings.owner_name}
@@ -621,7 +634,10 @@ export const App = () => {
       {/* Owner Dashboard Modal */}
       <OwnerDashboard
         isOpen={isDashboardOpen}
-        onClose={() => setIsDashboardOpen(false)}
+        onClose={() => {
+          setIsDashboardOpen(false);
+          setInputFocusTick((t) => t + 1);
+        }}
         onRefreshData={() => {
           fetchSettings();
           fetchProducts();
