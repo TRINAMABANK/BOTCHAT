@@ -433,14 +433,15 @@ app.post('/api/upload/image', (req, res) => {
 // -----------------------------------------------------------------------------
 app.post('/api/chat/message', async (req, res) => {
   try {
-    const { conversationId, message, selectedProduct, actionType, customerInfo } = req.body;
+    const { conversationId, message, selectedProduct, actionType, customerInfo, clientDevice } = req.body;
 
     const result = await SalesEngine.processMessage({
       conversationId,
       message,
       selectedProduct,
       actionType,
-      customerInfo
+      customerInfo,
+      clientDevice
     });
 
     res.json(result);

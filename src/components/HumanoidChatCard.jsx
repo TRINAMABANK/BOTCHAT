@@ -1,5 +1,18 @@
 import React, { useRef, useEffect } from 'react';
-import { Mic, MessageSquare, User, CheckCircle2, RotateCcw, Volume2, VolumeX, Sparkles, Layers, FastForward } from 'lucide-react';
+import {
+  Mic,
+  MessageSquare,
+  User,
+  CheckCircle2,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  Sparkles,
+  Layers,
+  FastForward,
+  ShoppingCart,
+  Eye
+} from 'lucide-react';
 import AudioWaveform from './AudioWaveform';
 
 /**
@@ -51,13 +64,16 @@ export const HumanoidChatCard = ({
   voiceEnabled = false,
   availableFields = [],
   isCatalogRevealed = false,
+  isMobile = false,
   onPickField,
   onSkipStreaming,
   onToggleVoice,
   onSpeakMessage,
   onQuickPrompt,
   onResetChat,
-  onMicClick
+  onMicClick,
+  onTriggerAction,
+  onViewProductDetail
 }) => {
   const scrollRef = useRef(null);
   const latestMsgRef = useRef(null);
@@ -306,6 +322,91 @@ export const HumanoidChatCard = ({
                       {isUser ? msg.content : renderFormattedText(msg.content)}
                     </div>
 
+                    {/* Inline Product Showcase Cards: trình bày trực tiếp sản phẩm trong ô chat */}
+                    {!isUser && msg.metadata?.products && msg.metadata.products.length > 0 && (
+                      <div className="mt-3 pt-2.5 border-t border-cyan-500/25 space-y-2">
+                        <div className="text-[10px] font-bold text-cyan-300 uppercase tracking-wider flex items-center space-x-1">
+                          <Sparkles size={11} className="text-cyan-400" />
+                          <span>Sản phẩm ({msg.metadata.products.length}):</span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2">
+                          {msg.metadata.products.map((p) => (
+                            <div
+                              key={p.id || p.slug || p.name}
+                              className="rounded-xl bg-[#061430]/95 border border-cyan-500/40 hover:border-cyan-400/80 p-2.5 flex flex-col sm:flex-row gap-2.5 shadow-[0_0_15px_rgba(0,240,255,0.1)] transition-all"
+                            >
+                              {/* Product Thumbnail */}
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-slate-950 border border-cyan-500/30 overflow-hidden flex-shrink-0 flex items-center justify-center p-1 mx-auto sm:mx-0">
+                                <img
+                                  src={p.image_url || '/assets/products/xiudun-2166.jpg'}
+                                  alt={p.name}
+                                  className="w-full h-full object-contain"
+                                  onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = '/assets/products/xiudun-2166.jpg';
+                                  }}
+                                />
+                              </div>
+
+                              {/* Product Info */}
+                              <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {p.field && (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-cyan-950/90 text-cyan-300 border border-cyan-400/40">
+                                        {p.field}
+                                      </span>
+                                    )}
+                                    {p.group_name && (
+                                      <span className="text-[9px] text-slate-400">
+                                        • {p.group_name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <h4 className="text-xs font-bold text-white line-clamp-2 mt-1 leading-tight">
+                                    {p.name}
+                                  </h4>
+                                  <div className="text-xs font-extrabold text-cyan-300 mt-1">
+                                    {p.price_formatted || (p.price ? `${Number(p.price).toLocaleString('vi-VN')} ₫` : 'Liên hệ')}
+                                  </div>
+                                  {(p.short_description || p.description) && (
+                                    <p className="text-[10px] text-slate-300 line-clamp-2 mt-0.5 leading-snug">
+                                      {p.short_description || p.description}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Instant Action Buttons */}
+                                <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-cyan-500/20">
+                                  {onTriggerAction && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onTriggerAction('Đặt mua ngay', p)}
+                                      className="flex-1 flex items-center justify-center space-x-1 py-1.5 px-2.5 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-bold text-[10px] shadow-[0_0_10px_rgba(0,240,255,0.4)] transition-all active:scale-95"
+                                    >
+                                      <ShoppingCart size={11} className="fill-slate-950" />
+                                      <span>Đặt mua ngay</span>
+                                    </button>
+                                  )}
+                                  {onViewProductDetail && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onViewProductDetail(p)}
+                                      className="flex items-center justify-center space-x-1 py-1.5 px-2.5 rounded-lg bg-[#0c2044] hover:bg-cyan-950 text-cyan-200 border border-cyan-400/40 text-[10px] font-semibold transition-all active:scale-95"
+                                      title="Xem bảng thông số chi tiết"
+                                    >
+                                      <Eye size={11} />
+                                      <span>Chi tiết</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {msg.metadata?.leadCreated && (
                       <div className="mt-2.5 p-2 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] flex items-center space-x-2">
                         <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0" />
@@ -359,7 +460,11 @@ export const HumanoidChatCard = ({
               <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1">
                 <Layers size={11} className="text-cyan-400" />
                 <span>
-                  {isCatalogRevealed ? 'Đổi nhanh lĩnh vực sản phẩm:' : 'Chọn lĩnh vực để mở sản phẩm trực quan:'}
+                  {isCatalogRevealed
+                    ? 'Đổi nhanh lĩnh vực sản phẩm:'
+                    : isMobile
+                    ? 'Chọn lĩnh vực để xem sản phẩm:'
+                    : 'Chọn lĩnh vực để mở sản phẩm trực quan:'}
                 </span>
               </span>
             </div>

@@ -19,11 +19,12 @@ import {
 import confetti from 'canvas-confetti';
 import { speakVietnamese, stopSpeaking, isSpeechSupported } from './utils/speech';
 
-const createWelcomeMessage = () => ({
+const createWelcomeMessage = (isMobile = false) => ({
   id: `msg_welcome_${Date.now()}`,
   senderType: 'assistant',
-  content:
-    'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng của chủ nhân Quang Nhựt Trí.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm thuộc lĩnh vực nào ạ? Bạn có thể chọn nhanh bên dưới hoặc nhắn câu hỏi, tôi sẽ mở bộ sản phẩm ở Cột 2 ngay!',
+  content: isMobile
+    ? 'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng của chủ nhân Quang Nhựt Trí.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm thuộc lĩnh vực nào ạ? Bạn có thể chọn nhanh bên dưới hoặc nhắn sản phẩm muốn xem, tôi sẽ gửi ảnh, giá và thông số trực tiếp tại đây!'
+    : 'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng của chủ nhân Quang Nhựt Trí.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm thuộc lĩnh vực nào ạ? Bạn có thể chọn nhanh bên dưới hoặc nhắn câu hỏi, tôi sẽ mở bộ sản phẩm ở Cột 2 ngay!',
   createdAt: new Date().toISOString()
 });
 
@@ -49,6 +50,28 @@ export const App = () => {
   const [mobileViewTab, setMobileViewTab] = useState('chat'); // 'chat' | 'catalog'
   const [fieldSyncTick, setFieldSyncTick] = useState(0);
   const skipStreamingRef = useRef(false);
+
+  // Detect mobile phone (< 768px or mobile user agent)
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return (
+        window.innerWidth < 768 ||
+        /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      );
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(
+        window.innerWidth < 768 ||
+        /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      );
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Products & Hierarchy
   const [products, setProducts] = useState([]);
@@ -94,8 +117,12 @@ export const App = () => {
       (parsedSaved.every((m) => ['msg_init_1', 'msg_init_2', 'msg_init_3'].includes(m.id)) ||
         (parsedSaved.length === 1 && (parsedSaved[0].content || '').includes('Xin chào anh/chị')));
 
+    const clientIsMobile =
+      typeof window !== 'undefined' &&
+      (window.innerWidth < 768 || /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+
     if (parsedSaved.length === 0 || isLegacyMockOnly) {
-      const initialMessages = [createWelcomeMessage()];
+      const initialMessages = [createWelcomeMessage(clientIsMobile)];
       setMessages(initialMessages);
       localStorage.setItem('triai_chat_history', JSON.stringify(initialMessages));
     } else {
@@ -182,7 +209,8 @@ export const App = () => {
           conversationId,
           message: text,
           selectedProduct: prodToUse,
-          actionType
+          actionType,
+          clientDevice: isMobile ? 'mobile' : 'desktop'
         })
       });
 
@@ -196,7 +224,7 @@ export const App = () => {
       setIsStreaming(true);
       setBotState('speaking');
 
-      if (data.revealCatalog) {
+      if (data.revealCatalog && !isMobile) {
         setIsCatalogRevealed(true);
       }
       if (data.recommendedField) {
@@ -226,7 +254,11 @@ export const App = () => {
           id: assistantMsgId,
           senderType: 'assistant',
           content: '',
-          metadata: { leadCreated: data.leadCreated },
+          metadata: {
+            leadCreated: data.leadCreated,
+            products: data.products || (data.recommendedProduct ? [data.recommendedProduct] : []),
+            recommendedProduct: data.recommendedProduct
+          },
           createdAt: new Date().toISOString()
         }
       ]);
@@ -414,7 +446,7 @@ export const App = () => {
       localStorage.setItem('triai_conversation_id', newConvId);
       localStorage.removeItem('triai_chat_history');
 
-      const initialWelcome = createWelcomeMessage();
+      const initialWelcome = createWelcomeMessage(isMobile);
       setMessages([initialWelcome]);
       setBotState('idle');
       setOrderStep(null);
@@ -518,14 +550,17 @@ export const App = () => {
         </div>
       </header>
 
-      {/* 2. MAIN PROGRESSIVE ARENA (Centered Column 1 first -> Smoothly expands to 2 Columns on field discovery) */}
+      {/* 2. MAIN ARENA:
+          - Mobile (< 768px): Chỉ hiển thị duy nhất Cột 1 (Hội thoại tư vấn) toàn màn hình, không mở danh mục cột 2 để khỏi vướng. Khi khách hỏi sản phẩm sẽ trình bày trực tiếp trong ô chat.
+          - Desktop / Tablet (>= 768px): Hiển thị tiến trình mượt mà từ 1 cột sang 2 cột khi khám phá lĩnh vực/sản phẩm.
+      */}
       <main
         className={`flex-1 w-full mx-auto p-2.5 sm:p-4 md:p-6 flex flex-col justify-between transition-all duration-500 ${
-          isCatalogRevealed ? 'max-w-7xl' : 'max-w-4xl'
+          !isMobile && isCatalogRevealed ? 'max-w-7xl' : 'max-w-4xl'
         }`}
       >
-        {/* Mobile & Tablet Responsive View Switcher (< 1024px) */}
-        {isCatalogRevealed && (
+        {/* Tablet Responsive View Switcher (chỉ dành cho tablet/desktop nhỏ, ẩn hoàn toàn trên mobile) */}
+        {!isMobile && isCatalogRevealed && (
           <div className="lg:hidden flex items-center p-1 bg-[#06122d]/95 rounded-2xl border border-cyan-500/40 mb-3 shadow-[0_0_20px_rgba(0,240,255,0.15)]">
             <button
               type="button"
@@ -559,11 +594,11 @@ export const App = () => {
 
         <div
           className={`grid gap-4 flex-1 items-stretch ${
-            isCatalogRevealed ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
+            !isMobile && isCatalogRevealed ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
           }`}
         >
-          {/* CỘT 1: HUMANOID AI ROBOT & CHAT TƯ VẤN */}
-          <section className={`flex flex-col h-full min-w-0 ${isCatalogRevealed && mobileViewTab !== 'chat' ? 'hidden lg:flex' : 'flex'}`}>
+          {/* CỘT 1: HUMANOID AI ROBOT & CHAT TƯ VẤN (Duy nhất trên Mobile, có trình diễn sản phẩm trực tiếp trong ô chat) */}
+          <section className={`flex flex-col h-full min-w-0 ${!isMobile && isCatalogRevealed && mobileViewTab !== 'chat' ? 'hidden lg:flex' : 'flex'}`}>
             <HumanoidChatCard
               messages={messages}
               isThinking={isThinking}
@@ -571,7 +606,8 @@ export const App = () => {
               botState={botState}
               voiceEnabled={voiceEnabled}
               availableFields={availableFields}
-              isCatalogRevealed={isCatalogRevealed}
+              isCatalogRevealed={!isMobile && isCatalogRevealed}
+              isMobile={isMobile}
               onPickField={handlePickFieldInChat}
               onSkipStreaming={() => { skipStreamingRef.current = true; }}
               onToggleVoice={handleToggleVoice}
@@ -579,11 +615,13 @@ export const App = () => {
               onQuickPrompt={(prompt) => handleSendMessage(prompt, selectedProduct, null)}
               onResetChat={handleResetChat}
               onMicClick={handleVoiceInput}
+              onTriggerAction={handleTriggerAction}
+              onViewProductDetail={handleViewProductDetail}
             />
           </section>
 
-          {/* CỘT 2: PRODUCT SELECTOR & NHU CẦU (Tự động xuất hiện sau khi chọn/hỏi lĩnh vực) */}
-          {isCatalogRevealed && (
+          {/* CỘT 2: PRODUCT SELECTOR & NHU CẦU (Chỉ hiển thị trên Desktop/Tablet khi khám phá sản phẩm) */}
+          {!isMobile && isCatalogRevealed && (
             <section className={`flex flex-col h-full min-w-0 animate-catalog-reveal ${mobileViewTab !== 'catalog' ? 'hidden lg:flex' : 'flex'}`}>
               <ProductSelectorCard
                 products={products}
@@ -606,26 +644,28 @@ export const App = () => {
           isListening={botState === 'listening'}
           isThinking={isThinking}
           isStreaming={isStreaming}
-          isCatalogRevealed={isCatalogRevealed}
+          isCatalogRevealed={!isMobile && isCatalogRevealed}
           orderStep={orderStep}
           focusTick={inputFocusTick}
         />
       </main>
 
-      {/* Mobile Bottom Responsive Drawer */}
-      <MobileDrawer
-        isOpen={isMobileDrawerOpen}
-        isCatalogRevealed={isCatalogRevealed}
-        onOpen={() => setIsMobileDrawerOpen(true)}
-        onClose={() => setIsMobileDrawerOpen(false)}
-        products={products}
-        selectedProduct={selectedProduct}
-        externalField={activeCatalogField}
-        externalFieldTick={fieldSyncTick}
-        onSelectProduct={handleSelectProduct}
-        onTriggerAction={handleTriggerAction}
-        onViewProductDetail={handleViewProductDetail}
-      />
+      {/* Mobile Drawer (chỉ hiện trên Tablet nếu cần, ẩn trên Mobile phone để tránh vướng) */}
+      {!isMobile && (
+        <MobileDrawer
+          isOpen={isMobileDrawerOpen}
+          isCatalogRevealed={isCatalogRevealed}
+          onOpen={() => setIsMobileDrawerOpen(true)}
+          onClose={() => setIsMobileDrawerOpen(false)}
+          products={products}
+          selectedProduct={selectedProduct}
+          externalField={activeCatalogField}
+          externalFieldTick={fieldSyncTick}
+          onSelectProduct={handleSelectProduct}
+          onTriggerAction={handleTriggerAction}
+          onViewProductDetail={handleViewProductDetail}
+        />
+      )}
 
       {/* Product Detail Specifications Modal */}
       <ProductDetailModal
