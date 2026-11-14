@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import db, { initDatabase } from './db.js';
 import SalesEngine from './salesEngine.js';
+import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 
 dotenv.config();
 
@@ -69,17 +70,31 @@ app.get('/api/settings', async (req, res) => {
     const rows = await db.all('SELECT key, value, description FROM bot_settings');
     const settings = {};
     let hasDbKey = false;
+    let hasGeminiDbKey = false;
+
     rows.forEach((r) => {
       if (r.key === 'openai_api_key') {
         hasDbKey = Boolean(r.value && r.value.trim().length > 12 && !r.value.includes('your_'));
         return; // Never expose raw API keys to the frontend
       }
+      if (r.key === 'gemini_api_key') {
+        hasGeminiDbKey = Boolean(r.value && r.value.trim().length > 8 && !r.value.includes('your_'));
+        return; // Never expose raw API keys to the frontend
+      }
       settings[r.key] = r.value;
     });
+
     const hasEnvKey = Boolean(process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes('your_') && process.env.OPENAI_API_KEY.trim().length > 12);
     settings.has_openai_key = (hasDbKey || hasEnvKey) ? '1' : '0';
     if (!settings.openai_model) settings.openai_model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
     if (!settings.openai_base_url) settings.openai_base_url = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+
+    const envGemini = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const hasGeminiEnvKey = Boolean(envGemini && !envGemini.includes('your_') && envGemini.trim().length > 8);
+    settings.has_gemini_key = (hasGeminiDbKey || hasGeminiEnvKey) ? '1' : '0';
+    if (!settings.gemini_model) settings.gemini_model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    if (!settings.llm_provider) settings.llm_provider = 'gemini';
+
     res.json({ success: true, settings });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -92,8 +107,11 @@ app.put('/api/settings', async (req, res) => {
     const now = new Date().toISOString();
 
     for (const [key, value] of Object.entries(updates)) {
-      if (key === 'has_openai_key') continue;
+      if (key === 'has_openai_key' || key === 'has_gemini_key') continue;
       if (key === 'openai_api_key' && (!value || String(value).trim() === '' || String(value).includes('••••'))) {
+        continue; // Keep existing key if blank or masked
+      }
+      if (key === 'gemini_api_key' && (!value || String(value).trim() === '' || String(value).includes('••••'))) {
         continue; // Keep existing key if blank or masked
       }
       const existing = await db.get('SELECT key FROM bot_settings WHERE key = ?', [key]);
@@ -107,6 +125,28 @@ app.put('/api/settings', async (req, res) => {
     res.json({ success: true, message: 'Cập nhật cấu hình quản trị thành công!' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Test Google Gemini Connection
+app.post('/api/settings/test-gemini', async (req, res) => {
+  try {
+    let { apiKey, model } = req.body;
+    if (!apiKey || apiKey.includes('••••')) {
+      const row = await db.get("SELECT value FROM bot_settings WHERE key = 'gemini_api_key'");
+      apiKey = row?.value || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    }
+    const result = await testGeminiConnection(apiKey, model || 'gemini-1.5-flash');
+    res.json({
+      success: true,
+      message: `Kết nối Google Gemini AI thành công! (Model: ${result.model})`,
+      reply: result.reply
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: err.message
+    });
   }
 });
 
@@ -156,6 +196,76 @@ app.get('/api/products', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Crawl and Analyze Product Webpage URL using Google Gemini LLM
+app.post('/api/products/analyze-url', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url.trim())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Đường dẫn website không hợp lệ. Vui lòng nhập link đầy đủ bắt đầu bằng http:// hoặc https://'
+      });
+    }
+
+    const targetUrl = url.trim();
+
+    // Fetch API key from DB or env
+    const geminiSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'gemini_api_key'");
+    const modelSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'gemini_model'");
+    const geminiApiKey = geminiSetting?.value || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const geminiModel = modelSetting?.value || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+    console.log(`[AI CRAWLER] Fetching product webpage: ${targetUrl}`);
+
+    // Fetch webpage with timeout & standard desktop browser User-Agent
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    let html = '';
+    try {
+      const response = await fetch(targetUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7'
+        }
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Website trả về mã lỗi HTTP ${response.status}`);
+      }
+
+      html = await response.text();
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      console.warn(`[AI CRAWLER] Direct fetch failed for ${targetUrl}:`, fetchErr.message);
+      // Fallback: analyze using URL domain and slug metadata
+      const cleanSlug = targetUrl.split('/').filter(Boolean).pop() || 'Sản phẩm mới';
+      html = `<html><head><title>${cleanSlug.replace(/[-_]+/g, ' ')}</title></head><body>Sản phẩm: ${cleanSlug} Nguồn: ${targetUrl}</body></html>`;
+    }
+
+    // Call Gemini LLM analyzer
+    const analyzed = await analyzeProductFromWebpage(html, targetUrl, {
+      apiKey: geminiApiKey,
+      model: geminiModel
+    });
+
+    res.json({
+      success: true,
+      product: analyzed
+    });
+  } catch (err) {
+    console.error('[ANALYZE URL ERROR]:', err);
+    res.status(500).json({
+      success: false,
+      error: `Lỗi phân tích trang web: ${err.message}`
+    });
   }
 });
 

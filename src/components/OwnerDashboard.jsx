@@ -25,7 +25,12 @@ import {
   AlertCircle,
   Upload,
   Image,
-  Trash2
+  Trash2,
+  Globe,
+  Sparkles,
+  ExternalLink,
+  Loader2,
+  Link2
 } from 'lucide-react';
 
 export const OwnerDashboard = ({
@@ -65,6 +70,15 @@ export const OwnerDashboard = ({
     is_approved: true
   });
 
+  // URL Product Import & Analysis State
+  const [showUrlModal, setShowUrlModal] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [analyzingUrl, setAnalyzingUrl] = useState(false);
+  const [analyzedProduct, setAnalyzedProduct] = useState(null);
+  const [urlError, setUrlError] = useState(null);
+  const [testingGemini, setTestingGemini] = useState(false);
+  const [geminiTestResult, setGeminiTestResult] = useState(null);
+
   // Settings State Form
   const [settingsForm, setSettingsForm] = useState({
     bot_name: 'TRÍ AI SALES ROBOT',
@@ -76,7 +90,13 @@ export const OwnerDashboard = ({
     phone_invitation_prompt: '',
     lead_notification_email: '',
     hotline: '',
-    show_hotline: '1'
+    show_hotline: '1',
+    gemini_api_key: '',
+    gemini_model: 'gemini-1.5-flash',
+    llm_provider: 'gemini',
+    openai_api_key: '',
+    openai_model: 'gpt-4o-mini',
+    openai_base_url: 'https://api.openai.com/v1'
   });
 
   const fetchData = async () => {
@@ -230,6 +250,101 @@ export const OwnerDashboard = ({
   const showMessage = (msg) => {
     setStatusMessage(msg);
     setTimeout(() => setStatusMessage(null), 3500);
+  };
+
+  // Analyze Product from Website URL using Google Gemini LLM
+  const handleAnalyzeUrl = async (e) => {
+    e?.preventDefault();
+    if (!urlInput.trim()) {
+      setUrlError('Vui lòng nhập đường dẫn website sản phẩm.');
+      return;
+    }
+    setUrlError(null);
+    setAnalyzingUrl(true);
+    setAnalyzedProduct(null);
+
+    try {
+      const res = await fetch('/api/products/analyze-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlInput.trim() })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Không thể phân tích trang web này.');
+      }
+      setAnalyzedProduct(data.product);
+      showMessage(`Đã phân tích thành công: "${data.product.name}"!`);
+    } catch (err) {
+      console.error(err);
+      setUrlError(err.message || 'Lỗi phân tích URL website');
+    } finally {
+      setAnalyzingUrl(false);
+    }
+  };
+
+  // Save Analyzed Product to Catalog
+  const handleSaveAnalyzedProduct = async () => {
+    if (!analyzedProduct) return;
+    try {
+      const payload = {
+        field: analyzedProduct.field || 'Thiết bị & Sản phẩm',
+        group_name: analyzedProduct.group_name || 'Sản phẩm chọn lọc',
+        name: analyzedProduct.name,
+        price: parseInt(analyzedProduct.price, 10) || 0,
+        description: analyzedProduct.description || '',
+        specs_json: analyzedProduct.specs_json || {},
+        image_url: analyzedProduct.image_url || '/assets/machine_2166.png',
+        is_approved: true
+      };
+
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Lỗi lưu sản phẩm');
+      }
+
+      showMessage(`Đã lưu "${analyzedProduct.name}" vào danh mục sản phẩm (Cột 2) thành công!`);
+      setShowUrlModal(false);
+      setAnalyzedProduct(null);
+      setUrlInput('');
+      fetchData();
+      if (onRefreshData) onRefreshData();
+    } catch (err) {
+      console.error(err);
+      setUrlError(err.message || 'Lỗi khi lưu sản phẩm vào danh mục');
+    }
+  };
+
+  // Test Gemini Connection
+  const handleTestGemini = async () => {
+    setTestingGemini(true);
+    setGeminiTestResult(null);
+    try {
+      const res = await fetch('/api/settings/test-gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: settingsForm.gemini_api_key,
+          model: settingsForm.gemini_model || 'gemini-1.5-flash'
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Kết nối Gemini thất bại');
+      }
+      setGeminiTestResult({ success: true, message: data.message });
+      showMessage(data.message);
+    } catch (err) {
+      console.error(err);
+      setGeminiTestResult({ success: false, message: err.message || 'Không thể kết nối Gemini' });
+    } finally {
+      setTestingGemini(false);
+    }
   };
 
   /**
@@ -868,6 +983,19 @@ export const OwnerDashboard = ({
                   )}
 
                   <button
+                    type="button"
+                    onClick={() => {
+                      setShowUrlModal(true);
+                      setUrlError(null);
+                      setAnalyzedProduct(null);
+                    }}
+                    className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-500 text-white font-bold text-xs shadow-lg hover:brightness-110 active:scale-95 transition-all border border-purple-400/40"
+                  >
+                    <Globe size={16} />
+                    <span>🌐 Nhập link Website (AI Gemini)</span>
+                  </button>
+
+                  <button
                     onClick={() => setShowAddProductModal(true)}
                     className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-bold text-xs shadow-lg hover:brightness-110 active:scale-95 transition-all"
                   >
@@ -1065,68 +1193,157 @@ export const OwnerDashboard = ({
                 </div>
               </div>
 
-              {/* SECTION 2: AI ENGINE & LLM BRAIN CONFIGURATION */}
-              <div className="bg-[#081838] p-6 rounded-2xl border border-cyan-500/30 space-y-5">
+              {/* SECTION 2: AI ENGINE & GOOGLE GEMINI LLM CONFIGURATION */}
+              <div className="bg-[#081838] p-6 rounded-2xl border border-cyan-500/30 space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-bold text-cyan-300 font-display flex items-center space-x-2">
-                    <Sliders size={18} />
-                    <span>2. CẤU HÌNH TRÍ TUỆ AI & LLM ENGINE</span>
+                    <Sparkles size={18} className="text-cyan-400" />
+                    <span>2. CẤU HÌNH BỘ NÃO GOOGLE GEMINI AI (LLM) & BÁN HÀNG</span>
                   </h3>
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                      settings.has_openai_key === '1'
+                    className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center space-x-1.5 ${
+                      settings.has_gemini_key === '1'
                         ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
                         : 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
                     }`}
                   >
-                    {settings.has_openai_key === '1'
-                      ? '⚡ LLM API Đang kết nối + Catalog Intelligence'
-                      : '🧠 Smart Catalog AI Engine 24/7 (Chưa gắn LLM API Key)'}
+                    <span>{settings.has_gemini_key === '1' ? '🟢' : '🟡'}</span>
+                    <span>
+                      {settings.has_gemini_key === '1'
+                        ? `Google Gemini AI (${settings.gemini_model || 'gemini-1.5-flash'}) Đang kích hoạt`
+                        : 'Chưa gắn Gemini API Key (Đang dùng Heuristic & Smart Engine)'}
+                    </span>
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1.5">
-                      OpenAI / LLM API Key (Lưu bảo mật phía Server):
-                    </label>
-                    <input
-                      type="password"
-                      value={settingsForm.openai_api_key || ''}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, openai_api_key: e.target.value })}
-                      placeholder={settings.has_openai_key === '1' ? '•••••••• (Đã lưu - nhập để thay mới)' : 'sk-... hoặc API key tương thích OpenAI'}
-                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-white font-mono text-sm outline-none focus:border-cyan-400"
-                    />
+                {/* Gemini Settings Box */}
+                <div className="p-4 rounded-xl bg-[#06122d] border border-cyan-500/40 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-white uppercase tracking-wider flex items-center space-x-2">
+                      <Bot size={15} className="text-cyan-400" />
+                      <span>Google Gemini AI (Phân tích Website & Báo giá thông minh)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleTestGemini}
+                      disabled={testingGemini}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-bold text-xs border border-cyan-500/50 transition-all disabled:opacity-50"
+                    >
+                      {testingGemini ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                      <span>{testingGemini ? 'Đang kiểm tra...' : 'Kiểm tra kết nối Gemini'}</span>
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1.5">
-                      Model AI:
-                    </label>
-                    <input
-                      type="text"
-                      value={settingsForm.openai_model || 'gpt-4o-mini'}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, openai_model: e.target.value })}
-                      placeholder="gpt-4o-mini"
-                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-cyan-300 font-mono text-sm outline-none focus:border-cyan-400"
-                    />
-                  </div>
+                  {geminiTestResult && (
+                    <div
+                      className={`p-3 rounded-xl text-xs font-medium border flex items-start space-x-2 ${
+                        geminiTestResult.success
+                          ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                          : 'bg-rose-950/60 border-rose-500/50 text-rose-300'
+                      }`}
+                    >
+                      {geminiTestResult.success ? <Check size={16} className="shrink-0 mt-0.5 text-emerald-400" /> : <AlertCircle size={16} className="shrink-0 mt-0.5 text-rose-400" />}
+                      <span>{geminiTestResult.message}</span>
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-slate-300 font-bold mb-1.5">
-                      API Base URL (OpenAI / Groq / DeepSeek / Gemini):
-                    </label>
-                    <input
-                      type="text"
-                      value={settingsForm.openai_base_url || 'https://api.openai.com/v1'}
-                      onChange={(e) => setSettingsForm({ ...settingsForm, openai_base_url: e.target.value })}
-                      placeholder="https://api.openai.com/v1"
-                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-slate-200 font-mono text-sm outline-none focus:border-cyan-400"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1.5">
+                        Google Gemini API Key (Lấy từ Google AI Studio):
+                      </label>
+                      <input
+                        type="password"
+                        value={settingsForm.gemini_api_key || ''}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, gemini_api_key: e.target.value })}
+                        placeholder={settings.has_gemini_key === '1' ? '•••••••• (Đã lưu - nhập để đổi mới)' : 'AIzaSy... (Nhập Gemini API Key)'}
+                        className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-white font-mono text-sm outline-none focus:border-cyan-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1.5">
+                        Model Google Gemini:
+                      </label>
+                      <select
+                        value={settingsForm.gemini_model || 'gemini-1.5-flash'}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, gemini_model: e.target.value })}
+                        className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-cyan-300 font-semibold text-sm outline-none focus:border-cyan-400"
+                      >
+                        <option value="gemini-1.5-flash">gemini-1.5-flash (Khuyên dùng - Nhanh & thông minh)</option>
+                        <option value="gemini-2.0-flash">gemini-2.0-flash (Thế hệ mới nhất)</option>
+                        <option value="gemini-1.5-pro">gemini-1.5-pro (Chuyên sâu đa nhiệm)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1.5">
+                        Bộ não AI ưu tiên:
+                      </label>
+                      <select
+                        value={settingsForm.llm_provider || 'gemini'}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, llm_provider: e.target.value })}
+                        className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-amber-300 font-semibold text-sm outline-none focus:border-cyan-400"
+                      >
+                        <option value="gemini">Google Gemini AI (Khuyên dùng)</option>
+                        <option value="openai">OpenAI (GPT-4o / Compatible)</option>
+                        <option value="auto">Tự động (Ưu tiên Gemini, dự phòng OpenAI)</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
+
+                {/* Optional OpenAI Settings */}
+                <div className="p-4 rounded-xl bg-[#06122d]/60 border border-slate-700/60 space-y-3">
+                  <div className="font-bold text-xs text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+                    <Sliders size={14} />
+                    <span>Cấu hình dự phòng OpenAI / Endpoint khác (Tùy chọn)</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div>
+                      <label className="block text-slate-400 font-semibold mb-1">
+                        OpenAI API Key:
+                      </label>
+                      <input
+                        type="password"
+                        value={settingsForm.openai_api_key || ''}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, openai_api_key: e.target.value })}
+                        placeholder={settings.has_openai_key === '1' ? '•••••••• (Đã lưu)' : 'sk-...'}
+                        className="w-full bg-[#0a1f44] border border-slate-700 rounded-xl px-4 py-2 text-white font-mono text-xs outline-none focus:border-cyan-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 font-semibold mb-1">
+                        OpenAI Model:
+                      </label>
+                      <input
+                        type="text"
+                        value={settingsForm.openai_model || 'gpt-4o-mini'}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, openai_model: e.target.value })}
+                        placeholder="gpt-4o-mini"
+                        className="w-full bg-[#0a1f44] border border-slate-700 rounded-xl px-4 py-2 text-slate-200 font-mono text-xs outline-none focus:border-cyan-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 font-semibold mb-1">
+                        OpenAI Base URL:
+                      </label>
+                      <input
+                        type="text"
+                        value={settingsForm.openai_base_url || 'https://api.openai.com/v1'}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, openai_base_url: e.target.value })}
+                        placeholder="https://api.openai.com/v1"
+                        className="w-full bg-[#0a1f44] border border-slate-700 rounded-xl px-4 py-2 text-slate-200 font-mono text-xs outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <p className="text-xs text-slate-400">
-                  Bảo mật: API Key chỉ lưu trực tiếp trong cơ sở dữ liệu phía server, không bao giờ gửi ngược ra trình duyệt khách hàng.
+                  🔒 Bảo mật tuyệt đối: Toàn bộ API Key chỉ được lưu trữ và mã hóa an toàn phía server, không bao giờ lộ ra trình duyệt của khách hàng.
                 </p>
               </div>
 
@@ -1204,6 +1421,239 @@ export const OwnerDashboard = ({
               >
                 Đóng cửa sổ
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal URL Product Import & Analysis with Google Gemini LLM */}
+      {showUrlModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-2xl bg-[#07132c] border-2 border-purple-500/50 rounded-3xl flex flex-col overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.3)]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-purple-950/80 to-[#091b3e] border-b border-purple-500/40">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-purple-500/20 border border-purple-400/40 text-purple-300">
+                  <Globe size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white font-display flex items-center space-x-2">
+                    <span>Nhập Link Website Sản Phẩm & Phân Tích Gemini AI</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 uppercase">
+                      Gemini LLM
+                    </span>
+                  </h3>
+                  <p className="text-xs text-purple-200/70 mt-0.5">
+                    Tự động đọc nội dung web, trích xuất tên, lĩnh vực, báo giá và thông số kỹ thuật
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUrlModal(false);
+                  setUrlError(null);
+                  setAnalyzedProduct(null);
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-5 text-xs overflow-y-auto max-h-[75vh] bg-[#050c1f]">
+              {/* URL Input Form */}
+              <form onSubmit={handleAnalyzeUrl} className="space-y-3">
+                <label className="block text-slate-200 font-bold">
+                  Dán địa chỉ website sản phẩm (URL):
+                </label>
+                <div className="flex flex-col sm:flex-row items-stretch gap-2">
+                  <div className="relative flex-1">
+                    <Link2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="url"
+                      required
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      placeholder="https://tiki.vn/... hoặc https://dienmayxanh.com/... hoặc website bất kỳ"
+                      className="w-full bg-[#0a1f44] border border-purple-500/40 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm outline-none focus:border-purple-400 font-mono shadow-inner"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={analyzingUrl || !urlInput.trim()}
+                    className="flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold text-xs shadow-lg hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 shrink-0"
+                  >
+                    {analyzingUrl ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        <span>Đang phân tích AI...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={15} />
+                        <span>Phân tích bằng Gemini AI</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  💡 Hỗ trợ: Các trang bán hàng, thương mại điện tử, bài viết đánh giá, landing page sản phẩm.
+                </p>
+              </form>
+
+              {/* Error Message */}
+              {urlError && (
+                <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-300 flex items-start space-x-2">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5 text-rose-400" />
+                  <span>{urlError}</span>
+                </div>
+              )}
+
+              {/* Loading State Animation */}
+              {analyzingUrl && (
+                <div className="p-8 rounded-2xl bg-[#081838] border border-purple-500/30 flex flex-col items-center justify-center text-center space-y-3 animate-pulse">
+                  <div className="p-3 rounded-full bg-purple-500/20 text-purple-300">
+                    <Loader2 size={32} className="animate-spin" />
+                  </div>
+                  <h4 className="font-bold text-white text-sm">Đang tải trang web & kết nối Google Gemini AI...</h4>
+                  <p className="text-xs text-slate-300 max-w-md">
+                    Gemini đang đọc toàn bộ văn bản HTML, nhận diện cấu trúc giá bán, trích xuất thông số kỹ thuật và tạo mô tả bán hàng tối ưu.
+                  </p>
+                </div>
+              )}
+
+              {/* Result Preview Form */}
+              {analyzedProduct && (
+                <div className="p-5 rounded-2xl bg-[#081838] border-2 border-emerald-500/40 space-y-4 shadow-xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-700/60">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle size={18} className="text-emerald-400" />
+                      <span className="font-bold text-emerald-300 text-sm">KẾT QUẢ PHÂN TÍCH THÀNH CÔNG</span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-purple-950 text-purple-300 border border-purple-500/40 text-[11px] font-semibold">
+                      ✨ {analyzedProduct.analyzed_by || 'Google Gemini AI'}
+                    </span>
+                  </div>
+
+                  {/* Form fields to tweak before saving */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">Tên sản phẩm (*):</label>
+                      <input
+                        type="text"
+                        value={analyzedProduct.name || ''}
+                        onChange={(e) => setAnalyzedProduct({ ...analyzedProduct, name: e.target.value })}
+                        className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2 text-white font-bold text-sm outline-none focus:border-cyan-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">Giá bán (VND) (*):</label>
+                      <input
+                        type="number"
+                        value={analyzedProduct.price || 0}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10) || 0;
+                          setAnalyzedProduct({
+                            ...analyzedProduct,
+                            price: val,
+                            price_formatted: val > 0 ? `${val.toLocaleString('vi-VN')} ₫` : 'Liên hệ'
+                          });
+                        }}
+                        className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2 text-amber-300 font-mono font-bold text-sm outline-none focus:border-cyan-400"
+                      />
+                      <span className="text-[11px] text-amber-400/80 mt-0.5 block">
+                        Hiển thị: {analyzedProduct.price_formatted}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">Lĩnh vực (*):</label>
+                      <input
+                        type="text"
+                        value={analyzedProduct.field || ''}
+                        onChange={(e) => setAnalyzedProduct({ ...analyzedProduct, field: e.target.value })}
+                        className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2 text-white text-xs outline-none focus:border-cyan-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">Nhóm phân khúc (*):</label>
+                      <input
+                        type="text"
+                        value={analyzedProduct.group_name || ''}
+                        onChange={(e) => setAnalyzedProduct({ ...analyzedProduct, group_name: e.target.value })}
+                        className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2 text-white text-xs outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Mô tả bán hàng chuẩn AI:</label>
+                    <textarea
+                      rows={3}
+                      value={analyzedProduct.description || ''}
+                      onChange={(e) => setAnalyzedProduct({ ...analyzedProduct, description: e.target.value })}
+                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl p-3 text-white text-xs outline-none focus:border-cyan-400 leading-relaxed resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Link ảnh sản phẩm trích xuất được:</label>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-14 h-14 rounded-xl bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
+                        <img
+                          src={analyzedProduct.image_url || '/assets/machine_2166.png'}
+                          alt="preview"
+                          className="w-full h-full object-contain"
+                          onError={(e) => (e.target.src = '/assets/machine_2166.png')}
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={analyzedProduct.image_url || ''}
+                        onChange={(e) => setAnalyzedProduct({ ...analyzedProduct, image_url: e.target.value })}
+                        className="flex-1 bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2 text-slate-300 text-xs font-mono outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Highlights */}
+                  {analyzedProduct.key_highlights && analyzedProduct.key_highlights.length > 0 && (
+                    <div className="p-3 rounded-xl bg-[#06122d] border border-slate-700/80">
+                      <span className="font-bold text-[11px] text-cyan-300 uppercase tracking-wide block mb-1.5">
+                        Điểm nổi bật do Gemini phát hiện:
+                      </span>
+                      <ul className="list-disc list-inside space-y-1 text-slate-300 text-xs">
+                        {analyzedProduct.key_highlights.map((h, i) => (
+                          <li key={i}>{h}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setAnalyzedProduct(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-bold text-xs"
+                    >
+                      Phân tích lại
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveAnalyzedProduct}
+                      className="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 font-bold text-xs shadow-lg hover:brightness-110 active:scale-95 transition-all"
+                    >
+                      <Save size={16} />
+                      <span>Lưu vào Danh mục sản phẩm (Cột 2)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
