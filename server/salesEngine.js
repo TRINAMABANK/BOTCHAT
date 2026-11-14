@@ -233,7 +233,8 @@ const STOP_WORDS = new Set([
   'cho', 'xin', 'hoi', 'muon', 'can', 'tim', 'mua', 'ban', 'nhung', 'loai', 'mau',
   'nao', 'bao', 'nhieu', 'tien', 'gia', 'duoi', 'tren', 'tam', 'khoang', 'khong',
   'duoc', 'nhan', 'chu', 'dien', 'thoai', 'sdt', 'so', 'san', 'pham', 'tu', 'van',
-  'so', 'sanh', 'giup', 'voi', 'nha', 'nhe', 'anh', 'chi', 'ben', 'shop', 'may', 'cai', 'chiec'
+  'so', 'sanh', 'giup', 'voi', 'nha', 'nhe', 'anh', 'chi', 'ben', 'shop', 'may', 'cai', 'chiec',
+  'tri', 'quang', 'nhut', 'toi', 'minh', 'em', 'la', 'ten', 'chao', 'alo', 'hi', 'oi', 'day', 'a', 'da'
 ]);
 
 /**
@@ -320,7 +321,7 @@ function findMatchingProducts(normMsg, allProducts) {
   });
 
   return scores
-    .filter((s) => s.score >= 6)
+    .filter((s) => s.score >= 12)
     .sort((a, b) => b.score - a.score)
     .map((s) => s.product);
 }
@@ -719,9 +720,7 @@ function buildProductComparisonReply(productsToCompare, ownerName, customerRef =
     return `${idx + 1}. **${p.name}** — **${formatPrice(p)}**${short ? ` (${short})` : ''}`;
   });
 
-  const guideText = isMobile
-    ? `Thông số chi tiết và hình ảnh từng mẫu đã được gửi trực tiếp tại đây. ${capRef} đang quan tâm mẫu nào để tôi tư vấn sâu hơn ạ?`
-    : `Thông số chi tiết và hình ảnh từng mẫu đã được mở sẵn ở **Cột 2**. ${capRef} đang quan tâm mẫu nào để tôi tư vấn sâu hơn ạ?`;
+  const guideText = `Thông số chi tiết và hình ảnh từng mẫu đã được mở sẵn ở **Cột 2**. ${capRef} đang quan tâm mẫu nào để tôi tư vấn sâu hơn ạ?`;
 
   return `Dạ, tôi xin gửi ${customerRef} so sánh nhanh các mẫu đang có:\n\n${lines.join('\n')}\n\n${guideText}`;
 }
@@ -969,11 +968,8 @@ YÊU CẦU PHONG CÁCH BẮT BUỘC:
 - PHÂN TÍCH GIÁ & SO SÁNH THÔNG MINH:
   + Khi khách hỏi so sánh giá hoặc hỏi đắt/rẻ: Nêu rõ giá trị tương xứng với mức giá (hàng chính hãng, độ bền cao, công nghệ mới nhất, bảo hành chu đáo).
   + Khách hỏi giá: Nêu giá niêm yết rõ ràng kèm lời khẳng định chính hãng và ưu đãi từ chủ nhân.
-${
-  isMobile
-    ? '- KHÁCH HÀNG DÙNG ĐIỆN THOẠI: TUYỆT ĐỐI KHÔNG nhắc đến "Cột 2" hay "khung bên phải". Giới thiệu ngắn gọn thông tin và mời khách xem chi tiết trực tiếp tại đây.'
-    : '- KHÔNG viết dài dòng hoặc chép lại toàn bộ thông số kỹ thuật vì khách hàng xem được trực quan ở Cột 2.'
-}
+- KHI KHÁCH HÀNG HỎI HOẶC NHẮC ĐẾN SẢN PHẨM: Hệ thống tự động mở danh mục/sản phẩm trực quan ở Cột 2. Hãy giới thiệu ngắn gọn điểm nổi bật, giá bán và hướng dẫn khách xem chi tiết trực quan ở Cột 2.
+- KHÔNG viết dài dòng hoặc chép lại toàn bộ thông số kỹ thuật vì khách hàng xem được trực quan ở Cột 2.
 - QUY TẮC XƯNG HÔ: Xưng "tôi", tuyệt đối KHÔNG tự ý gọi khách hàng là "anh/chị". ${
           hasAddressingInfo
             ? `Xưng hô với khách là "${customerRef}".`
@@ -1135,7 +1131,6 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const hasBudgetQuery = Boolean(extractBudget(normMessage));
     const hasCompareQuery = normMessage.includes('so sanh') || normMessage.includes('khac nhau');
 
-    // Strict validation: Only return products if customer has explicitly asked for them
     const wantsProducts =
       !isNonProductIntent &&
       userExplicitlyWantsProducts({
@@ -1145,23 +1140,34 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         matchedField
       });
 
-    const revealCatalog = !isMobile && wantsProducts;
+    // Automatically reveal Column 2 whenever chat mentions or requests related products
+    const mentionsRelatedProduct =
+      !isNonProductIntent &&
+      (wantsProducts ||
+        matchedFromText.length > 0 ||
+        Boolean(matchedField) ||
+        asksGeneralCatalog ||
+        hasBudgetQuery ||
+        hasCompareQuery ||
+        Boolean(actionType));
 
-    const recommendedProduct = wantsProducts
+    const revealCatalog = mentionsRelatedProduct;
+
+    const recommendedProduct = mentionsRelatedProduct
       ? matchedFromText[0] || (matchedField ? allProducts.find((p) => p.field === matchedField) || null : null)
       : null;
 
-    const recommendedField = wantsProducts
+    const recommendedField = mentionsRelatedProduct
       ? matchedField || matchedFromText[0]?.field || (asksGeneralCatalog ? 'Tất cả' : null)
       : null;
 
-    // Collect products ONLY when explicitly requested (keeps mobile chat completely clean)
+    // Collect products when related products are mentioned/requested
     let returnProducts = [];
-    if (wantsProducts) {
+    if (mentionsRelatedProduct) {
       if (matchedFromText.length > 0) {
-        returnProducts = matchedFromText.slice(0, 3);
+        returnProducts = matchedFromText.slice(0, 4);
       } else if (matchedField) {
-        returnProducts = allProducts.filter((p) => p.field === matchedField).slice(0, 4);
+        returnProducts = allProducts.filter((p) => p.field === matchedField).slice(0, 6);
       } else if (hasBudgetQuery) {
         const budget = extractBudget(normMessage);
         let pool = allProducts.filter((p) => p.field !== 'Dịch vụ bảo trì' || normMessage.includes('bao tri'));
@@ -1170,16 +1176,16 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         }
         if (budget?.max !== undefined) {
           const under = pool.filter((p) => (p.price || 0) <= budget.max && (p.price || 0) > 0);
-          returnProducts = (under.length > 0 ? under : pool).slice(0, 3);
+          returnProducts = (under.length > 0 ? under : pool).slice(0, 4);
         } else {
-          returnProducts = pool.slice(0, 3);
+          returnProducts = pool.slice(0, 4);
         }
       } else if (hasCompareQuery) {
-        returnProducts = allProducts.filter((p) => p.field === 'Máy đếm tiền').slice(0, 3);
+        returnProducts = allProducts.filter((p) => p.field === 'Máy đếm tiền').slice(0, 4);
       } else if (actionType && activeProduct) {
         returnProducts = [activeProduct];
       } else if (asksGeneralCatalog) {
-        returnProducts = allProducts.slice(0, 3);
+        returnProducts = allProducts.slice(0, 6);
       } else if (recommendedProduct) {
         returnProducts = [recommendedProduct];
       }
@@ -1556,9 +1562,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         .map((p, i) => `${i + 1}. **${p.name}** — **${formatPrice(p)}**`)
         .join('\n');
 
-      const guideText = isMobile
-        ? `${capRef} có thể xem thông tin sản phẩm trực tiếp dưới đây hoặc nhắn tôi tư vấn sâu hơn nhé!`
-        : `Tôi đã mở danh sách ở **Cột 2**, ${capRef} có thể bấm xem chi tiết hoặc nhắn tôi tư vấn sâu hơn nhé!`;
+      const guideText = `Tôi đã mở danh sách ở **Cột 2**, ${capRef} có thể bấm xem chi tiết hoặc nhắn tôi tư vấn sâu hơn nhé!`;
 
       return `${politeAskBanner}Dạ, theo mức ngân sách của ${customerRef}, tôi xin gợi ý các lựa chọn phù hợp:\n\n${listText}\n\n${guideText}`;
     }
@@ -1599,9 +1603,6 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           return `• **${f}:** ${names}${items.length > 2 ? ` và ${items.length - 2} mẫu khác` : ''}`;
         })
         .join('\n');
-      if (isMobile) {
-        return `${politeAskBanner}Dạ, bên tôi đang có các danh mục sản phẩm chính sau:\n\n${overview}\n\n${capRef} muốn xem sản phẩm thuộc nhóm nào cứ nhắn tên hoặc hỏi tôi để tôi gửi ảnh, thông số và báo giá trực tiếp tại đây nhé!`;
-      }
       return `${politeAskBanner}Dạ, bên tôi đang có các danh mục sản phẩm chính sau:\n\n${overview}\n\nTôi đã mở danh mục trực quan ở **Cột 2**. ${capRef} muốn xem chi tiết nhóm nào ạ?`;
     }
 
@@ -1617,10 +1618,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
             return `${i + 1}. **${p.name}** — **${formatPrice(p)}**${short ? ` (${short})` : ''}`;
           })
           .join('\n');
-        if (isMobile) {
-          return `${politeAskBanner}Dạ, tôi xin gửi ${customerRef} các sản phẩm thuộc lĩnh vực **${matchedField}** trực tiếp dưới đây:\n\n${previewLines}\n\n${capRef} có thể bấm **Đặt mua ngay** trên thẻ sản phẩm hoặc nhắn tôi hỗ trợ tư vấn chi tiết nhé!`;
-        }
-        return `${politeAskBanner}Dạ, tôi đã mở danh mục **${matchedField}** ở khung bên phải (**Cột 2**):\n\n${previewLines}\n\n${capRef} có thể bấm vào thẻ sản phẩm để xem chi tiết hoặc nhắn tôi hỗ trợ so sánh nhé!`;
+        return `${politeAskBanner}Dạ, tôi đã mở danh mục **${matchedField}** ở **Cột 2**:\n\n${previewLines}\n\n${capRef} có thể bấm vào thẻ sản phẩm để xem chi tiết hoặc nhắn tôi hỗ trợ so sánh nhé!`;
       }
     }
 
@@ -1628,9 +1626,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     if (matchedFromText.length > 0) {
       const top = matchedFromText[0];
       const shortDesc = formatShortDesc(top.description, 85);
-      const cta = isMobile
-        ? `${capRef} có thể bấm **Đặt mua ngay** trên thẻ sản phẩm bên dưới hoặc nhắn tôi tư vấn thêm nhé!`
-        : `Thông số chi tiết đã được mở ở **Cột 2**. ${capRef} muốn tôi tư vấn thêm hay hỗ trợ đặt mua ngay?`;
+      const cta = `Thông số chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**. ${capRef} muốn tôi tư vấn thêm hay hỗ trợ đặt mua ngay?`;
       return `${politeAskBanner}Dạ, sản phẩm phù hợp nhất với nhu cầu của ${customerRef} là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n📝 **Đặc tính:** ${shortDesc || top.group_name || 'Chính hãng chất lượng cao'}\n\n${cta}`;
     }
 
@@ -1673,9 +1669,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('chuc nang gi') ||
       normMessage.includes('biet lam gi')
     ) {
-      const actionScope = isMobile
-        ? `tìm sản phẩm theo nhu cầu, so sánh thông số & giá bán, trình bày sản phẩm trực tiếp trong ô chat và ghi nhận đơn hàng gửi chủ nhân`
-        : `tìm sản phẩm theo nhu cầu, so sánh thông số & giá bán, mở danh mục trực quan ở Cột 2 và ghi nhận đơn hàng gửi chủ nhân`;
+      const actionScope = `tìm sản phẩm theo nhu cầu, so sánh thông số & giá bán, mở danh mục trực quan ở Cột 2 và ghi nhận đơn hàng gửi chủ nhân`;
       return `${politeAskBanner}Dạ, tôi có thể giúp ${customerRef}: ${actionScope}. ${capRef} cần hỗ trợ gì cứ nhắn tôi nhé!`;
     }
 
@@ -1683,9 +1677,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isGreeting = isGreetingMessage(normMessage);
     if (isGreeting) {
       if (!hasAddressingInfo) {
-        const guideAction = isMobile
-          ? `${capRef} có thể chọn nhanh lĩnh vực bên dưới hoặc nhắn sản phẩm để tôi gửi ảnh, giá và thông số hỗ trợ ngay ạ!`
-          : `${capRef} có thể chọn nhanh lĩnh vực bên dưới hoặc nhắn sản phẩm để tôi mở bảng Cột 2 hỗ trợ ngay ạ!`;
+        const guideAction = `${capRef} có thể nhắn sản phẩm hoặc câu hỏi cần tìm để tôi mở bảng Cột 2 hỗ trợ ngay ạ!`;
         return `Dạ xin chào ${customerRef}! Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}).\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\n${guideAction}`;
       }
       return `Dạ xin chào **${customerRef}**! Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}). Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;

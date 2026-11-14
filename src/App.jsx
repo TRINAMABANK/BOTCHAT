@@ -19,12 +19,11 @@ import {
 import confetti from 'canvas-confetti';
 import { speakVietnamese, stopSpeaking, isSpeechSupported } from './utils/speech';
 
-const createWelcomeMessage = (isMobile = false) => ({
+const createWelcomeMessage = () => ({
   id: `msg_welcome_${Date.now()}`,
   senderType: 'assistant',
-  content: isMobile
-    ? 'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng của chủ nhân Quang Nhựt Trí.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm thuộc lĩnh vực nào ạ? Bạn có thể chọn nhanh bên dưới hoặc nhắn sản phẩm muốn xem, tôi sẽ gửi ảnh, giá và thông số trực tiếp tại đây!'
-    : 'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng của chủ nhân Quang Nhựt Trí.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm thuộc lĩnh vực nào ạ? Bạn có thể chọn nhanh bên dưới hoặc nhắn câu hỏi, tôi sẽ mở bộ sản phẩm ở Cột 2 ngay!',
+  content:
+    'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng của chủ nhân Quang Nhựt Trí.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm thuộc lĩnh vực nào ạ? Bạn cứ nhắn câu hỏi hoặc sản phẩm cần tìm, tôi sẽ mở bộ sản phẩm ở Cột 2 hỗ trợ bạn ngay!',
   createdAt: new Date().toISOString()
 });
 
@@ -132,7 +131,7 @@ export const App = () => {
     }
 
     if (parsedSaved.length === 0 || isLegacyMockOnly) {
-      const initialMessages = [createWelcomeMessage(clientIsMobile)];
+      const initialMessages = [createWelcomeMessage()];
       setMessages(initialMessages);
       localStorage.setItem('triai_chat_history', JSON.stringify(initialMessages));
     } else {
@@ -232,7 +231,7 @@ export const App = () => {
       setIsStreaming(true);
       setBotState('speaking');
 
-      if (data.revealCatalog && !isMobile) {
+      if (data.revealCatalog) {
         setIsCatalogRevealed(true);
       }
       if (data.recommendedField) {
@@ -453,7 +452,7 @@ export const App = () => {
       localStorage.setItem('triai_conversation_id', newConvId);
       localStorage.removeItem('triai_chat_history');
 
-      const initialWelcome = createWelcomeMessage(isMobile);
+      const initialWelcome = createWelcomeMessage();
       setMessages([initialWelcome]);
       setBotState('idle');
       setOrderStep(null);
@@ -557,18 +556,15 @@ export const App = () => {
         </div>
       </header>
 
-      {/* 2. MAIN ARENA:
-          - Mobile (< 768px): Chỉ hiển thị duy nhất Cột 1 (Hội thoại tư vấn) toàn màn hình, không mở danh mục cột 2 để khỏi vướng. Khi khách hỏi sản phẩm sẽ trình bày trực tiếp trong ô chat.
-          - Desktop / Tablet (>= 768px): Hiển thị tiến trình mượt mà từ 1 cột sang 2 cột khi khám phá lĩnh vực/sản phẩm.
-      */}
+      {/* 2. MAIN PROGRESSIVE ARENA (Cột 1 trước -> Tự động hiện Cột 2 khi ô chat nhắc sản phẩm liên quan) */}
       <main
         className={`flex-1 w-full mx-auto p-2.5 sm:p-4 md:p-6 flex flex-col justify-between transition-all duration-500 ${
-          !isMobile && isCatalogRevealed ? 'max-w-7xl' : 'max-w-4xl'
+          isCatalogRevealed ? 'max-w-7xl' : 'max-w-4xl'
         }`}
       >
-        {/* Tablet Responsive View Switcher (chỉ dành cho tablet/desktop nhỏ, ẩn hoàn toàn trên mobile) */}
-        {!isMobile && isCatalogRevealed && (
-          <div className="lg:hidden flex items-center p-1 bg-[#06122d]/95 rounded-2xl border border-cyan-500/40 mb-3 shadow-[0_0_20px_rgba(0,240,255,0.15)]">
+        {/* Mobile & Tablet Responsive View Switcher (< 1024px) khi Cột 2 tự động mở */}
+        {isCatalogRevealed && (
+          <div className="lg:hidden flex items-center p-1 bg-[#06122d]/95 rounded-2xl border border-cyan-500/40 mb-3 shadow-[0_0_20px_rgba(0,240,255,0.2)] animate-fade-in">
             <button
               type="button"
               onClick={() => setMobileViewTab('chat')}
@@ -587,25 +583,43 @@ export const App = () => {
               className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all relative ${
                 mobileViewTab === 'catalog'
                   ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 text-slate-950 shadow-[0_0_15px_rgba(0,240,255,0.45)]'
-                  : 'text-slate-300 hover:text-cyan-300'
+                  : 'text-cyan-300 hover:text-cyan-200'
               }`}
             >
               <ShoppingCart size={16} />
-              <span>Danh Mục Sản Phẩm ({products.length})</span>
-              {selectedProduct && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping ml-1" />
-              )}
+              <span>Cột 2: Sản Phẩm ({products.length})</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping ml-1" />
+            </button>
+          </div>
+        )}
+
+        {/* Nút tắt chuyển nhanh sang Cột 2 trên điện thoại khi khách đang ở tab Chat */}
+        {isCatalogRevealed && mobileViewTab === 'chat' && (
+          <div className="lg:hidden mb-2.5 px-0.5">
+            <button
+              type="button"
+              onClick={() => setMobileViewTab('catalog')}
+              className="w-full py-2 px-3.5 rounded-xl bg-gradient-to-r from-[#071d42] via-[#0b2b60] to-[#071d42] border border-cyan-400/50 hover:border-cyan-300 text-cyan-200 text-xs font-bold flex items-center justify-between shadow-[0_0_15px_rgba(0,240,255,0.25)] active:scale-[0.98] transition-all"
+            >
+              <span className="flex items-center space-x-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                </span>
+                <span>Cột 2 đã mở: Bấm để xem danh mục & sản phẩm</span>
+              </span>
+              <span className="font-mono text-cyan-300 font-extrabold tracking-wider">Xem Cột 2 ≫</span>
             </button>
           </div>
         )}
 
         <div
           className={`grid gap-4 flex-1 items-stretch ${
-            !isMobile && isCatalogRevealed ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
+            isCatalogRevealed ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
           }`}
         >
-          {/* CỘT 1: HUMANOID AI ROBOT & CHAT TƯ VẤN (Duy nhất trên Mobile, có trình diễn sản phẩm trực tiếp trong ô chat) */}
-          <section className={`flex flex-col h-full min-w-0 ${!isMobile && isCatalogRevealed && mobileViewTab !== 'chat' ? 'hidden lg:flex' : 'flex'}`}>
+          {/* CỘT 1: HUMANOID AI ROBOT & CHAT TƯ VẤN */}
+          <section className={`flex flex-col h-full min-w-0 ${isCatalogRevealed && mobileViewTab !== 'chat' ? 'hidden lg:flex' : 'flex'}`}>
             <HumanoidChatCard
               messages={messages}
               isThinking={isThinking}
@@ -613,7 +627,7 @@ export const App = () => {
               botState={botState}
               voiceEnabled={voiceEnabled}
               availableFields={availableFields}
-              isCatalogRevealed={!isMobile && isCatalogRevealed}
+              isCatalogRevealed={isCatalogRevealed}
               isMobile={isMobile}
               onPickField={handlePickFieldInChat}
               onSkipStreaming={() => { skipStreamingRef.current = true; }}
@@ -627,8 +641,8 @@ export const App = () => {
             />
           </section>
 
-          {/* CỘT 2: PRODUCT SELECTOR & NHU CẦU (Chỉ hiển thị trên Desktop/Tablet khi khám phá sản phẩm) */}
-          {!isMobile && isCatalogRevealed && (
+          {/* CỘT 2: PRODUCT SELECTOR & NHU CẦU (Tự động xuất hiện khi ô chat nhắc sản phẩm liên quan) */}
+          {isCatalogRevealed && (
             <section className={`flex flex-col h-full min-w-0 animate-catalog-reveal ${mobileViewTab !== 'catalog' ? 'hidden lg:flex' : 'flex'}`}>
               <ProductSelectorCard
                 products={products}
@@ -651,7 +665,7 @@ export const App = () => {
           isListening={botState === 'listening'}
           isThinking={isThinking}
           isStreaming={isStreaming}
-          isCatalogRevealed={!isMobile && isCatalogRevealed}
+          isCatalogRevealed={isCatalogRevealed}
           orderStep={orderStep}
           focusTick={inputFocusTick}
         />
