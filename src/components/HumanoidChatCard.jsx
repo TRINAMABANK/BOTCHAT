@@ -144,12 +144,12 @@ export const HumanoidChatCard = ({
   const currentMeta = STATE_META[botState] || STATE_META.idle;
 
   return (
-    <div className="relative rounded-[26px] bg-[#050C1F]/90 border border-cyan-500/40 shadow-[0_0_35px_rgba(0,240,255,0.18)] p-3 md:p-4 flex flex-col md:flex-row gap-4 h-full min-h-[480px] overflow-hidden backdrop-blur-xl">
+    <div className="relative rounded-[26px] bg-[#050C1F]/90 border border-cyan-500/40 shadow-[0_0_35px_rgba(0,240,255,0.18)] p-3 md:p-4 flex flex-col md:flex-row gap-3 md:gap-4 h-full min-h-[380px] md:min-h-[480px] overflow-hidden backdrop-blur-xl">
       {/* Background ambient light - deep cyan glow */}
       <div className="absolute -top-24 -left-24 w-72 h-72 rounded-full bg-cyan-500/15 blur-3xl pointer-events-none" />
 
-      {/* LEFT SUB-COLUMN: HUMANOID ROBOT FIGURE & AUDIO BAR (~42% width) */}
-      <div className="flex flex-col items-center justify-between w-full md:w-[42%] relative z-10 flex-shrink-0">
+      {/* LEFT SUB-COLUMN: HUMANOID ROBOT FIGURE & AUDIO BAR (~40% on tablet/desktop) */}
+      <div className="flex flex-col items-center justify-between w-full md:w-[38%] lg:w-[42%] relative z-10 flex-shrink-0">
         {/* Live State Pill */}
         <div className={`self-start inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold shadow-sm mb-1 ${currentMeta.text}`}>
           <span className={`w-2 h-2 rounded-full ${currentMeta.dot}`} />
@@ -157,17 +157,17 @@ export const HumanoidChatCard = ({
         </div>
 
         {/* Robot 3D Avatar Image with Sci-Fi Halo */}
-        <div className="relative w-full flex-1 flex items-center justify-center min-h-[290px] md:min-h-[350px] overflow-hidden rounded-2xl group">
+        <div className="relative w-full flex-1 flex items-center justify-center min-h-[120px] sm:min-h-[160px] md:min-h-[350px] max-h-[135px] sm:max-h-[180px] md:max-h-none overflow-hidden rounded-2xl group my-1 md:my-0">
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className={`w-64 h-64 rounded-full border border-cyan-500/25 ${botState === 'speaking' ? 'animate-spin' : ''} duration-1000`} />
-            <div className="absolute w-52 h-52 rounded-full border border-sky-400/25" />
-            <div className={`absolute w-44 h-44 rounded-full bg-cyan-500/20 blur-2xl ${botState === 'speaking' || botState === 'listening' ? 'scale-125' : ''} transition-transform duration-500`} />
+            <div className={`w-36 h-36 sm:w-48 sm:h-48 md:w-64 md:h-64 rounded-full border border-cyan-500/25 ${botState === 'speaking' ? 'animate-spin' : ''} duration-1000`} />
+            <div className="absolute w-28 h-28 sm:w-36 sm:h-36 md:w-52 md:h-52 rounded-full border border-sky-400/25" />
+            <div className={`absolute w-20 h-20 sm:w-28 sm:h-28 md:w-44 md:h-44 rounded-full bg-cyan-500/20 blur-xl md:blur-2xl ${botState === 'speaking' || botState === 'listening' ? 'scale-125' : ''} transition-transform duration-500`} />
           </div>
 
           <img
             src="/assets/humanoid_robot.png"
             alt="TRÍ AI Sales Humanoid Robot"
-            className="relative z-10 max-h-[340px] md:max-h-[375px] object-contain drop-shadow-[0_12px_28px_rgba(0,240,255,0.4)] animate-float"
+            className="relative z-10 max-h-[120px] sm:max-h-[165px] md:max-h-[375px] object-contain drop-shadow-[0_12px_28px_rgba(0,240,255,0.4)] animate-float"
           />
         </div>
 

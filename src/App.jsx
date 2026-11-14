@@ -13,7 +13,8 @@ import {
   Bell,
   User,
   Shield,
-  ShoppingCart
+  ShoppingCart,
+  Bot
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { speakVietnamese, stopSpeaking, isSpeechSupported } from './utils/speech';
@@ -45,6 +46,7 @@ export const App = () => {
   const [inputFocusTick, setInputFocusTick] = useState(0);
   const [isCatalogRevealed, setIsCatalogRevealed] = useState(false);
   const [activeCatalogField, setActiveCatalogField] = useState(null);
+  const [mobileViewTab, setMobileViewTab] = useState('chat'); // 'chat' | 'catalog'
   const [fieldSyncTick, setFieldSyncTick] = useState(0);
   const skipStreamingRef = useRef(false);
 
@@ -376,6 +378,7 @@ export const App = () => {
     if (actionKey === 'Đặt mua ngay') {
       setInputFocusTick((t) => t + 1);
     }
+    setMobileViewTab('chat');
     handleSendMessage(promptMessage, targetProd, actionKey);
   };
 
@@ -454,33 +457,34 @@ export const App = () => {
             </div>
 
             <div>
-              <h1 className="text-lg md:text-xl font-black text-white tracking-wide font-display flex items-center space-x-2">
+              <h1 className="text-sm sm:text-base md:text-xl font-black text-white tracking-wide font-display flex items-center space-x-1.5 truncate">
                 <span>{settings.bot_name}</span>
               </h1>
-              <p className="text-[11px] md:text-xs text-cyan-200/90 font-medium">
-                Trợ lý bán hàng thông minh của chủ nhân • Tư vấn - Báo giá - Hỗ trợ mua hàng
+              <p className="hidden sm:block text-[11px] md:text-xs text-cyan-200/90 font-medium truncate">
+                Trợ lý bán hàng thông minh của chủ nhân • Tư vấn - Báo giá
               </p>
             </div>
           </div>
 
           {/* Right Action Tools matching Mockup: 24/7 pill + Hướng dẫn + Bell(3) + User Avatar */}
-          <div className="flex items-center space-x-2.5 relative">
+          <div className="flex items-center space-x-1.5 sm:space-x-2.5 relative flex-shrink-0">
             {/* Status Pill: Đang hoạt động 24/7 */}
-            <div className="flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs shadow-[0_0_12px_rgba(16,185,129,0.25)]">
+            <div className="flex items-center space-x-1 sm:space-x-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs shadow-[0_0_12px_rgba(16,185,129,0.25)]">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="font-medium text-[11px] md:text-xs">Đang hoạt động 24/7</span>
+              <span className="hidden sm:inline font-medium text-[11px] md:text-xs">Đang hoạt động 24/7</span>
             </div>
 
             {/* Guide Button: [?] Hướng dẫn */}
             <button
               onClick={() => setIsGuideOpen(true)}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#0C1B3E] hover:bg-[#102454] border border-cyan-500/30 text-cyan-200 text-xs font-semibold shadow-md transition-all active:scale-95"
+              className="flex items-center space-x-1 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-[#0C1B3E] hover:bg-[#102454] border border-cyan-500/30 text-cyan-200 text-xs font-semibold shadow-md transition-all active:scale-95"
+              title="Xem hướng dẫn sử dụng"
             >
-              <HelpCircle size={14} className="text-cyan-400" />
-              <span>Hướng dẫn</span>
+              <HelpCircle size={14} className="text-cyan-400 flex-shrink-0" />
+              <span className="hidden sm:inline">Hướng dẫn</span>
             </button>
 
             {/* Notification Bell with Badge (3) */}
@@ -516,17 +520,50 @@ export const App = () => {
 
       {/* 2. MAIN PROGRESSIVE ARENA (Centered Column 1 first -> Smoothly expands to 2 Columns on field discovery) */}
       <main
-        className={`flex-1 w-full mx-auto p-3 md:p-6 flex flex-col justify-between transition-all duration-500 ${
+        className={`flex-1 w-full mx-auto p-2.5 sm:p-4 md:p-6 flex flex-col justify-between transition-all duration-500 ${
           isCatalogRevealed ? 'max-w-7xl' : 'max-w-4xl'
         }`}
       >
+        {/* Mobile & Tablet Responsive View Switcher (< 1024px) */}
+        {isCatalogRevealed && (
+          <div className="lg:hidden flex items-center p-1 bg-[#06122d]/95 rounded-2xl border border-cyan-500/40 mb-3 shadow-[0_0_20px_rgba(0,240,255,0.15)]">
+            <button
+              type="button"
+              onClick={() => setMobileViewTab('chat')}
+              className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all ${
+                mobileViewTab === 'chat'
+                  ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 text-slate-950 shadow-[0_0_15px_rgba(0,240,255,0.45)]'
+                  : 'text-slate-300 hover:text-cyan-300'
+              }`}
+            >
+              <Bot size={16} />
+              <span>Robot Hội Thoại</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileViewTab('catalog')}
+              className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all relative ${
+                mobileViewTab === 'catalog'
+                  ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 text-slate-950 shadow-[0_0_15px_rgba(0,240,255,0.45)]'
+                  : 'text-slate-300 hover:text-cyan-300'
+              }`}
+            >
+              <ShoppingCart size={16} />
+              <span>Danh Mục Sản Phẩm ({products.length})</span>
+              {selectedProduct && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping ml-1" />
+              )}
+            </button>
+          </div>
+        )}
+
         <div
           className={`grid gap-4 flex-1 items-stretch ${
             isCatalogRevealed ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
           }`}
         >
           {/* CỘT 1: HUMANOID AI ROBOT & CHAT TƯ VẤN */}
-          <section className="flex flex-col h-full min-w-0">
+          <section className={`flex flex-col h-full min-w-0 ${isCatalogRevealed && mobileViewTab !== 'chat' ? 'hidden lg:flex' : 'flex'}`}>
             <HumanoidChatCard
               messages={messages}
               isThinking={isThinking}
@@ -547,7 +584,7 @@ export const App = () => {
 
           {/* CỘT 2: PRODUCT SELECTOR & NHU CẦU (Tự động xuất hiện sau khi chọn/hỏi lĩnh vực) */}
           {isCatalogRevealed && (
-            <section className="hidden lg:flex flex-col h-full min-w-0 animate-catalog-reveal">
+            <section className={`flex flex-col h-full min-w-0 animate-catalog-reveal ${mobileViewTab !== 'catalog' ? 'hidden lg:flex' : 'flex'}`}>
               <ProductSelectorCard
                 products={products}
                 selectedProduct={selectedProduct}

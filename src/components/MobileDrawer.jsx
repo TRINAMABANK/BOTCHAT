@@ -4,9 +4,7 @@ import ProductSelectorCard from './ProductSelectorCard';
 
 export const MobileDrawer = ({
   isOpen = false,
-  isCatalogRevealed = false,
   onClose,
-  onOpen,
   products = [],
   selectedProduct = null,
   externalField = null,
@@ -17,21 +15,7 @@ export const MobileDrawer = ({
 }) => {
   return (
     <>
-      {/* Floating Bottom Action Pill (Visible on Mobile once catalog is revealed by chat/field choice) */}
-      {!isOpen && isCatalogRevealed && (
-        <div className="lg:hidden fixed bottom-4 inset-x-4 z-40 flex justify-center">
-          <button
-            onClick={onOpen}
-            className="flex items-center space-x-2 px-5 py-3 rounded-full bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 text-slate-950 font-bold text-sm shadow-[0_0_24px_rgba(0,240,255,0.5)] border border-cyan-300 active:scale-95 transition-all"
-          >
-            <ShoppingBag size={18} />
-            <span>Chọn Sản Phẩm & Tư Vấn</span>
-            <ChevronUp size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* Slide-up Bottom Panel on Mobile (Luxury Tech 3D) */}
+      {/* Slide-up Bottom Panel on Mobile / Modal View */}
       {isOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end bg-black/75 backdrop-blur-md animate-fade-in">
           <div className="w-full max-h-[88vh] bg-[#061128] border-t-2 border-cyan-500/60 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden text-slate-100 animate-slide-up">
