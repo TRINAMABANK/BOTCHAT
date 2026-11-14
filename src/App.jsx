@@ -35,9 +35,11 @@ export const App = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('triai_voice_enabled') === 'true';
+      const saved = localStorage.getItem('triai_voice_enabled');
+      if (saved !== null) return saved === 'true';
+      return true; // Mặc định BẬT giọng đọc: khi khách hàng nhắn thì robot phát âm trả lời ngay
     }
-    return false;
+    return true;
   });
   const [orderStep, setOrderStep] = useState(null);
   const [inputFocusTick, setInputFocusTick] = useState(0);

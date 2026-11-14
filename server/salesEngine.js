@@ -333,6 +333,25 @@ function isCatalogOverviewQuery(normMsg) {
   return CATALOG_OVERVIEW_KEYWORDS.some((k) => normMsg.includes(k));
 }
 
+const GREETING_KEYWORDS = [
+  'xin chao',
+  'chao ban',
+  'chao robot',
+  'chao em',
+  'chao shop',
+  'chao',
+  'hello',
+  'hi ',
+  'alo',
+  'ad oi',
+  'shop oi',
+  'xung ho'
+];
+
+function isGreetingMessage(normMsg) {
+  return GREETING_KEYWORDS.some((g) => normMsg.includes(g));
+}
+
 function capitalizeFirst(str) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
@@ -762,7 +781,13 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       detectSecurityViolation(normMessage) ||
       normMessage.includes('so dien thoai') ||
       normMessage.includes('chu nhan') ||
-      normMessage.includes('cho xin so');
+      normMessage.includes('cho xin so') ||
+      normMessage.includes('ten gi') ||
+      normMessage.includes('ban la ai') ||
+      normMessage.includes('hoi tham') ||
+      normMessage.includes('lam duoc gi') ||
+      normMessage.includes('giup duoc gi') ||
+      isGreetingMessage(normMessage);
 
     const asksGeneralCatalog = isCatalogOverviewQuery(normMessage);
     const hasBudgetQuery = Boolean(extractBudget(normMessage));
@@ -1220,8 +1245,44 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       return `${politeAskBanner}Tôi là trợ lý bán hàng của chủ nhân (${ownerName}).\n\nThông tin chi tiết về **${selectedProduct.name}**:\n🏷️ **Phân loại:** ${selectedProduct.field} → ${selectedProduct.group_name}\n💵 **Giá niêm yết đã phê duyệt:** **${formatPrice(selectedProduct)}**\n📋 **Thông số & Đặc điểm nổi bật:**${specsText || '\n• ' + selectedProduct.description}\n\n${capRef} muốn **so sánh với mẫu khác**, **đặt mua**, hay **để lại SĐT để chủ nhân tư vấn sâu hơn**?`;
     }
 
-    // 11. Conversational Greeting / Addressing Inquiry / Open-ended Consultation
-    const isGreeting = ['xin chao', 'chao', 'hello', 'hi ', 'alo', 'ad oi', 'shop oi', 'xung ho'].some((g) => normMessage.includes(g));
+    // 11A. Robot Identity & Name Inquiry ("Bạn tên gì?", "Em tên gì?", "Bạn là ai?", "Robot là ai?")
+    if (
+      normMessage.includes('ten gi') ||
+      normMessage.includes('ban la ai') ||
+      normMessage.includes('em la ai') ||
+      normMessage.includes('may la ai') ||
+      normMessage.includes('la ai') ||
+      normMessage.includes('gioi thieu')
+    ) {
+      return `${politeAskBanner}Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh độc quyền của chủ nhân (${ownerName})!\n\nTôi được thiết kế để phục vụ ${customerRef} 24/7:\n• **Tư vấn sản phẩm & tính năng** chính xác theo nhu cầu thực tế\n• **Báo giá & so sánh thông số** trực tiếp giữa các mẫu\n• **Lên đơn hàng & chuyển chủ nhân** liên hệ hỗ trợ nhanh nhất.\n\n${capRef} đang quan tâm đến dòng sản phẩm nào để tôi giới thiệu chi tiết nhé?`;
+    }
+
+    // 11B. Friendly Conversation / Asking Permission ("Tôi hỏi thăm bạn được không?", "Cho tôi hỏi chút", "Hỏi thăm")
+    if (
+      normMessage.includes('hoi tham') ||
+      normMessage.includes('hoi ban') ||
+      normMessage.includes('cho toi hoi') ||
+      normMessage.includes('cho minh hoi') ||
+      normMessage.includes('cho em hoi') ||
+      normMessage.includes('hoi chut') ||
+      normMessage.includes('khoe khong') ||
+      normMessage.includes('co khoe khong')
+    ) {
+      return `${politeAskBanner}Dạ tôi rất sẵn lòng! Tôi luôn có mặt 24/7 để lắng nghe và hỗ trợ ${customerRef}.\n\n${capRef} cứ thoải mái chia sẻ câu hỏi hoặc nhu cầu về sản phẩm, giá cả và dịch vụ, tôi sẽ giải đáp tận tình ngay!`;
+    }
+
+    // 11C. Capabilities / What can you do? ("Bạn giúp được gì?", "Làm được gì?")
+    if (
+      normMessage.includes('lam duoc gi') ||
+      normMessage.includes('giup duoc gi') ||
+      normMessage.includes('chuc nang gi') ||
+      normMessage.includes('biet lam gi')
+    ) {
+      return `${politeAskBanner}Dạ, tôi có thể hỗ trợ ${customerRef} giải quyết nhanh các nhu cầu sau:\n1. **Tìm kiếm & Đề xuất:** Gợi ý đúng sản phẩm theo mức giá hoặc tính năng mong muốn.\n2. **So sánh trực tiếp:** Đối chiếu chi tiết thông số và giá bán giữa các model.\n3. **Mở bộ sản phẩm trực quan:** Hiển thị toàn bộ hình ảnh và mô tả sản phẩm ở Cột 2.\n4. **Ghi nhận đặt mua:** Lưu thông tin vào hệ thống CRM để chủ nhân (${ownerName}) phục vụ tận nơi.\n\n${capRef} muốn tôi hỗ trợ nội dung nào trước nhé?`;
+    }
+
+    // 11D. Conversational Greeting / Addressing Inquiry / Open-ended Consultation
+    const isGreeting = isGreetingMessage(normMessage);
     if (isGreeting) {
       if (!hasAddressingInfo) {
         return `Xin chào ${customerRef}! Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh của chủ nhân (${ownerName}).\n\n**Xin lỗi, bạn vui lòng cho tôi biết thông tin (tên hoặc cách xưng hô phù hợp) để tôi thuận tiện xưng hô nhé!**\n\nTrong lúc đó, ${customerRef} có thể chọn nhanh một lĩnh vực bên dưới hoặc hỏi bất kỳ sản phẩm nào để tôi mở bảng sản phẩm bên phải hỗ trợ ngay!`;
@@ -1234,7 +1295,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       .slice(0, 5)
       .join(', ');
     const highlightText = catalogHighlights ? ` (${catalogHighlights})` : '';
-    return `${politeAskBanner}Tôi đã tiếp nhận câu hỏi: *"${message}"*.\n\nHiện tôi là trợ lý bán hàng của chủ nhân (${ownerName}) và nắm toàn bộ thông số của **${allProducts.length} sản phẩm**${highlightText}.\n\nĐể tôi tư vấn **chính xác và sát nhu cầu nhất**, ${customerRef} có thể chia sẻ thêm:\n1. ${capRef} đang tìm thuộc **lĩnh vực/sản phẩm nào**?\n2. **Mức ngân sách dự kiến** hoặc mục đích sử dụng của ${customerRef} là gì?\n\nHoặc ${customerRef} có thể để lại **Số điện thoại**, chủ nhân (${ownerName}) sẽ gọi lại giải đáp chi tiết ngay!`;
+    return `${politeAskBanner}Dạ, tôi rất vui được hỗ trợ ${customerRef}!\n\nTôi là trợ lý bán hàng của chủ nhân (${ownerName}) và nắm đầy đủ thông số của các sản phẩm${highlightText}.\n\nĐể tôi tư vấn chính xác và sát nhu cầu nhất, ${customerRef} có thể chia sẻ thêm:\n1. ${capRef} đang tìm thuộc **lĩnh vực hoặc sản phẩm nào**?\n2. **Mức ngân sách dự kiến** hoặc mục đích sử dụng cụ thể của ${customerRef} là gì?\n\nHoặc ${customerRef} có thể chọn nhanh một danh mục bên dưới, tôi sẽ mở bộ sản phẩm ở Cột 2 để ${customerRef} lựa chọn ngay nhé!`;
   }
 }
 
