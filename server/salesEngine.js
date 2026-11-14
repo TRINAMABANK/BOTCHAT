@@ -1212,7 +1212,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       reply: replyText,
       leadCreated,
       orderFlow: nextOrderFlow,
-      revealCatalog: isMobile ? false : revealCatalog,
+      revealCatalog: Boolean(revealCatalog),
       recommendedField,
       recommendedProduct,
       products: enrichedProducts,
