@@ -398,7 +398,7 @@ const GREETING_KEYWORDS = [
   'chao shop',
   'chao',
   'hello',
-  'hi ',
+  'hi',
   'alo',
   'ad oi',
   'shop oi',
@@ -406,7 +406,88 @@ const GREETING_KEYWORDS = [
 ];
 
 function isGreetingMessage(normMsg) {
+  const clean = (normMsg || '').trim();
+  if (clean === 'hi' || clean === 'alo' || clean === 'chao' || clean === 'hello') return true;
   return GREETING_KEYWORDS.some((g) => normMsg.includes(g));
+}
+
+/**
+ * Strict check: Only return/display product cards if the customer has EXPLICITLY asked for products.
+ * Prevents products from unexpectedly jumping into chat when customer hasn't asked.
+ */
+function userExplicitlyWantsProducts({ normMessage, actionType, matchedFromText, matchedField }) {
+  if (!normMessage) return false;
+
+  // 1. Explicit UI action button (Đặt mua ngay, Chi tiết, Xem sản phẩm, Báo giá)
+  if (actionType && ['Đặt mua ngay', 'Chi tiết', 'Tìm hiểu sản phẩm', 'Xem sản phẩm', 'Báo giá', 'Xem danh mục'].includes(actionType)) {
+    return true;
+  }
+
+  // 2. Explicit intent phrases asking to view / display products
+  const explicitViewPhrases = [
+    'cho xem san pham',
+    'cho xem',
+    'xem san pham',
+    'cho toi xem',
+    'cho minh xem',
+    'cho em xem',
+    'gui san pham',
+    'gui hinh',
+    'gui anh',
+    'gui bao gia',
+    'co san pham gi',
+    'co nhung san pham nao',
+    'co nhung mau nao',
+    'co mau nao',
+    'co may nao',
+    'cac mau san pham',
+    'cac dong san pham',
+    'danh sach san pham',
+    'danh muc san pham',
+    'xem danh muc',
+    'xem cac mau',
+    'xem mau',
+    'xem hang',
+    'xem may',
+    'muon xem',
+    'can xem',
+    'toi muon xem',
+    'cho coi',
+    'xem thu',
+    'show san pham',
+    'trinh bay san pham',
+    'bao gia san pham'
+  ];
+  if (explicitViewPhrases.some((p) => normMessage.includes(p))) {
+    return true;
+  }
+
+  // 3. Explicit budget or comparison inquiry
+  const hasBudget = Boolean(extractBudget(normMessage));
+  const hasCompare =
+    normMessage.includes('so sanh') ||
+    normMessage.includes('khac nhau') ||
+    normMessage.includes('nen chon mau nao') ||
+    normMessage.includes('nen mua loai nao');
+  if (hasBudget || hasCompare) {
+    return true;
+  }
+
+  // 4. Specific known product model code mentioned
+  const specificCodes = ['2166', '6688', '9999', '39f', 'bc-39f', 'bc39', '0181', '1718', 'bc35', 'bc-35', '2189', '2196', '206', 'jl206', '2900', '3520'];
+  if (specificCodes.some((code) => normMessage.includes(code))) {
+    return true;
+  }
+
+  // 5. Category inquiry with clear intent to view/buy
+  if (matchedField && (normMessage.includes('dem tien') || normMessage.includes('bo tien') || normMessage.includes('dong chung tu') || normMessage.includes('hut am') || normMessage.includes('ket sat') || normMessage.includes('may in') || normMessage.includes('laptop'))) {
+    const actionWords = ['xem', 'mua', 'can', 'tim', 'tu van', 'mau', 'loai', 'dong', 'gia', 'bao nhieu'];
+    if (actionWords.some((w) => normMessage.includes(w))) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -479,11 +560,14 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     }
   }
 
-  // Filter out non-product questions
+  // Filter out non-product questions, general queries, budget queries, or comparison questions
   if (
     detectSecurityViolation(normMessage) ||
     isGreetingMessage(normMessage) ||
     isCatalogOverviewQuery(normMessage) ||
+    Boolean(extractBudget(normMessage)) ||
+    normMessage.includes('so sanh') ||
+    normMessage.includes('khac nhau') ||
     normMessage.includes('ban ten gi') ||
     normMessage.includes('ban la ai') ||
     normMessage.includes('em la ai') ||
@@ -1051,38 +1135,53 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const hasBudgetQuery = Boolean(extractBudget(normMessage));
     const hasCompareQuery = normMessage.includes('so sanh') || normMessage.includes('khac nhau');
 
-    const revealCatalog =
-      !isMobile &&
+    // Strict validation: Only return products if customer has explicitly asked for them
+    const wantsProducts =
       !isNonProductIntent &&
-      (Boolean(matchedField) ||
-        matchedFromText.length > 0 ||
-        hasBudgetQuery ||
-        hasCompareQuery ||
-        asksGeneralCatalog ||
-        Boolean(actionType) ||
-        Boolean(nextOrderFlow));
+      userExplicitlyWantsProducts({
+        normMessage,
+        actionType,
+        matchedFromText,
+        matchedField
+      });
 
-    const recommendedProduct = isNonProductIntent
-      ? null
-      : matchedFromText[0] || (matchedField ? allProducts.find((p) => p.field === matchedField) || null : null);
+    const revealCatalog = !isMobile && wantsProducts;
 
-    const recommendedField = isNonProductIntent
-      ? null
-      : matchedField || matchedFromText[0]?.field || (asksGeneralCatalog ? 'Tất cả' : null);
+    const recommendedProduct = wantsProducts
+      ? matchedFromText[0] || (matchedField ? allProducts.find((p) => p.field === matchedField) || null : null)
+      : null;
 
-    // Collect products to present directly inside the chat dialog (vital for mobile)
+    const recommendedField = wantsProducts
+      ? matchedField || matchedFromText[0]?.field || (asksGeneralCatalog ? 'Tất cả' : null)
+      : null;
+
+    // Collect products ONLY when explicitly requested (keeps mobile chat completely clean)
     let returnProducts = [];
-    if (!isNonProductIntent) {
+    if (wantsProducts) {
       if (matchedFromText.length > 0) {
         returnProducts = matchedFromText.slice(0, 3);
       } else if (matchedField) {
         returnProducts = allProducts.filter((p) => p.field === matchedField).slice(0, 4);
-      } else if (activeProduct) {
+      } else if (hasBudgetQuery) {
+        const budget = extractBudget(normMessage);
+        let pool = allProducts.filter((p) => p.field !== 'Dịch vụ bảo trì' || normMessage.includes('bao tri'));
+        if (normMessage.includes('dem tien') || normMessage.includes('xiudun')) {
+          pool = pool.filter((p) => p.field === 'Máy đếm tiền');
+        }
+        if (budget?.max !== undefined) {
+          const under = pool.filter((p) => (p.price || 0) <= budget.max && (p.price || 0) > 0);
+          returnProducts = (under.length > 0 ? under : pool).slice(0, 3);
+        } else {
+          returnProducts = pool.slice(0, 3);
+        }
+      } else if (hasCompareQuery) {
+        returnProducts = allProducts.filter((p) => p.field === 'Máy đếm tiền').slice(0, 3);
+      } else if (actionType && activeProduct) {
         returnProducts = [activeProduct];
-      } else if (recommendedProduct) {
-        returnProducts = [recommendedProduct];
       } else if (asksGeneralCatalog) {
         returnProducts = allProducts.slice(0, 3);
+      } else if (recommendedProduct) {
+        returnProducts = [recommendedProduct];
       }
     }
 

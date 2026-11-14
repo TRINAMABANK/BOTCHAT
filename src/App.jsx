@@ -121,6 +121,16 @@ export const App = () => {
       typeof window !== 'undefined' &&
       (window.innerWidth < 768 || /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
 
+    // Dọn dẹp bất kỳ sản phẩm nào bị lưu dở trong tin nhắn chào mừng ban đầu
+    if (parsedSaved.length > 0) {
+      parsedSaved = parsedSaved.map((m, idx) => {
+        if (idx === 0 && m.metadata?.products) {
+          return { ...m, metadata: { ...m.metadata, products: [] } };
+        }
+        return m;
+      });
+    }
+
     if (parsedSaved.length === 0 || isLegacyMockOnly) {
       const initialMessages = [createWelcomeMessage(clientIsMobile)];
       setMessages(initialMessages);
@@ -154,9 +164,7 @@ export const App = () => {
       const data = await res.json();
       if (data.success) {
         setProducts(data.products || []);
-        // Pre-select Xiudun XD-2166 as default matching mockup
-        const xiudun = data.products.find(p => p.slug === 'xiudun-xd-2166') || data.products[0];
-        setSelectedProduct(xiudun);
+        // Không tự ý chọn trước bất kỳ sản phẩm nào để tránh nhảy sản phẩm khi chưa hỏi
       }
     } catch (err) {
       console.error(err);
