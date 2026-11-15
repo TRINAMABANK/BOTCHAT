@@ -720,7 +720,7 @@ export const OwnerDashboard = ({
                   OWNER DASHBOARD • BẢNG QUẢN TRỊ CHỦ NHÂN
                 </h1>
                 <span className="text-xs px-3 py-1 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-400 font-mono font-bold shadow-xs">
-                  TRÍ AI CRM 2027
+                  TRÍ AI CRM • v1.0
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5 font-medium">
