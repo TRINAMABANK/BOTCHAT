@@ -345,8 +345,18 @@ export const App = () => {
     }
   };
 
+  // Hiển thị thông báo Voice Alert kèm tự động ẩn sau 9 giây
+  const showVoiceAlert = (msg) => {
+    setVoiceAlert(msg);
+    if (msg) {
+      setTimeout(() => {
+        setVoiceAlert((curr) => (curr === msg ? null : curr));
+      }, 9000);
+    }
+  };
+
   // Real Vietnamese Speech-to-Text voice capture using VoiceRecognizer module
-  const handleVoiceInput = () => {
+  const handleVoiceInput = async () => {
     // Nếu robot đang phát giọng nói, dừng nói trước
     if (botState === 'speaking') {
       stopSpeaking();
@@ -364,16 +374,24 @@ export const App = () => {
     }
 
     if (!isRecognitionSupported()) {
-      setVoiceAlert(
+      showVoiceAlert(
         'Trình duyệt này chưa hỗ trợ nhận diện giọng nói Web Speech. Bạn vui lòng dùng Google Chrome hoặc Microsoft Edge để trò chuyện bằng giọng nói nhé!'
       );
       return;
     }
 
+    // Hủy và dọn dẹp instance cũ trước khi tạo mới để tránh xung đột kết nối
+    if (recognizerRef.current) {
+      try {
+        recognizerRef.current.abort();
+      } catch {}
+      recognizerRef.current = null;
+    }
+
     setVoiceAlert(null);
     setInterimText('');
 
-    recognizerRef.current = new VoiceRecognizer({
+    const rec = new VoiceRecognizer({
       onStart: () => {
         setBotState('listening');
         setInterimText('');
@@ -393,7 +411,7 @@ export const App = () => {
         setBotState('idle');
         setInterimText('');
         if (friendlyMsg) {
-          setVoiceAlert(friendlyMsg);
+          showVoiceAlert(friendlyMsg);
         }
       },
       onEnd: () => {
@@ -401,7 +419,8 @@ export const App = () => {
       }
     });
 
-    recognizerRef.current.start();
+    recognizerRef.current = rec;
+    await rec.start();
   };
 
   // Dừng phát âm thanh ngay lập tức
@@ -413,7 +432,7 @@ export const App = () => {
   // Toggle Text-to-Speech Vietnamese Voice
   const handleToggleVoice = () => {
     if (!isSynthesisSupported()) {
-      setVoiceAlert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
+      showVoiceAlert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
       return;
     }
     if (voiceEnabled) {
@@ -442,7 +461,7 @@ export const App = () => {
   // Read a specific message aloud in Vietnamese
   const handleSpeakMessage = (text) => {
     if (!isSynthesisSupported()) {
-      setVoiceAlert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
+      showVoiceAlert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
       return;
     }
     if (botState === 'speaking') {

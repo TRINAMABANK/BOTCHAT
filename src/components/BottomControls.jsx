@@ -91,15 +91,30 @@ export const BottomControls = ({
             <span className="text-base flex-shrink-0">⚠️</span>
             <span className="leading-relaxed">{voiceAlert}</span>
           </div>
-          {onDismissVoiceAlert && (
-            <button
-              type="button"
-              onClick={onDismissVoiceAlert}
-              className="text-amber-400 hover:text-white font-bold text-sm px-1.5 py-0.5 rounded transition-colors"
-            >
-              ✕
-            </button>
-          )}
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            {onMicClick && !voiceAlert.includes('Cốc Cốc') && !voiceAlert.includes('Brave') && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDismissVoiceAlert) onDismissVoiceAlert();
+                  setTimeout(() => onMicClick(), 150);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-amber-500/30 hover:bg-amber-500/50 text-amber-200 hover:text-white font-bold text-[11px] border border-amber-400/50 transition-colors active:scale-95"
+              >
+                Thử lại
+              </button>
+            )}
+            {onDismissVoiceAlert && (
+              <button
+                type="button"
+                onClick={onDismissVoiceAlert}
+                className="text-amber-400 hover:text-white font-bold text-sm px-1.5 py-0.5 rounded transition-colors"
+                title="Đóng thông báo"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       )}
 
