@@ -1349,6 +1349,26 @@ function applyCustomerAddressing(text, profile) {
 }
 
 /**
+ * Chuẩn hoá tham chiếu đại diện shop: bỏ cụm từ "chủ nhân (Quang Nhựt Trí)" hoặc "chủ nhân", chỉ thể hiện "Quang Nhựt Trí".
+ */
+function sanitizeOwnerReferences(text, ownerName = 'Quang Nhựt Trí') {
+  if (!text) return text;
+  const name = ownerName || 'Quang Nhựt Trí';
+  return text
+    .replace(/chủ nhân\s*\([^)]+\)/gi, name)
+    .replace(/chủ nhân\s*(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?/gi, name)
+    .replace(/của chủ nhân/gi, `của ${name}`)
+    .replace(/để chủ nhân/gi, `để ${name}`)
+    .replace(/đến chủ nhân/gi, `đến ${name}`)
+    .replace(/gửi chủ nhân/gi, `gửi ${name}`)
+    .replace(/Chủ nhân sẽ/g, `${name} sẽ`)
+    .replace(/chủ nhân sẽ/g, `${name} sẽ`)
+    .replace(/chủ nhân luôn/gi, `${name} luôn`)
+    .replace(/chủ nhân trực tiếp/gi, `${name} trực tiếp`)
+    .replace(/chủ nhân/gi, name);
+}
+
+/**
  * Build a clean, persuasive side-by-side comparison using live specs from DB.
  */
 function buildProductComparisonReply(productsToCompare, ownerName, customerRef = 'bạn', clientDevice = 'desktop') {
@@ -1386,8 +1406,9 @@ export class SalesEngine {
 
     const botName = settings.bot_name || 'TRÍ AI SALES ROBOT';
     const ownerName = settings.owner_name || 'Quang Nhựt Trí';
-    const phonePrompt = settings.phone_invitation_prompt ||
-      'Tôi có thể ghi nhận yêu cầu để chủ nhân trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.';
+    const rawPhonePrompt = settings.phone_invitation_prompt ||
+      `Tôi có thể ghi nhận yêu cầu để ${ownerName} trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.`;
+    const phonePrompt = sanitizeOwnerReferences(rawPhonePrompt, ownerName);
     const tone = settings.ai_tone || 'Chuyên nghiệp & Thân thiện';
     const hotline = settings.hotline || '0982441446';
     const showHotline = settings.show_hotline === '1';
@@ -1688,7 +1709,7 @@ export class SalesEngine {
           dynamicMatchDirective = `
 CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - HỎI BẠN KINH DOANH GÌ / BÁN CÁI GÌ / CÓ SẢN PHẨM GÌ:
 - Khách đang hỏi chung về các mặt hàng / lĩnh vực kinh doanh của shop ("${message}").
-- BẮT BUỘC THEO ĐÚNG CHỈ THỊ CỦA CHỦ NHÂN:
+- BẮT BUỘC THEO ĐÚNG CHỈ THỊ:
   1. CHỈ NÊU DANH MỤC TỔNG (các lĩnh vực sản phẩm: ${fields.join(', ')}).
   2. TUYỆT ĐỐI KHÔNG NÊU TÊN TỪNG SẢN PHẨM CỤ THỂ, KHÔNG BÁO GIÁ SẢN PHẨM NÀO TRONG CHAT!
   3. Thông báo rõ toàn bộ danh mục và các mẫu sản phẩm đã được mở sẵn ở Cột 2, mời khách tự xem sản phẩm ở Cột 2.
@@ -1723,10 +1744,10 @@ CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG 2 (Độ kh
           dynamicMatchDirective = `
 CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG SẢN PHẨM KHÔNG CÓ TRONG DANH MỤC:
 - Khách đang hỏi sản phẩm/thông số không có sẵn trong danh mục của shop: "${missingName}".
-- BẮT BUỘC THEO ĐÚNG CHỈ THỊ CỦA CHỦ NHÂN:
+- BẮT BUỘC THEO ĐÚNG CHỈ THỊ:
   1. Thông báo rõ ràng: Hiện tại bên em chưa có sẵn mẫu "${missingName}" trong danh mục.
   2. THAM KHẢO MẪU KHÁC Ở CỘT 2: Báo cho khách biết các mẫu sản phẩm cùng danh mục hiện có đã được mở sẵn ở Cột 2, mời khách có thể tham khảo trực tiếp các mẫu khác ở Cột 2.
-  3. ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để chủ nhân (${ownerName}) trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu "${missingName}" cho khách sớm nhất.
+  3. ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu "${missingName}" cho khách sớm nhất.
   4. TUYỆT ĐỐI KHÔNG tự nhận là có hàng, KHÔNG tự bịa ra sản phẩm và KHÔNG tạo đơn mua giả định!
 `;
         }
@@ -1742,7 +1763,7 @@ CHỈ THỊ ĐẶC BIỆT - DUY TRÌ ĐÚNG DANH MỤC HIỆN TẠI ("${conversa
         }
 
         const systemPrompt = `
-Bạn là ${botName}, trợ lý bán hàng xuất sắc của chủ nhân ${ownerName}.
+Bạn là ${botName}, trợ lý bán hàng xuất sắc của ${ownerName}.
 BẠN ĐƯỢC TRANG BỊ TRÍ TUỆ NHÂN TẠO GOOGLE GEMINI THÔNG MINH, NHIỆM VỤ TƯ VẤN BÁN HÀNG VÀ CHỐT KHÁCH THEO ĐÚNG CÁC TÌNH HUỐNG SAU:
 
 ${dynamicMatchDirective}
@@ -1778,7 +1799,7 @@ QUY TẮC XỬ LÝ CÁC TÌNH HUỐNG SẢN PHẨM:
 3. TÌNH HUỐNG 3 - TRƯỜNG HỢP KHÔNG CÓ TRONG DATA HOẶC THÔNG SỐ KHÔNG CÓ:
    - Thông báo rõ ràng: Hiện tại bên em chưa có sẵn mẫu/thông số này trong danh mục.
    - THAM KHẢO MẪU KHÁC Ở CỘT 2: Báo cho khách biết các mẫu sản phẩm cùng danh mục hiện có đã được mở sẵn ở Cột 2, mời khách có thể tham khảo trực tiếp các mẫu khác ở Cột 2.
-   - ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để chủ nhân (${ownerName}) trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá sớm nhất.
+   - ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá sớm nhất.
    - TUYỆT ĐỐI KHÔNG tự nhận là có hàng khi không có, KHÔNG tự bịa ra sản phẩm!
 
 YÊU CẦU PHONG CÁCH BẮT BUỘC:
@@ -1794,10 +1815,10 @@ YÊU CẦU PHONG CÁCH BẮT BUỘC:
 
 QUY TẮC BẮT BUỘC KHÁC:
 1. Chỉ dùng giá và thông số có thật trong DANH MỤC ĐƯỢC PHÊ DUYỆT bên dưới. Tuyệt đối KHÔNG tự bịa giá.
-2. Khi khách hỏi SĐT chủ nhân: trả lời đúng tinh thần "${phonePrompt}".
+2. Khi khách hỏi SĐT: trả lời đúng tinh thần "${phonePrompt}".
 3. Khi khách muốn mua/báo giá: hỗ trợ ghi nhận từng bước (số lượng -> tên -> SĐT -> ghi chú).
-4. Nếu khách vừa gửi SĐT (${extractedPhone || 'không'}): cảm ơn và xác nhận đã ghi nhận để chủ nhân (${ownerName}) liên hệ sớm nhất.
-${showHotline ? `Hotline công khai của chủ nhân: ${hotline}` : ''}
+4. Nếu khách vừa gửi SĐT (${extractedPhone || 'không'}): cảm ơn và xác nhận đã ghi nhận để ${ownerName} liên hệ sớm nhất.
+${showHotline ? `Hotline công khai của ${ownerName}: ${hotline}` : ''}
 
 DANH MỤC SẢN PHẨM ĐƯỢC QUẢN TRỊ PHÊ DUYỆT:
 ${catalogSummary}
@@ -1903,7 +1924,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       } else {
         col2Guide = `\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tự do tham khảo các mẫu khác ở Cột 2 nhé.`;
       }
-      replyText = `Dạ hiện tại bên em chưa có sẵn mẫu **${missingProductQuery}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để chủ nhân (${ownerName}) trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
+      replyText = `Dạ hiện tại bên em chưa có sẵn mẫu **${missingProductQuery}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
     }
 
     if (!replyText) {
@@ -1945,6 +1966,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     }
 
     replyText = applyCustomerAddressing(replyText, customerProfile);
+    replyText = sanitizeOwnerReferences(replyText, ownerName);
 
     const isMobile = clientDevice === 'mobile';
 
@@ -2196,12 +2218,12 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         await db.run('UPDATE leads SET notes = ?, updated_at = ? WHERE id = ?', [noteText, now, flow.leadId]);
         return {
           orderFlow: null,
-          reply: `Dạ, tôi đã ghi nhận ghi chú của bạn: **"${trimmedNote}"** vào đơn đặt hàng rồi ạ!\n\nChủ nhân **${ownerName}** sẽ sớm liên hệ qua số **${flow.phone}** để xác nhận và giao hàng chu đáo cho bạn.${showHotline ? ` Hotline: **${hotline}**.` : ''}`
+          reply: `Dạ, tôi đã ghi nhận ghi chú của bạn: **"${trimmedNote}"** vào đơn đặt hàng rồi ạ!\n\n**${ownerName}** sẽ sớm liên hệ qua số **${flow.phone}** để xác nhận và giao hàng chu đáo cho bạn.${showHotline ? ` Hotline: **${hotline}**.` : ''}`
         };
       }
       return {
         orderFlow: null,
-        reply: `Dạ, đã hoàn tất rồi ạ! Tôi đã chuyển đơn hàng **${flow.productName}** (SL: **${flow.quantity || 1}**) đến chủ nhân **${ownerName}**.\n\nChủ nhân sẽ sớm liên hệ số **${flow.phone}** để hỗ trợ bạn chu đáo nhất ạ!`
+        reply: `Dạ, đã hoàn tất rồi ạ! Tôi đã chuyển đơn hàng **${flow.productName}** (SL: **${flow.quantity || 1}**) đến **${ownerName}**.\n\n**${ownerName}** sẽ sớm liên hệ số **${flow.phone}** để hỗ trợ bạn chu đáo nhất ạ!`
       };
     }
 
@@ -2265,7 +2287,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       const namedRef = customerProfile?.pronoun ? `${customerProfile.pronoun} ${flow.name}` : `bạn ${flow.name}`;
       return {
         orderFlow: flow,
-        reply: `Dạ, chào **${namedRef}**!\n\n👉 Bạn vui lòng cho tôi xin **Số điện thoại** (10 chữ số) để chủ nhân **${ownerName}** gọi xác nhận đơn và báo ưu đãi tốt nhất nhé?`
+        reply: `Dạ, chào **${namedRef}**!\n\n👉 Bạn vui lòng cho tôi xin **Số điện thoại** (10 chữ số) để **${ownerName}** gọi xác nhận đơn và báo ưu đãi tốt nhất nhé?`
       };
     }
 
@@ -2318,7 +2340,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     return {
       orderFlow: flow,
       leadCreated,
-      reply: `Dạ, cảm ơn **${savedRef}**! Tôi đã lưu thông tin đặt hàng vào hệ thống:\n• **Sản phẩm:** ${flow.productName} (SL: **${flow.quantity}**${subtotalText})\n• **Số điện thoại:** **${flow.phone}**\n\n👉 Bạn có muốn nhắn thêm **địa chỉ nhận hàng hoặc ghi chú** gửi chủ nhân **${ownerName}** không ạ? *(Hoặc nhắn "Xong" nếu đã đủ thông tin)*`
+      reply: `Dạ, cảm ơn **${savedRef}**! Tôi đã lưu thông tin đặt hàng vào hệ thống:\n• **Sản phẩm:** ${flow.productName} (SL: **${flow.quantity}**${subtotalText})\n• **Số điện thoại:** **${flow.phone}**\n\n👉 Bạn có muốn nhắn thêm **địa chỉ nhận hàng hoặc ghi chú** gửi **${ownerName}** không ạ? *(Hoặc nhắn "Xong" nếu đã đủ thông tin)*`
     };
   }
 
@@ -2359,7 +2381,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
 
     // 0. Security & Anti-Prompt-Injection
     if (detectSecurityViolation(normMessage)) {
-      return `Dạ, tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Tôi xin phép chỉ tư vấn thông tin và giá niêm yết chính thức của các sản phẩm đã được phê duyệt ạ. ${capRef} đang quan tâm sản phẩm nào để tôi hỗ trợ nhé?`;
+      return `Dạ, tôi là trợ lý bán hàng của ${ownerName}. Tôi xin phép chỉ tư vấn thông tin và giá niêm yết chính thức của các sản phẩm đã được phê duyệt ạ. ${capRef} đang quan tâm sản phẩm nào để tôi hỗ trợ nhé?`;
     }
 
     // 0B. Phân biệt rõ ràng: Khách hàng khai báo tên để xưng hô ("Tôi tên Trí", "Em tên Linh"...)
@@ -2370,7 +2392,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     // 1. Lead Captured Confirmation
     if (leadCreated || extractedPhone) {
       if (pendingMissingProduct) {
-        return `Dạ cảm ơn ${customerRef}! Tôi đã ghi nhận số điện thoại **${extractedPhone}** để chuyển cho chủ nhân (${ownerName}) kiểm tra nguồn hàng **${pendingMissingProduct}** và phản hồi lại cho ${customerRef} sớm nhất nhé!`;
+        return `Dạ cảm ơn ${customerRef}! Tôi đã ghi nhận số điện thoại **${extractedPhone}** để chuyển cho ${ownerName} kiểm tra nguồn hàng **${pendingMissingProduct}** và phản hồi lại cho ${customerRef} sớm nhất nhé!`;
       }
       const unitPrice = activeProduct?.price || conversationActiveProduct?.price || 0;
       const targetName = activeProduct?.name || conversationActiveProduct?.name || 'Tư vấn chuyên sâu';
@@ -2378,7 +2400,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         detectedQty > 1 && unitPrice > 0
           ? `\n- **Số lượng & Tạm tính:** ${detectedQty} sản phẩm (~${formatVnd(unitPrice * detectedQty)})`
           : '';
-      return `Dạ cảm ơn ${customerRef}! Tôi đã ghi nhận thông tin đặt hàng vào hệ thống:\n- **Sản phẩm:** ${targetName}${qtyLine}\n- **Số điện thoại:** ${extractedPhone}\n\nChủ nhân (${ownerName}) sẽ trực tiếp liên hệ hỗ trợ ${customerRef} sớm nhất.${showHotline ? ` Hotline: **${hotline}**.` : ''}`;
+      return `Dạ cảm ơn ${customerRef}! Tôi đã ghi nhận thông tin đặt hàng vào hệ thống:\n- **Sản phẩm:** ${targetName}${qtyLine}\n- **Số điện thoại:** ${extractedPhone}\n\n${ownerName} sẽ trực tiếp liên hệ hỗ trợ ${customerRef} sớm nhất.${showHotline ? ` Hotline: **${hotline}**.` : ''}`;
     }
 
     // 2. Owner Phone / Contact Request
@@ -2391,7 +2413,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normAction.includes('chu nhan') ||
       normMessage.includes('goi lai cho toi')
     ) {
-      return `${politeAskBanner}Dạ, tôi là trợ lý bán hàng của chủ nhân (${ownerName}). ${phonePrompt}\n\n${capRef} vui lòng để lại số điện thoại để chủ nhân liên hệ trực tiếp nhé!`;
+      return `${politeAskBanner}Dạ, tôi là trợ lý bán hàng của ${ownerName}. ${phonePrompt}\n\n${capRef} vui lòng để lại số điện thoại để ${ownerName} liên hệ trực tiếp nhé!`;
     }
 
     // 3. Explicit Buy / Order Flow fallback
@@ -2412,7 +2434,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           ? `- **Số lượng:** ${detectedQty} chiếc (~${formatVnd(totalEstimate)})\n`
           : '';
 
-      return `${politeAskBanner}Dạ tuyệt vời! Tôi xin xác nhận sản phẩm ${customerRef} quan tâm đặt mua:\n- **Sản phẩm:** ${targetProd.name}\n- **Đơn giá:** ${formatPrice(targetProd)}\n${qtyText}${capRef} vui lòng cho biết số lượng hoặc để lại SĐT để chủ nhân liên hệ giao hàng nhé.`;
+      return `${politeAskBanner}Dạ tuyệt vời! Tôi xin xác nhận sản phẩm ${customerRef} quan tâm đặt mua:\n- **Sản phẩm:** ${targetProd.name}\n- **Đơn giá:** ${formatPrice(targetProd)}\n${qtyText}${capRef} vui lòng cho biết số lượng hoặc để lại SĐT để ${ownerName} liên hệ giao hàng nhé.`;
     }
 
     // 4. Comparison Engine (Compare 2+ matched models or all products in same category)
@@ -2490,7 +2512,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         const fallbackPool = categoryPool.length > 0 ? categoryPool : allProducts;
         const cheapest = [...fallbackPool].sort((a, b) => (a.price || 0) - (b.price || 0))[0];
         const categoryNote = activeField && activeField !== 'Tất cả' ? ` trong danh mục **${activeField}**` : '';
-        return `${politeAskBanner}Dạ, trong tầm giá này hiện chưa có mẫu${categoryNote} phù hợp. Mẫu có giá tốt nhất là **${cheapest.name}** (${formatPrice(cheapest)}).\n\n${capRef} có thể để lại SĐT để chủ nhân tư vấn giải pháp phù hợp ngân sách hơn nhé!`;
+        return `${politeAskBanner}Dạ, trong tầm giá này hiện chưa có mẫu${categoryNote} phù hợp. Mẫu có giá tốt nhất là **${cheapest.name}** (${formatPrice(cheapest)}).\n\n${capRef} có thể để lại SĐT để ${ownerName} tư vấn giải pháp phù hợp ngân sách hơn nhé!`;
       }
 
       const picks = pool.slice(0, 3);
@@ -2516,18 +2538,18 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     }
 
     if (normMessage.includes('con hang') || normMessage.includes('ton kho') || normMessage.includes('giao hang') || normMessage.includes('ship') || normMessage.includes('bao lau nhan')) {
-      return `${politeAskBanner}Dạ, bên tôi hỗ trợ giao hàng tận nơi toàn quốc. ${capRef} vui lòng để lại số điện thoại hoặc địa chỉ để chủ nhân kiểm tra kho và báo lịch giao chính xác nhất nhé!`;
+      return `${politeAskBanner}Dạ, bên tôi hỗ trợ giao hàng tận nơi toàn quốc. ${capRef} vui lòng để lại số điện thoại hoặc địa chỉ để ${ownerName} kiểm tra kho và báo lịch giao chính xác nhất nhé!`;
     }
 
     if (normMessage.includes('giam gia') || normMessage.includes('chiet khau') || normMessage.includes('dat qua') || normMessage.includes('bot gia') || normMessage.includes('uu dai')) {
       const target = matchedFromText[0] || conversationActiveProduct || selectedProduct;
-      return `${politeAskBanner}Dạ, giá niêm yết của **${target ? target.name : 'sản phẩm'}** (${target ? formatPrice(target) : ''}) là giá chính hãng đã được phê duyệt. Khi đặt mua từ 2 sản phẩm trở lên, chủ nhân luôn có chính sách chiết khấu riêng. ${capRef} để lại SĐT để nhận ưu đãi tốt nhất nhé!`;
+      return `${politeAskBanner}Dạ, giá niêm yết của **${target ? target.name : 'sản phẩm'}** (${target ? formatPrice(target) : ''}) là giá chính hãng đã được phê duyệt. Khi đặt mua từ 2 sản phẩm trở lên, ${ownerName} luôn có chính sách chiết khấu riêng. ${capRef} để lại SĐT để nhận ưu đãi tốt nhất nhé!`;
     }
 
     // 7. Quote Action
     if (normAction.includes('bao gia') || normMessage.includes('bao gia')) {
       const target = activeProduct || conversationActiveProduct || allProducts[0];
-      return `${politeAskBanner}Dạ, báo giá chính thức cho **${target.name}** là: **${formatPrice(target)}**.\n\n${capRef} vui lòng cho biết số lượng dự kiến và SĐT để tôi chuyển chủ nhân gửi báo giá ưu đãi chi tiết nhé!`;
+      return `${politeAskBanner}Dạ, báo giá chính thức cho **${target.name}** là: **${formatPrice(target)}**.\n\n${capRef} vui lòng cho biết số lượng dự kiến và SĐT để tôi chuyển ${ownerName} gửi báo giá ưu đãi chi tiết nhé!`;
     }
 
     // 8. Catalog Overview / What do you sell? ("kinh doanh gi", "ban gi", "co san pham gi", "danh muc")
@@ -2630,13 +2652,13 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       } else {
         col2Guide = `\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tự do tham khảo các mẫu khác ở Cột 2 nhé.`;
       }
-      return `${politeAskBanner}Dạ hiện tại bên em chưa có sẵn mẫu **${missingCandidate}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để chủ nhân (${ownerName}) trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingCandidate} cho ${customerRef} sớm nhất nhé!`;
+      return `${politeAskBanner}Dạ hiện tại bên em chưa có sẵn mẫu **${missingCandidate}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingCandidate} cho ${customerRef} sớm nhất nhé!`;
     }
 
     // 10. Button-triggered detail / price inquiry for Selected Product
     if (selectedProduct && (isExplicitButtonAction || normMessage.includes('hoi gia') || normMessage.includes('gia bao nhieu') || normMessage.includes('chi tiet') || normMessage.includes('thong so'))) {
       const shortDesc = formatShortDesc(selectedProduct.description, 85);
-      return `${politeAskBanner}Dạ, thông tin về **${selectedProduct.name}**:\n🏷️ **Phân loại:** ${selectedProduct.field} → ${selectedProduct.group_name}\n💵 **Giá niêm yết:** **${formatPrice(selectedProduct)}**\n📋 **Đặc tính nổi bật:** ${shortDesc || 'Sản phẩm chính hãng chất lượng cao'}\n\n${capRef} muốn so sánh với mẫu khác, đặt mua, hay để lại SĐT để chủ nhân tư vấn sâu hơn ạ?`;
+      return `${politeAskBanner}Dạ, thông tin về **${selectedProduct.name}**:\n🏷️ **Phân loại:** ${selectedProduct.field} → ${selectedProduct.group_name}\n💵 **Giá niêm yết:** **${formatPrice(selectedProduct)}**\n📋 **Đặc tính nổi bật:** ${shortDesc || 'Sản phẩm chính hãng chất lượng cao'}\n\n${capRef} muốn so sánh với mẫu khác, đặt mua, hay để lại SĐT để ${ownerName} tư vấn sâu hơn ạ?`;
     }
 
     // 11A. Robot Identity & Name Inquiry ("Bạn tên gì?", "Em tên gì?", "Bạn là ai?", "Robot là ai?")
@@ -2648,7 +2670,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('la ai') ||
       normMessage.includes('gioi thieu')
     ) {
-      return `${politeAskBanner}Dạ, tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}). Rất hân hạnh được phục vụ ${customerRef}!\n\n${capRef} đang quan tâm đến sản phẩm nào để tôi gửi thông tin và ưu đãi ạ?`;
+      return `${politeAskBanner}Dạ, tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của ${ownerName}. Rất hân hạnh được phục vụ ${customerRef}!\n\n${capRef} đang quan tâm đến sản phẩm nào để tôi gửi thông tin và ưu đãi ạ?`;
     }
 
     // 11B. Friendly Conversation / Asking Permission ("Tôi hỏi thăm bạn được không?", "Cho tôi hỏi chút", "Hỏi thăm")
@@ -2672,7 +2694,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('chuc nang gi') ||
       normMessage.includes('biet lam gi')
     ) {
-      const actionScope = `tìm sản phẩm theo nhu cầu, so sánh thông số & giá bán, mở danh mục trực quan ở Cột 2 và ghi nhận đơn hàng gửi chủ nhân`;
+      const actionScope = `tìm sản phẩm theo nhu cầu, so sánh thông số & giá bán, mở danh mục trực quan ở Cột 2 và ghi nhận đơn hàng gửi ${ownerName}`;
       return `${politeAskBanner}Dạ, tôi có thể giúp ${customerRef}: ${actionScope}. ${capRef} cần hỗ trợ gì cứ nhắn tôi nhé!`;
     }
 
@@ -2680,9 +2702,9 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isGreeting = isGreetingMessage(normMessage);
     if (isGreeting) {
       if (!hasAddressingInfo) {
-        return `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}).\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang cần tìm sản phẩm hoặc giải pháp gì ạ? Bạn có thể nhắn sản phẩm cần tìm để tôi mở bảng Cột 2 hỗ trợ ngay nhé!`;
+        return `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của ${ownerName}.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang cần tìm sản phẩm hoặc giải pháp gì ạ? Bạn có thể nhắn sản phẩm cần tìm để tôi mở bảng Cột 2 hỗ trợ ngay nhé!`;
       }
-      return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}). Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
+      return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của ${ownerName}. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
     }
 
     // 12. Intelligent Clarification when request is ambiguous
@@ -2690,7 +2712,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       .slice(0, 5)
       .join(', ');
     const highlightText = catalogHighlights ? ` (${catalogHighlights})` : '';
-    return `${politeAskBanner}Dạ, tôi rất vui được hỗ trợ ${customerRef}!\n\nTôi là trợ lý bán hàng của chủ nhân (${ownerName}) và nắm đầy đủ thông tin các sản phẩm${highlightText}.\n\n${capRef} đang quan tâm đến dòng sản phẩm nào hoặc ngân sách khoảng bao nhiêu để tôi tư vấn chuẩn xác nhất ạ?`;
+    return `${politeAskBanner}Dạ, tôi rất vui được hỗ trợ ${customerRef}!\n\nTôi là trợ lý bán hàng của ${ownerName} và nắm đầy đủ thông tin các sản phẩm${highlightText}.\n\n${capRef} đang quan tâm đến dòng sản phẩm nào hoặc ngân sách khoảng bao nhiêu để tôi tư vấn chuẩn xác nhất ạ?`;
   }
 }
 
