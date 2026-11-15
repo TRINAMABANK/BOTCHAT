@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, Lock, User, Eye, EyeOff, X, ArrowRight, AlertCircle, KeyRound } from 'lucide-react';
 
 export const AdminLoginModal = ({ isOpen = false, onClose, onSuccess }) => {
-  const [username, setUsername] = useState('Admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const userInputRef = useRef(null);
   const passInputRef = useRef(null);
 
   useEffect(() => {
@@ -14,7 +15,11 @@ export const AdminLoginModal = ({ isOpen = false, onClose, onSuccess }) => {
       setError('');
       setPassword('');
       setTimeout(() => {
-        passInputRef.current?.focus();
+        if (!username) {
+          userInputRef.current?.focus();
+        } else {
+          passInputRef.current?.focus();
+        }
       }, 100);
     }
   }, [isOpen]);
@@ -109,10 +114,11 @@ export const AdminLoginModal = ({ isOpen = false, onClose, onSuccess }) => {
             </label>
             <div className="relative">
               <input
+                ref={userInputRef}
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Admin"
+                placeholder="Nhập tên đăng nhập..."
                 className="w-full bg-[#030b1c] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 transition-all font-medium"
                 autoComplete="username"
               />
@@ -143,11 +149,6 @@ export const AdminLoginModal = ({ isOpen = false, onClose, onSuccess }) => {
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-          </div>
-
-          {/* Notice */}
-          <div className="text-[11px] text-slate-400/80 bg-slate-900/50 p-2.5 rounded-xl border border-slate-800">
-            💡 Tài khoản mặc định: <span className="text-cyan-300 font-bold">Admin</span> / Mật khẩu: <span className="text-cyan-300 font-bold font-mono">0982441446</span>
           </div>
 
           {/* Action Buttons */}
