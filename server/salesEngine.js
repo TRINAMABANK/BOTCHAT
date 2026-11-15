@@ -355,11 +355,31 @@ const CATALOG_OVERVIEW_KEYWORDS = [
   'tat ca san pham',
   'xem tat ca',
   'cac linh vuc',
-  'nganh hang'
+  'nganh hang',
+  'tu van san pham',
+  'tu van giup toi',
+  'tu van giup minh',
+  'tu van giup em',
+  'tu van giup anh',
+  'tu van cho toi',
+  'tu van cho minh',
+  'tu van cho em',
+  'tu van cho anh',
+  'tu van giup',
+  'tu van dum',
+  'can tu van',
+  'muon tu van',
+  'tu van gi',
+  'tu van hang',
+  'tu van di',
+  'tu van',
+  'xem san pham',
+  'cho xem san pham',
+  'gioi thieu san pham'
 ];
 
 /**
- * Kiểm tra xem khách có đang hỏi danh mục tổng quan / hỏi bán gì, kinh doanh gì, có sản phẩm gì
+ * Kiểm tra xem khách có đang hỏi danh mục tổng quan / hỏi bán gì, kinh doanh gì, có sản phẩm gì, hoặc yêu cầu tư vấn
  */
 function isCatalogOverviewQuery(normMsg) {
   if (!normMsg) return false;
@@ -368,6 +388,7 @@ function isCatalogOverviewQuery(normMsg) {
     return true;
   }
   if (
+    /\btu\s+van\b/.test(clean) ||
     /\b(kinh doanh|ban|co|cung cap)\s+(cai\s+)?gi\b/.test(clean) ||
     /\b(kinh doanh|ban|co|cung cap)\s+(nhung\s+)?(gi|mat hang|san pham|linh vuc)\b/.test(clean) ||
     /\b(co|ban|kinh doanh)\s+(nhung\s+)?(mon|do|hang|gi)\s+(gi|khong|nao)\b/.test(clean)
@@ -833,7 +854,7 @@ function isGreetingMessage(normMsg) {
   const clean = normMsg.trim().toLowerCase();
   const tokens = clean.split(/\s+/);
   if (tokens.some((t) => ['hi', 'alo', 'hello', 'chao', 'helo'].includes(t))) {
-    const hasProductIntent = ['gia', 'bao nhieu', 'mua', 'ban', 'san pham', 'may', 'xem'].some((k) => clean.includes(k));
+    const hasProductIntent = ['gia', 'bao nhieu', 'mua', 'ban', 'san pham', 'may', 'xem', 'tu van'].some((k) => clean.includes(k));
     if (!hasProductIntent) return true;
   }
   return GREETING_PHRASES.some((phrase) => {
@@ -927,7 +948,8 @@ function userExplicitlyWantsProducts({ normMessage, actionType, matchedFromText,
 function cleanInquiredProductName(str) {
   if (!str) return 'sản phẩm này';
   let s = str.trim();
-  s = s.replace(/^(?:anh|chị|em|tôi|mình|bạn)\s+(?:đang\s+hỏi\s+về|đang\s+hỏi|đang\s+cần|đang\s+tìm)\s+/i, '');
+  s = s.replace(/^(?:dạ|da)?\s*(?:anh|chị|em|tôi|mình|bạn)\s+(?:đang\s+hỏi\s+về|đang\s+hỏi|đang\s+cần|đang\s+tìm|cần\s+mua|muốn\s+mua|hỏi\s+mua|tìm\s+mua|cần\s+tìm|muốn\s+tìm|tìm|hỏi|cần|muốn|xem|lấy)\s+/i, '');
+  s = s.replace(/^(?:anh|chị|em|tôi|mình|bạn)\s+/i, '');
   s = s.replace(/^(?:đang\s+hỏi\s+về|đang\s+hỏi|đang\s+nói\s+về|đang\s+nói)\s+/i, '');
   s = s.replace(/\s+(?:mà|ma|đấy|day|đó|do)[?!.,]*$/i, '');
   const prefixes = [
@@ -1299,7 +1321,15 @@ export class SalesEngine {
     const normMessage = removeVietnameseTones(message || '');
     const normAction = removeVietnameseTones(actionType || '');
     const parsedAddr = extractCustomerAddressing(message);
-    const allowBareName = Boolean(prevOrderFlow?.step === 'ask_name' || (prevCustomerProfile?.askedAddressing && !prevCustomerProfile?.name));
+    const hasInquiryKeywords = Boolean(
+      isCatalogOverviewQuery(normMessage) ||
+      isGreetingMessage(normMessage) ||
+      /(?:hoi|mua|ban|can|muon|tim|lay|gia|xem|tivi|laptop|may|ghe|tra|dem tien|cho|nhan vien)\b/.test(normMessage)
+    );
+    const allowBareName = Boolean(
+      (prevOrderFlow?.step === 'ask_name' || (prevCustomerProfile?.askedAddressing && !prevCustomerProfile?.name)) &&
+      !hasInquiryKeywords
+    );
     const detectedName = extractCustomerName(message, allowBareName);
     const rawResolvedName = parsedAddr?.name || detectedName || customerInfo?.name || prevCustomerProfile?.name || null;
     const resolvedName = rawResolvedName && !hasBlockedNameTokens(rawResolvedName) ? rawResolvedName : null;
@@ -2147,7 +2177,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isMobile = clientDevice === 'mobile';
     const capRef = capitalizeFirst(customerRef);
     const normAction = removeVietnameseTones(actionType || '');
-    const isExplicitButtonAction = Boolean(actionType);
+    const isExplicitButtonAction = Boolean(actionType && actionType !== 'chat');
     const politeAskBanner = '';
     const hasBudgetInQuery = Boolean(extractBudget(normMessage));
 
@@ -2248,10 +2278,11 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         if (fieldScoped.length > 0) {
           pool = fieldScoped;
         }
-      } else if (normMessage.includes('dem tien') || normMessage.includes('xiudun')) {
-        pool = pool.filter((p) => p.field === 'Máy đếm tiền');
-      } else if (normMessage.includes('may')) {
-        pool = pool.filter((p) => p.field === 'Máy đếm tiền' || p.field === 'Thiết bị văn phòng' || p.field === 'Thiết bị công nghệ');
+      } else {
+        // Khi chưa có danh mục nào được trao đổi, không đoán mò nhảy sang ngành hàng khác (ví dụ nhảy sang Trà)
+        const fields = [...new Set(allProducts.map((p) => p.field).filter(Boolean))];
+        const fieldsList = fields.slice(0, 5).join(', ');
+        return `${politeAskBanner}Dạ, bên shop hiện đang phân phối đa dạng các lĩnh vực như: **${fieldsList}**...\n\n${capRef} đang quan tâm đến dòng sản phẩm thuộc danh mục nào để tôi tư vấn mẫu có mức giá tiết kiệm và phù hợp nhất nhé?`;
       }
 
       if (budget.min !== undefined || budget.max !== undefined) {
@@ -2458,9 +2489,9 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isGreeting = isGreetingMessage(normMessage);
     if (isGreeting) {
       if (!hasAddressingInfo) {
-        return `Dạ xin chào bạn! Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}).\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang cần tìm sản phẩm hoặc giải pháp gì ạ? Bạn có thể nhắn sản phẩm cần tìm để tôi mở bảng Cột 2 hỗ trợ ngay nhé!`;
+        return `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}).\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang cần tìm sản phẩm hoặc giải pháp gì ạ? Bạn có thể nhắn sản phẩm cần tìm để tôi mở bảng Cột 2 hỗ trợ ngay nhé!`;
       }
-      return `Dạ xin chào **${customerRef}**! Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}). Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
+      return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của chủ nhân (${ownerName}). Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
     }
 
     // 12. Intelligent Clarification when request is ambiguous
