@@ -28,6 +28,8 @@ lerna-debug.log*
 # Editor / OS
 .DS_Store
 Thumbs.db
+scratch/
+hinhanhrobot.png
 .vscode/
 .idea/
 *.suo

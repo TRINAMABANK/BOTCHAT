@@ -223,7 +223,9 @@ export async function initDatabase() {
     { key: 'phone_invitation_prompt', value: 'Tôi có thể ghi nhận yêu cầu để chủ nhân trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.', description: 'Lời mời để lại số điện thoại chuẩn kịch bản' },
     { key: 'lead_notification_email', value: 'triqnnamabank@gmail.com', description: 'Email nhận thông báo Lead mới' },
     { key: 'hotline', value: '0982441446', description: 'Số hotline hỗ trợ' },
-    { key: 'show_hotline', value: '1', description: 'Bật/tắt công khai số hotline trên giao diện (1: Bật, 0: Tắt)' }
+    { key: 'show_hotline', value: '1', description: 'Bật/tắt công khai số hotline trên giao diện (1: Bật, 0: Tắt)' },
+    { key: 'admin_username', value: 'Admin', description: 'Tên đăng nhập Quản trị chủ nhân' },
+    { key: 'admin_password', value: '0982441446', description: 'Mật khẩu đăng nhập Quản trị chủ nhân' }
   ];
 
   for (const s of defaultSettings) {

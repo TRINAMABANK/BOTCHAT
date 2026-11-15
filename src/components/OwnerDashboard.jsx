@@ -30,7 +30,10 @@ import {
   Sparkles,
   ExternalLink,
   Loader2,
-  Link2
+  Link2,
+  LogOut,
+  KeyRound,
+  Lock
 } from 'lucide-react';
 
 export const OwnerDashboard = ({
@@ -93,6 +96,14 @@ export const OwnerDashboard = ({
   }, [products, searchProduct]);
 
   // Settings State Form
+  const [adminAccountForm, setAdminAccountForm] = useState({
+    newUsername: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [savingAdminAccount, setSavingAdminAccount] = useState(false);
+  const [adminAccountMessage, setAdminAccountMessage] = useState(null);
+
   const [settingsForm, setSettingsForm] = useState({
     bot_name: 'TRÍ AI SALES ROBOT',
     owner_name: 'Quang Nhựt Trí',
@@ -208,6 +219,41 @@ export const OwnerDashboard = ({
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleChangeAdminAccount = async (e) => {
+    e?.preventDefault();
+    if (!adminAccountForm.newPassword) {
+      setAdminAccountMessage({ success: false, text: 'Vui lòng nhập mật khẩu mới.' });
+      return;
+    }
+    if (adminAccountForm.newPassword !== adminAccountForm.confirmPassword) {
+      setAdminAccountMessage({ success: false, text: 'Mật khẩu xác nhận không trùng khớp.' });
+      return;
+    }
+    try {
+      setSavingAdminAccount(true);
+      setAdminAccountMessage(null);
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newUsername: adminAccountForm.newUsername.trim() || 'Admin',
+          newPassword: adminAccountForm.newPassword.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAdminAccountMessage({ success: true, text: 'Đổi mật khẩu thành công! Hãy ghi nhớ mật khẩu mới để đăng nhập.' });
+        setAdminAccountForm({ newUsername: '', newPassword: '', confirmPassword: '' });
+      } else {
+        setAdminAccountMessage({ success: false, text: data.error || 'Đổi mật khẩu thất bại.' });
+      }
+    } catch (err) {
+      setAdminAccountMessage({ success: false, text: 'Lỗi kết nối: ' + err.message });
+    } finally {
+      setSavingAdminAccount(false);
     }
   };
 
@@ -564,6 +610,18 @@ export const OwnerDashboard = ({
             >
               <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               <span>Làm mới</span>
+            </button>
+            <button
+              onClick={() => {
+                sessionStorage.removeItem('triai_admin_token');
+                sessionStorage.removeItem('triai_admin_user');
+                if (onClose) onClose();
+              }}
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-red-950/70 hover:bg-red-900 text-rose-300 border border-rose-500/50 font-bold text-xs transition-colors shadow-sm"
+              title="Đăng xuất khỏi Bảng Quản trị"
+            >
+              <LogOut size={15} />
+              <span>Đăng xuất</span>
             </button>
             <button
               onClick={onClose}
@@ -1389,6 +1447,77 @@ export const OwnerDashboard = ({
                 <p className="text-xs text-slate-400">
                   🔒 Bảo mật tuyệt đối: Toàn bộ API Key chỉ được lưu trữ và mã hóa an toàn phía server, không bao giờ lộ ra trình duyệt của khách hàng.
                 </p>
+              </div>
+
+              {/* SECTION 3: ADMIN ACCOUNT & PASSWORD SETTINGS */}
+              <div className="bg-[#081838] p-6 rounded-2xl border border-cyan-500/30 space-y-4">
+                <h3 className="text-base font-bold text-cyan-300 font-display flex items-center space-x-2">
+                  <KeyRound size={18} className="text-cyan-400" />
+                  <span>3. TÀI KHOẢN ĐĂNG NHẬP & MẬT KHẨU QUẢN TRỊ VIÊN</span>
+                </h3>
+                <p className="text-xs text-slate-300">
+                  Tài khoản mặc định: Username là <strong className="text-cyan-300 font-mono">Admin</strong>, Password là <strong className="text-amber-400 font-mono">0982441446</strong>. Bạn có thể thay đổi thông tin tại đây:
+                </p>
+
+                {adminAccountMessage && (
+                  <div
+                    className={`p-3 rounded-xl text-xs font-semibold border flex items-center space-x-2 ${
+                      adminAccountMessage.success
+                        ? 'bg-emerald-950/70 border-emerald-500/60 text-emerald-300'
+                        : 'bg-rose-950/70 border-rose-500/60 text-rose-300'
+                    }`}
+                  >
+                    {adminAccountMessage.success ? <Check size={16} /> : <AlertCircle size={16} />}
+                    <span>{adminAccountMessage.text}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">Tên đăng nhập mới:</label>
+                    <input
+                      type="text"
+                      placeholder="Để trống nếu giữ 'Admin'"
+                      value={adminAccountForm.newUsername}
+                      onChange={(e) => setAdminAccountForm({ ...adminAccountForm, newUsername: e.target.value })}
+                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-white font-mono text-xs outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">Mật khẩu mới:</label>
+                    <input
+                      type="password"
+                      placeholder="Nhập mật khẩu mới..."
+                      value={adminAccountForm.newPassword}
+                      onChange={(e) => setAdminAccountForm({ ...adminAccountForm, newPassword: e.target.value })}
+                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-white font-mono text-xs outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">Xác nhận mật khẩu mới:</label>
+                    <input
+                      type="password"
+                      placeholder="Nhập lại mật khẩu mới..."
+                      value={adminAccountForm.confirmPassword}
+                      onChange={(e) => setAdminAccountForm({ ...adminAccountForm, confirmPassword: e.target.value })}
+                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-white font-mono text-xs outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={handleChangeAdminAccount}
+                    disabled={savingAdminAccount}
+                    className="flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs transition-all shadow-md active:scale-95 disabled:opacity-50"
+                  >
+                    <Lock size={14} />
+                    <span>{savingAdminAccount ? 'Đang cập nhật...' : 'Cập nhật Mật khẩu Quản trị'}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end">

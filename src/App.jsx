@@ -4,6 +4,7 @@ import ProductSelectorCard from './components/ProductSelectorCard';
 import BottomControls from './components/BottomControls';
 import PhoneContactModal from './components/PhoneContactModal';
 import OwnerDashboard from './components/OwnerDashboard';
+import AdminLoginModal from './components/AdminLoginModal';
 import MobileDrawer from './components/MobileDrawer';
 import ProductDetailModal from './components/ProductDetailModal';
 import GuideModal from './components/GuideModal';
@@ -87,6 +88,7 @@ export const App = () => {
 
   // UI Modals & Drawers
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isProductDetailOpen, setIsProductDetailOpen] = useState(false);
@@ -473,6 +475,15 @@ export const App = () => {
     handleSendMessage(`Tôi muốn xem các sản phẩm thuộc lĩnh vực ${fieldName}.`, firstInField, null);
   };
 
+  const handleOpenDashboard = () => {
+    const token = sessionStorage.getItem('triai_admin_token');
+    if (token) {
+      setIsDashboardOpen(true);
+    } else {
+      setIsLoginModalOpen(true);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-[#040914] text-slate-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* 1. TOP HEADER NAVIGATION BAR MATCHING APPROVED MOCKUP */}
@@ -482,7 +493,7 @@ export const App = () => {
           <div className="flex items-center space-x-3.5">
             {/* AI Chip Icon (Click to open Owner Dashboard) */}
             <div
-              onClick={() => setIsDashboardOpen(true)}
+              onClick={handleOpenDashboard}
               className="relative w-11 h-11 rounded-2xl bg-[#091838] border-2 border-cyan-400 flex items-center justify-center text-cyan-300 shadow-[0_0_18px_rgba(0,240,255,0.5)] cursor-pointer hover:scale-105 transition-all"
               title="Nhấn để mở Bảng Quản trị Chủ nhân"
             >
@@ -546,7 +557,7 @@ export const App = () => {
 
             {/* User Avatar Circle (Opens Owner Dashboard) */}
             <button
-              onClick={() => setIsDashboardOpen(true)}
+              onClick={handleOpenDashboard}
               className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-600 border border-cyan-400 flex items-center justify-center text-white shadow-[0_0_10px_rgba(0,240,255,0.4)] hover:scale-105 transition-all"
               title="Quản trị chủ nhân / Tài khoản"
             >
@@ -740,6 +751,19 @@ export const App = () => {
           fetchSettings();
           fetchProducts();
           fetchStats();
+        }}
+      />
+
+      {/* Admin Login Modal (Yêu cầu mật khẩu khi bấm vào Quản trị chủ nhân / Tài khoản) */}
+      <AdminLoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => {
+          setIsLoginModalOpen(false);
+          setInputFocusTick((t) => t + 1);
+        }}
+        onSuccess={() => {
+          setIsLoginModalOpen(false);
+          setIsDashboardOpen(true);
         }}
       />
     </div>

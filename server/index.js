@@ -716,6 +716,73 @@ app.get('/api/crm/stats', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
+// 5B. OWNER AUTHENTICATION & ACCESS CONTROL
+// -----------------------------------------------------------------------------
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu.' });
+    }
+
+    const userSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'admin_username'");
+    const passSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'admin_password'");
+
+    const expectedUser = (userSetting?.value || 'Admin').trim();
+    const expectedPass = (passSetting?.value || '0982441446').trim();
+
+    const inputUser = String(username).trim();
+    const inputPass = String(password).trim();
+
+    if (inputUser.toLowerCase() === expectedUser.toLowerCase() && inputPass === expectedPass) {
+      const token = Buffer.from(`admin:${expectedUser}:${Date.now()}:${expectedPass}`).toString('base64');
+      return res.json({
+        success: true,
+        token,
+        user: { username: expectedUser }
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      error: 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại!'
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/auth/change-password', async (req, res) => {
+  try {
+    const { currentPassword, newUsername, newPassword } = req.body || {};
+    const passSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'admin_password'");
+    const expectedPass = (passSetting?.value || '0982441446').trim();
+
+    if (String(currentPassword || '').trim() !== expectedPass) {
+      return res.status(400).json({ success: false, error: 'Mật khẩu hiện tại không chính xác.' });
+    }
+
+    const now = new Date().toISOString();
+    if (newUsername && String(newUsername).trim()) {
+      await db.run(
+        "INSERT OR REPLACE INTO bot_settings (key, value, description, updated_at) VALUES ('admin_username', ?, 'Tên đăng nhập tài khoản Quản trị', ?)",
+        [String(newUsername).trim(), now]
+      );
+    }
+    if (newPassword && String(newPassword).trim()) {
+      await db.run(
+        "INSERT OR REPLACE INTO bot_settings (key, value, description, updated_at) VALUES ('admin_password', ?, 'Mật khẩu tài khoản Quản trị', ?)",
+        [String(newPassword).trim(), now]
+      );
+    }
+
+    res.json({ success: true, message: 'Đổi thông tin tài khoản quản trị thành công!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -----------------------------------------------------------------------------
 // 6. SERVE STATIC CLIENT IN PRODUCTION (Express 5 compatible)
 // -----------------------------------------------------------------------------
 const distPath = path.resolve(__dirname, '../dist');
