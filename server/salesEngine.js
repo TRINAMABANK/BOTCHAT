@@ -399,6 +399,33 @@ function evaluateProductMatch(message, normMessage, allProducts) {
   }
 
   const cleanNormMsg = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
+
+  const isForeign =
+    FOREIGN_BRANDS.some((fb) => new RegExp(`(^|\\s)${fb}(\\s|$)`).test(cleanNormMsg)) ||
+    FOREIGN_TYPES.some((ft) => new RegExp(`(^|\\s)${ft}(\\s|$)`).test(cleanNormMsg));
+
+  if (isForeign) {
+    const hasActualMatch = allProducts.some((p) => {
+      const normName = removeVietnameseTones(p.name || '').toLowerCase();
+      return (
+        FOREIGN_BRANDS.some((fb) => new RegExp(`(^|\\s)${fb}(\\s|$)`).test(cleanNormMsg) && normName.includes(fb)) ||
+        FOREIGN_TYPES.some((ft) => new RegExp(`(^|\\s)${ft}(\\s|$)`).test(cleanNormMsg) && normName.includes(ft))
+      );
+    });
+
+    if (!hasActualMatch) {
+      const cleanCandidate = message.replace(/^(?:bên bạn|bên em|có bán|có|cho hỏi|tôi muốn mua)\s+/i, '').replace(/[?!.,;]+/g, '').trim();
+      return {
+        tier: 3,
+        similarity: 0,
+        topProduct: null,
+        rankedProducts: [],
+        matchedField: null,
+        missingProductQuery: cleanCandidate || message.trim()
+      };
+    }
+  }
+
   const matchedField = findMatchingField(normMessage, allProducts);
 
   const scored = allProducts.map((p) => ({
@@ -1343,15 +1370,9 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const mentionsRelatedProduct =
       !isNonProductIntent &&
       !missingProductQuery &&
-      (wantsProducts ||
-        productMatch.tier === 1 ||
+      (productMatch.tier === 1 ||
         productMatch.tier === 2 ||
-        matchedFromText.length > 0 ||
-        Boolean(matchedField) ||
-        asksGeneralCatalog ||
-        hasBudgetQuery ||
-        hasCompareQuery ||
-        Boolean(actionType));
+        (productMatch.tier === 3 && (wantsProducts || Boolean(matchedField) || asksGeneralCatalog || hasBudgetQuery || hasCompareQuery || Boolean(actionType))));
 
     const revealCatalog = mentionsRelatedProduct;
 
