@@ -95,17 +95,35 @@ export const App = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [unreadLeadsCount, setUnreadLeadsCount] = useState(0);
 
-  // Initialize Session: Mỗi lần khách hàng vào webapp là tình huống mới hoàn toàn
+  // Initialize Session: Cuộc trò chuyện chỉ giữ nguyên khi chưa thoát (sessionStorage), khi thoát rồi vào lại thì như làm mới
   useEffect(() => {
-    const newConvId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    setConversationId(newConvId);
+    // Xóa sạch dữ liệu legacy ở localStorage để không bao giờ bị lưu vĩnh viễn qua các lần tắt trình duyệt
     try {
       localStorage.removeItem('triai_conversation_id');
       localStorage.removeItem('triai_chat_history');
     } catch {}
 
-    const initialMessages = [createWelcomeMessage()];
-    setMessages(initialMessages);
+    let currentConvId = null;
+    let savedMessages = [];
+    try {
+      currentConvId = sessionStorage.getItem('triai_conversation_id');
+      const savedHistory = sessionStorage.getItem('triai_chat_history');
+      if (savedHistory) {
+        savedMessages = JSON.parse(savedHistory);
+      }
+    } catch {}
+
+    if (!currentConvId || !Array.isArray(savedMessages) || savedMessages.length === 0) {
+      currentConvId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      savedMessages = [createWelcomeMessage()];
+      try {
+        sessionStorage.setItem('triai_conversation_id', currentConvId);
+        sessionStorage.setItem('triai_chat_history', JSON.stringify(savedMessages));
+      } catch {}
+    }
+
+    setConversationId(currentConvId);
+    setMessages(savedMessages);
     setBotState('idle');
     setOrderStep(null);
     setIsCatalogRevealed(false);
@@ -116,6 +134,16 @@ export const App = () => {
     fetchProducts();
     fetchStats();
   }, []);
+
+  // Persist Messages in current session only (chỉ giữ nguyên khi chưa thoát webapp)
+  useEffect(() => {
+    if (messages.length > 0 && conversationId) {
+      try {
+        sessionStorage.setItem('triai_conversation_id', conversationId);
+        sessionStorage.setItem('triai_chat_history', JSON.stringify(messages));
+      } catch {}
+    }
+  }, [messages, conversationId]);
 
   // Fetch Settings
   const fetchSettings = async () => {
@@ -417,13 +445,15 @@ export const App = () => {
       }
       const newConvId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       setConversationId(newConvId);
+      const initialWelcome = createWelcomeMessage();
+      setMessages([initialWelcome]);
       try {
+        sessionStorage.setItem('triai_conversation_id', newConvId);
+        sessionStorage.setItem('triai_chat_history', JSON.stringify([initialWelcome]));
         localStorage.removeItem('triai_conversation_id');
         localStorage.removeItem('triai_chat_history');
       } catch {}
 
-      const initialWelcome = createWelcomeMessage();
-      setMessages([initialWelcome]);
       setBotState('idle');
       setOrderStep(null);
       setIsCatalogRevealed(false);
