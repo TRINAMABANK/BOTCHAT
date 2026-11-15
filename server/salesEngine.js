@@ -1089,7 +1089,12 @@ function cleanInquiredProductName(str) {
 function formatMissingProductName(rawName, contextField) {
   if (!rawName) return 'sản phẩm này';
   let s = cleanInquiredProductName(rawName);
-  s = s.replace(/^(?:thi\s+co|co|hoi|lay)\s+/i, '').replace(/\s+(?:thi\s+co|co|khong)$/i, '').trim();
+  s = s
+    .replace(/^(?:anh|chi|em|toi|ban|minh|shop)?\s*(?:muon\s+mua|can\s+mua|hoi\s+mua|mua|can|muon|tim|hoi\s+ve|hoi|xem)\s+/i, '')
+    .replace(/\s+(?:thi\s+co\s+khong|thi\s+co|co\s+khong|co\s+chua|co\s+ban\s+khong|khong|co|a|nhe|ha)\b.*$/i, '')
+    .replace(/^(?:thi\s+co|co|hoi|lay)\s+/i, '')
+    .replace(/\s+(?:thi\s+co|co|khong)$/i, '')
+    .trim();
   const norm = removeVietnameseTones(s).toLowerCase();
 
   const inchMatch = norm.match(/\b(\d{2,3})\s*inch\b/);
