@@ -63,7 +63,7 @@ export const GuideModal = ({ isOpen = false, onClose }) => {
             <div>
               <strong className="text-purple-200 text-sm">Nút CTA: Yêu Cầu Chủ Nhân Gọi Lại</strong>
               <p className="text-slate-300 mt-1 leading-relaxed">
-                Khi bạn muốn đặt mua hoặc nhận bảng giá ưu đãi riêng, hãy nhấn nút màu tím lớn bên phải. Chủ nhân sẽ trực tiếp liên hệ hỗ trợ bạn chu đáo và nhanh nhất.
+                Khi bạn muốn đặt mua hoặc nhận bảng giá ưu đãi riêng, hãy nhấn nút màu tím trên thanh tiêu đề phía trên. Chủ nhân sẽ trực tiếp liên hệ hỗ trợ bạn chu đáo và nhanh nhất.
               </p>
             </div>
           </div>

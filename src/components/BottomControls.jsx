@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Paperclip, Mic, Send, PhoneCall } from 'lucide-react';
+import { MessageSquare, Paperclip, Mic, Send } from 'lucide-react';
 
 const ORDER_STEP_PLACEHOLDERS = {
   ask_quantity: 'Nhập số lượng muốn mua (ví dụ: 1, 2 chiếc)...',
@@ -75,12 +75,8 @@ export const BottomControls = ({
   };
 
   return (
-    <div
-      className={`w-full grid gap-3.5 mt-3.5 transition-all duration-500 ${
-        isCatalogRevealed ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 sm:grid-cols-[1fr_auto]'
-      }`}
-    >
-      {/* LEFT CONTROL: CHAT INPUT CAPSULE BAR (Directly under Left Card) */}
+    <div className="w-full mt-3.5 transition-all duration-500">
+      {/* CHAT INPUT CAPSULE BAR (Giao diện nhập chat rộng rãi, không bị cấn hay bấm nhầm nút gọi lại phía dưới) */}
       <div className="flex items-center w-full">
         <form
           onSubmit={handleSubmit}
@@ -137,27 +133,6 @@ export const BottomControls = ({
             <span>Gửi</span>
           </button>
         </form>
-      </div>
-
-      {/* RIGHT CONTROL: ROYAL PURPLE / MAGENTA GLOWING CALL-TO-ACTION (Directly under Right Card) */}
-      <div className="flex items-center w-full">
-        <button
-          onClick={onOpenPhoneModal}
-          className="w-full flex items-center justify-between px-6 py-3 rounded-full bg-gradient-to-r from-[#6b1187] via-[#86198f] to-[#581c87] hover:brightness-110 text-white font-bold text-xs sm:text-sm border border-fuchsia-400/50 shadow-[0_0_25px_rgba(192,38,211,0.5)] active:scale-[0.99] transition-all group"
-        >
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
-              <PhoneCall size={17} className="text-white" />
-            </div>
-            <span className="tracking-wide font-bold text-xs sm:text-sm">
-              Yêu cầu chủ nhân gọi lại
-            </span>
-          </div>
-
-          <div className="flex items-center text-fuchsia-200 group-hover:translate-x-1 transition-transform">
-            <span className="font-mono text-lg font-black tracking-widest">≫</span>
-          </div>
-        </button>
       </div>
     </div>
   );

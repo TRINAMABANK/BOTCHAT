@@ -8,10 +8,9 @@ import AdminLoginModal from './components/AdminLoginModal';
 import MobileDrawer from './components/MobileDrawer';
 import ProductDetailModal from './components/ProductDetailModal';
 import GuideModal from './components/GuideModal';
-import NotificationDropdown from './components/NotificationDropdown';
 import {
   HelpCircle,
-  Bell,
+  PhoneCall,
   User,
   Shield,
   ShoppingCart,
@@ -536,24 +535,23 @@ export const App = () => {
               <span className="hidden sm:inline">Hướng dẫn</span>
             </button>
 
-            {/* Notification Bell with Badge (3) */}
-            <div className="relative">
-              <button
-                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="relative p-2 rounded-full bg-[#0C1B3E] hover:bg-[#102454] border border-cyan-500/30 text-cyan-200 text-xs transition-all active:scale-95"
-                title="Thông báo hệ thống"
-              >
-                <Bell size={16} className="text-cyan-300" />
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white font-bold text-[9px] flex items-center justify-center shadow-md">
-                  3
-                </span>
-              </button>
-
-              <NotificationDropdown
-                isOpen={isNotificationOpen}
-                onClose={() => setIsNotificationOpen(false)}
-              />
-            </div>
+            {/* CTA Button: Yêu cầu chủ nhân gọi lại (Thay thế nút Thông báo hệ thống) */}
+            <button
+              onClick={() => {
+                setSelectedProduct(null);
+                setIsPhoneModalOpen(true);
+              }}
+              className="flex items-center space-x-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-[#7c1598] via-[#a21caf] to-[#6b21a8] hover:from-[#931bad] hover:to-[#7e22ce] text-white text-xs font-bold border border-fuchsia-400/60 shadow-[0_0_18px_rgba(192,38,211,0.55)] transition-all active:scale-95 group"
+              title="Yêu cầu chủ nhân gọi lại tư vấn trực tiếp"
+            >
+              <span className="relative flex h-2 w-2 flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-fuchsia-300 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+              </span>
+              <PhoneCall size={14} className="text-white flex-shrink-0 group-hover:rotate-12 transition-transform" />
+              <span className="hidden sm:inline tracking-wide">Yêu cầu chủ nhân gọi lại</span>
+              <span className="sm:hidden inline tracking-tight">Gọi lại</span>
+            </button>
 
             {/* User Avatar Circle (Opens Owner Dashboard) */}
             <button
