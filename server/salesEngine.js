@@ -557,13 +557,26 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   }
 
 
-  // 0B. Nếu đang có ngữ cảnh danh mục cụ thể (ví dụ Tivi) mà sản phẩm lại thuộc danh mục khác (ví dụ Laptop/Màn hình PC):
-  // Không bao giờ gợi ý chéo danh mục trừ khi khách hàng nêu đích danh từ khóa danh mục đó
+  // 0B. Nếu đang có ngữ cảnh danh mục cụ thể (ví dụ Laptop) mà sản phẩm lại thuộc danh mục khác (ví dụ Trà, Tivi, Nội thất, Gia dụng):
+  // Chỉ lọc bỏ nếu câu hỏi của khách KHÔNG đề cập đến tên sản phẩm hoặc từ khóa của danh mục này.
   if (contextField && contextField !== 'Tất cả') {
     const normCtx = removeVietnameseTones(contextField).toLowerCase();
     if (!normField.includes(normCtx) && !normCtx.includes(normField)) {
-      const hasExplicitTargetCategoryInMsg = cleanNormMsg.includes(normField) || normCore.includes(normField);
-      if (!hasExplicitTargetCategoryInMsg) {
+      const queryToCheck = (normCore || cleanNormMsg);
+      const isDomainKeywordOfThisProd =
+        (/\b(tra|che|oolong|bich thuy|hao ky|ngoc trac|xuan nhat|huong phu|bat thu)\b/i.test(queryToCheck) && (normField.includes('tra') || normProdName.includes('tra'))) ||
+        (/\b(tivi|tv|qled|oled|smart tv)\b/i.test(queryToCheck) && (normField.includes('tivi') || normProdName.includes('tivi') || normProdName.includes('tv'))) ||
+        (/\b(tu lanh)\b/i.test(queryToCheck) && normProdName.includes('tu lanh')) ||
+        (/\b(may lanh|dieu hoa|daikin)\b/i.test(queryToCheck) && (normProdName.includes('may lanh') || normProdName.includes('dieu hoa'))) ||
+        (/\b(may hut am|hut am|edison)\b/i.test(queryToCheck) && (normProdName.includes('hut am') || normField.includes('gia dung'))) ||
+        (/\b(ban|ghe|ban ghe|sofa|noi that|giam doc)\b/i.test(queryToCheck) && (normField.includes('noi that') || normProdName.includes('ban') || normProdName.includes('ghe'))) ||
+        (/\b(dem tien|may dem tien|xiudun|xinda|julong|hang tin|hangtin)\b/i.test(queryToCheck) && (normField.includes('dem tien') || normProdName.includes('dem tien'))) ||
+        (/\b(laptop|macbook|may tinh|man hinh|vivobook|ideapad|omnibook)\b/i.test(queryToCheck) && (normField.includes('cong nghe') || normField.includes('laptop') || normProdName.includes('laptop') || normProdName.includes('macbook')));
+
+      const hasCategoryMatch = cleanNormMsg.includes(normField) || (normCore && normCore.length >= 3 && normCore.includes(normField));
+      const hasProdNameMatch = normCore && normCore.length >= 3 && normProdName.includes(normCore);
+
+      if (!isDomainKeywordOfThisProd && !hasCategoryMatch && !hasProdNameMatch) {
         return 0;
       }
     }
@@ -943,31 +956,41 @@ function findMatchingField(normMsg, allProducts) {
 
   // 1. Direct normalized field name match
   for (const f of fields) {
-    const normF = removeVietnameseTones(f);
+    const normF = removeVietnameseTones(f).toLowerCase();
     if (cleanNorm.includes(normF)) {
       return f;
     }
   }
 
-  // 2. Domain keyword mapping matched against existing catalog fields (multi-word composite hints only)
-  const fieldHints = [
-    { match: ['noi that van phong', 'noi that', 'ban ghe van phong', 'ban giam doc', 'ban lam viec', 'ban hop', 'ban van phong', 'ghe giam doc', 'ghe van phong', 'ghe xoay', 'ghe luoi', 'tu ho so'], fieldPattern: 'noi that' },
-    { match: ['may dem tien', 'dem tien', 'xiudun', 'xinda', 'julong', 'lidix', '2166', '6688', '9999', 'hang tin', 'hangtin', 'ls-200f', '1718'], fieldPattern: 'may dem tien' },
-    { match: ['tra thuong hang', 'tra cao cap', 'doi dep', 'oolong', 'hoang tra', 'hac tra', 'hong tra', 'tra xanh', 'ngu vi tra'], fieldPattern: 'tra' },
-    { match: ['giai phap ai', 'nen tang ai', 'robot ban hang', 'humanoid', '33 ky nang'], fieldPattern: 'ai' },
-    { match: ['bat dong san', 'nghi duong', 'biet thu', 'villa', 'eco-villa', 'bao loc'], fieldPattern: 'bat dong san' },
-    { match: ['thiet bi van phong', 'may bo tien', 'dong chung tu', 'may dong chung tu', 'may in', 'canon', 'lbp', 'epson'], fieldPattern: 'thiet bi' },
-    { match: ['cong nghe', 'laptop', 'dell vostro', 'may vi tinh', 'dien thoai thong minh', 'macbook', 'asus vivobook', 'lenovo ideapad', 'man hinh may tinh'], fieldPattern: 'cong nghe' },
-    { match: ['tivi', 'tv qled', 'tv oled', 'tivi samsung', 'tivi giai tri'], fieldPattern: 'tivi' },
-    { match: ['bao tri', 'bao duong may', 've sinh may', 'sua chua may'], fieldPattern: 'bao tri' },
-    { match: ['ket sat', 'bofa', 'ket sat van tay', 'ket sat viet tiep'], fieldPattern: 'ket sat' },
-    { match: ['gia dung', 'dien lanh', 'tu lanh', 'may lanh', 'dieu hoa', 'may hut am', 'edison'], fieldPattern: 'gia dung' }
+  // 2. Comprehensive domain regex mapping matched against existing catalog fields
+  const domainPatterns = [
+    { regex: /\b(tra|che|oolong|hong tra|hoang tra|hac tra|luc tra|tra xanh|bich thuy|hao ky|ngoc trac|xuan nhat|huong phu|bat thu)\b/i, fieldKeywords: ['tra'] },
+    { regex: /\b(tivi|tv|qled|oled|smart tv|man hinh tivi)\b/i, fieldKeywords: ['tivi', 'giai tri'] },
+    { regex: /\b(tu lanh)\b/i, fieldKeywords: ['gia dung', 'dien lanh', 'dien may'] },
+    { regex: /\b(may lanh|dieu hoa|daikin)\b/i, fieldKeywords: ['gia dung', 'dien lanh', 'dien may'] },
+    { regex: /\b(may hut am|hut am|edison)\b/i, fieldKeywords: ['gia dung', 'dien may'] },
+    { regex: /\b(ban|ghe|ban ghe|giam doc|van phong|ban lam viec|ban hop|ghe xoay|ghe luoi|ghe gaming|sofa|tu ho so|noi that)\b/i, fieldKeywords: ['noi that'] },
+    { regex: /\b(dem tien|may dem tien|xiudun|xinda|julong|lidix|hang tin|hangtin|ls-200f|bc-39f|bc-35|2189wv|2196wv)\b/i, fieldKeywords: ['dem tien'] },
+    { regex: /\b(laptop|macbook|may tinh|may vi tinh|vivobook|ideapad|omnibook|legion|man hinh pc|man hinh lenovo)\b/i, fieldKeywords: ['laptop', 'cong nghe'] },
+    { regex: /\b(bo tien|dong chung tu|may in|may fax|may photocopy|thiet bi van phong)\b/i, fieldKeywords: ['thiet bi', 'van phong'] },
+    { regex: /\b(ket sat|bofa|viet tiep)\b/i, fieldKeywords: ['ket sat'] }
   ];
 
-  for (const hint of fieldHints) {
-    if (hint.match.some((kw) => cleanNorm.includes(kw))) {
-      const found = fields.find((f) => removeVietnameseTones(f).includes(hint.fieldPattern));
-      if (found) return found;
+  for (const dp of domainPatterns) {
+    if (dp.regex.test(cleanNorm)) {
+      for (const kw of dp.fieldKeywords) {
+        const found = fields.find((f) => removeVietnameseTones(f).toLowerCase().includes(kw));
+        if (found) return found;
+      }
+    }
+  }
+
+  // 3. Fallback: Check if any product name in DB matches query words and inherit its field
+  for (const p of allProducts) {
+    const pNormName = removeVietnameseTones(p.name || '').toLowerCase();
+    const coreTarget = extractCoreProductQuery(normMsg) || cleanNorm;
+    if (coreTarget && coreTarget.length >= 3 && pNormName.includes(coreTarget)) {
+      return p.field;
     }
   }
 
@@ -1627,12 +1650,17 @@ export class SalesEngine {
 
     // Context Category Resolution:
     // When a customer makes a relative query (e.g. "lấy loại rẻ nhất", "loại nào đắt nhất", "dưới 10 triệu", "so sánh", "có mẫu nào khác", etc.)
-    // without explicitly naming a new category/product, we MUST strictly stay within the current active category!
+    // without explicitly naming a new category/product, we strictly stay within the current active category!
+    // But when the customer explicitly asks for a new product/field or missing product, NEVER force them into the old category!
     const isOverviewAsk = isCatalogOverviewQuery(normMessage);
     const isGreeting = isGreetingMessage(normMessage);
     const activeSelectedField = selectedProduct?.field || null;
-    const conversationContextField = (isOverviewAsk || isGreeting) ? null : (matchedField || activeSelectedField || prevField || prevActiveProduct?.field || null);
-    const conversationActiveProduct = isGreeting ? null : (activeProduct || selectedProduct || prevActiveProduct || null);
+    const conversationContextField = (isOverviewAsk || isGreeting)
+      ? null
+      : (matchedField || (productMatch.topProduct?.field) || (productMatch.missingProductQuery ? null : (activeSelectedField || prevField || prevActiveProduct?.field || null)));
+    const conversationActiveProduct = (isGreeting || productMatch.missingProductQuery)
+      ? null
+      : (productMatch.topProduct || matchedFromText[0] || (productMatch.isRelativeQuery ? selectedProduct : null) || null);
 
     // 6. Detect Phone, Email, Name & auto-capture Lead into CRM
     const emailMatches = message ? message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) : null;
@@ -1774,19 +1802,7 @@ export class SalesEngine {
         }
       } else if (isMissing) {
         const capRef = capitalizeFirst(customerRef);
-        const activeScopeField = conversationContextField || matchedField || activeHistoryField || null;
-        const sameCategoryProducts = activeScopeField && activeScopeField !== 'Tất cả'
-          ? allProducts.filter((p) => p.field === activeScopeField)
-          : [];
-        let col2Guide = '';
-        if (sameCategoryProducts.length > 0) {
-          const uniqueNames = [...new Set(sameCategoryProducts.map((p) => p.name))].slice(0, 2);
-          const sampleProds = uniqueNames.map((n) => `**${n}**`).join(', ');
-          col2Guide = `\n\nTuy nhiên, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có (như ${sampleProds}) đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
-        } else {
-          col2Guide = `\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tự do tham khảo các mẫu khác ở Cột 2 nhé.`;
-        }
-        replyText = `Dạ hiện tại bên em chưa có sẵn mẫu **${missingProductQuery}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
+        replyText = `Dạ hiện tại bên em chưa có sẵn sản phẩm **${missingProductQuery}** trong danh mục ạ.\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
       }
     }
 
@@ -1870,20 +1886,18 @@ CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG 2 (Độ kh
 CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG SẢN PHẨM KHÔNG CÓ TRONG DANH MỤC:
 - Khách đang hỏi sản phẩm/thông số không có sẵn trong danh mục của shop: "${missingName}".
 - BẮT BUỘC THEO ĐÚNG CHỈ THỊ:
-  1. Thông báo rõ ràng: Hiện tại bên em chưa có sẵn mẫu "${missingName}" trong danh mục.
-  2. THAM KHẢO MẪU KHÁC Ở CỘT 2: Báo cho khách biết các mẫu sản phẩm cùng danh mục hiện có đã được mở sẵn ở Cột 2, mời khách có thể tham khảo trực tiếp các mẫu khác ở Cột 2.
+  1. Thông báo rõ ràng: Hiện tại bên em chưa có sẵn sản phẩm "${missingName}" trong danh mục.
+  2. THAM KHẢO CỘT 2: Báo cho khách biết toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở Cột 2, mời khách có thể tham khảo trực tiếp các mẫu khác ở Cột 2.
   3. ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu "${missingName}" cho khách sớm nhất.
-  4. TUYỆT ĐỐI KHÔNG tự nhận là có hàng, KHÔNG tự bịa ra sản phẩm và KHÔNG tạo đơn mua giả định!
+  4. TUYỆT ĐỐI KHÔNG tự nhận là có hàng, KHÔNG tự bịa ra sản phẩm, và TUYỆT ĐỐI KHÔNG nhắc đến các sản phẩm cũ không liên quan (ví dụ: khách hỏi trà thì không được nói về laptop)!
 `;
         }
 
-        if (conversationContextField && !isCatalogOverviewQuery(normMessage)) {
+        if (productMatch.isRelativeQuery && conversationContextField && !isCatalogOverviewQuery(normMessage)) {
           dynamicMatchDirective += `
 CHỈ THỊ ĐẶC BIỆT - DUY TRÌ ĐÚNG DANH MỤC HIỆN TẠI ("${conversationContextField}"):
-- Cuộc hội thoại đang ở danh mục "${conversationContextField}".
-- Khách đang hỏi câu hỏi tiếp theo/tương đối (về giá, loại rẻ nhất/đắt nhất, so sánh, hoặc tư vấn thêm: "${message}").
+- Khách đang hỏi câu hỏi tiếp theo/tương đối (về giá, loại rẻ nhất/đắt nhất, so sánh, hoặc tư vấn thêm trong danh mục "${conversationContextField}"): "${message}".
 - BẮT BUỘC chỉ tư vấn các sản phẩm thuộc danh mục "${conversationContextField}".
-- TUYỆT ĐỐI KHÔNG nhảy sang sản phẩm thuộc danh mục khác (ví dụ: đang hỏi tivi thì KHÔNG ĐƯỢC giới thiệu trà hay bàn ghế)!
 `;
         }
 
@@ -2154,14 +2168,16 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const revealCatalog = mentionsRelatedProduct;
 
     // Resolve category and products to display in Column 2 (strictly honoring active conversation domain)
-    const activeScopeField = matchedField || conversationContextField || activeHistoryField || (conversationActiveProduct?.field) || (activeProduct?.field) || (selectedProduct?.field) || null;
+    const activeScopeField = matchedField || (productMatch.topProduct?.field) || conversationContextField || activeHistoryField || (conversationActiveProduct?.field) || (activeProduct?.field) || (selectedProduct?.field) || null;
 
     const recommendedProduct = mentionsRelatedProduct
-      ? (!isMissingProduct ? (productMatch.topProduct || matchedFromText[0]) : null) || (activeScopeField && activeScopeField !== 'Tất cả' ? allProducts.find((p) => p.field === activeScopeField) || null : null)
+      ? (!isMissingProduct ? (productMatch.topProduct || matchedFromText[0] || (productMatch.isRelativeQuery ? selectedProduct : null)) : null)
       : null;
 
     const recommendedField = mentionsRelatedProduct
-      ? ((!isMissingProduct && productMatch.topProduct?.field) || matchedField || activeScopeField || recommendedProduct?.field || (asksGeneralCatalog || isMissingProduct ? 'Tất cả' : null))
+      ? (isMissingProduct
+          ? (matchedField || 'Tất cả')
+          : (productMatch.topProduct?.field || matchedField || activeScopeField || 'Tất cả'))
       : null;
 
     // Collect products when related products are mentioned/requested
