@@ -213,7 +213,7 @@ export const HumanoidChatCard = ({
           <img
             src="/assets/humanoid_robot.png"
             alt="TRÍ AI Sales Humanoid Robot"
-            className="relative z-10 max-h-[120px] sm:max-h-[165px] md:max-h-[375px] object-contain drop-shadow-[0_12px_28px_rgba(0,240,255,0.4)] animate-float"
+            className="relative z-10 max-h-[120px] sm:max-h-[165px] md:max-h-[375px] object-contain rounded-2xl drop-shadow-[0_12px_28px_rgba(0,240,255,0.4)] animate-float"
           />
         </div>
 
