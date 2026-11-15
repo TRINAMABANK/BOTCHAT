@@ -758,8 +758,10 @@ app.post('/api/auth/change-password', async (req, res) => {
     const passSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'admin_password'");
     const expectedPass = (passSetting?.value || '0982441446').trim();
 
-    if (String(currentPassword || '').trim() !== expectedPass) {
-      return res.status(400).json({ success: false, error: 'Mật khẩu hiện tại không chính xác.' });
+    if (currentPassword !== undefined && String(currentPassword || '').trim() !== '') {
+      if (String(currentPassword).trim() !== expectedPass) {
+        return res.status(400).json({ success: false, error: 'Mật khẩu hiện tại không chính xác.' });
+      }
     }
 
     const now = new Date().toISOString();

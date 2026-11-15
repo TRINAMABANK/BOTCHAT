@@ -97,6 +97,7 @@ export const OwnerDashboard = ({
 
   // Settings State Form
   const [adminAccountForm, setAdminAccountForm] = useState({
+    currentPassword: '',
     newUsername: '',
     newPassword: '',
     confirmPassword: ''
@@ -239,6 +240,7 @@ export const OwnerDashboard = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          currentPassword: adminAccountForm.currentPassword.trim(),
           newUsername: adminAccountForm.newUsername.trim() || 'Admin',
           newPassword: adminAccountForm.newPassword.trim()
         })
@@ -246,7 +248,7 @@ export const OwnerDashboard = ({
       const data = await res.json();
       if (data.success) {
         setAdminAccountMessage({ success: true, text: 'Đổi mật khẩu thành công! Hãy ghi nhớ mật khẩu mới để đăng nhập.' });
-        setAdminAccountForm({ newUsername: '', newPassword: '', confirmPassword: '' });
+        setAdminAccountForm({ currentPassword: '', newUsername: '', newPassword: '', confirmPassword: '' });
       } else {
         setAdminAccountMessage({ success: false, text: data.error || 'Đổi mật khẩu thất bại.' });
       }
@@ -1472,7 +1474,18 @@ export const OwnerDashboard = ({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5">Mật khẩu hiện tại:</label>
+                    <input
+                      type="password"
+                      placeholder="Mặc định: 0982441446"
+                      value={adminAccountForm.currentPassword}
+                      onChange={(e) => setAdminAccountForm({ ...adminAccountForm, currentPassword: e.target.value })}
+                      className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-4 py-2.5 text-white font-mono text-xs outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-slate-300 font-bold mb-1.5">Tên đăng nhập mới:</label>
                     <input
