@@ -247,13 +247,37 @@ function extractCustomerName(rawMsg, allowBare = true) {
 }
 
 const STOP_WORDS = new Set([
-  'cho', 'xin', 'hoi', 'muon', 'can', 'tim', 'mua', 'ban', 'nhung', 'loai', 'mau',
+  'cho', 'xin', 'hoi', 'muon', 'can', 'tim', 'mua', 'nhung', 'loai', 'mau',
   'nao', 'bao', 'nhieu', 'tien', 'gia', 'duoi', 'tren', 'tam', 'khoang', 'khong',
   'duoc', 'nhan', 'chu', 'dien', 'thoai', 'sdt', 'so', 'san', 'pham', 'tu', 'van',
   'so', 'sanh', 'giup', 'voi', 'nha', 'nhe', 'anh', 'chi', 'ben', 'shop', 'may', 'cai', 'chiec',
   'tri', 'quang', 'nhut', 'toi', 'minh', 'em', 'la', 'ten', 'chao', 'alo', 'hi', 'oi', 'day', 'a', 'da',
   'gi', 'kinh', 'doanh', 'the', 'vay', 'co', 'cac'
 ]);
+
+/**
+ * Extract core product target phrase from natural customer requests by stripping
+ * conversational prefixes, intent verbs, customer addressing, classifiers and question particles.
+ */
+function extractCoreProductQuery(rawMsg) {
+  if (!rawMsg || typeof rawMsg !== 'string') return '';
+  let s = rawMsg.trim();
+  let prev = '';
+  while (prev !== s) {
+    prev = s;
+    s = s.replace(/^(?:dạ|vâng|ạ|alo|chào|hi|hello)\s+/i, '');
+    s = s.replace(/^(?:anh|chị|tôi|mình|em|bạn|shop|ad|bác|chú|cô)\s+/i, '');
+    s = s.replace(/^(?:cần\s+tìm\s+mua|muốn\s+tìm\s+mua|cần\s+mua|muốn\s+mua|đang\s+tìm|cần\s+tìm|tìm\s+mua|mua\s+giúp|mua\s+hộ|mua)\s+/i, '');
+    s = s.replace(/^(?:bán\s+cho\s+(?:tôi|mình|anh|em|chị|bác|chú|cô)?|bán\s+hộ|bán)\s+/i, '');
+    s = s.replace(/^(?:cho\s+(?:tôi|mình|anh|em|chị|bác|chú|cô)\s+xem|cho\s+xem|xem)\s+/i, '');
+    s = s.replace(/^(?:bên\s+(?:bạn|em|shop|mình)\s+có\s+bán|bên\s+(?:bạn|em|shop|mình)\s+có|có\s+bán|có\s+sản\s+phẩm|có\s+mẫu|có)\s+/i, '');
+    s = s.replace(/^(?:báo\s+giá\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?|tư\s+vấn\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?)\s+/i, '');
+    s = s.replace(/^(?:cái|chiếc|mẫu|loại|dòng|con|bộ)\s+/i, '');
+  }
+  s = s.replace(/\s+(?:giá\s+bao\s+nhiêu|nhiêu\s+tiền|bao\s+nhiêu\s+tiền|bao\s+nhiêu|hết\s+bao\s+nhiêu|không\s+ạ|không|hông|ko|k|vậy|thế|nhỉ|nè|nhé|nha|ạ|ơi)[?!.,;]*$/i, '');
+  s = s.replace(/[?!.,;]+/g, '').trim();
+  return s;
+}
 
 const CATALOG_OVERVIEW_KEYWORDS = [
   'kinh doanh gi',
@@ -358,7 +382,7 @@ const FOREIGN_BRANDS = [
 ];
 const FOREIGN_TYPES = [
   'may giat', 'may may',
-  'xe may', 'o to', 'noi com', 'hut bui', 'may ep'
+  'xe may', 'o to', 'noi com', 'hut bui', 'may ep', 'tu quan ao'
 ];
 
 function isForeignProductQuery(cleanNormMsg, normProdName) {
@@ -378,29 +402,33 @@ function isForeignProductQuery(cleanNormMsg, normProdName) {
 /**
  * Calculate similarity percentage (0 - 100) between customer query and a product in data.
  */
-function calculateProductSimilarity(cleanNormMsg, product) {
+function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '') {
   if (!cleanNormMsg || !product) return 0;
   const normProdName = removeVietnameseTones(product.name || '').replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ');
   const normField = removeVietnameseTones(product.field || '');
   const normSlug = removeVietnameseTones(product.slug || product.id || '');
+  const normCore = coreQuery ? removeVietnameseTones(coreQuery).replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').trim() : '';
 
   // 0. Foreign brands or products outside catalog => 0% similarity
-  if (isForeignProductQuery(cleanNormMsg, normProdName)) {
+  if (isForeignProductQuery(cleanNormMsg, normProdName) || (normCore && isForeignProductQuery(normCore, normProdName))) {
     return 0;
   }
 
   // Exact phrase match
   if (cleanNormMsg.includes(normProdName)) return 100;
   if (normProdName.includes(cleanNormMsg.trim()) && cleanNormMsg.trim().length >= 6) return 96;
+  if (normCore && normCore.length >= 4 && normProdName.includes(normCore)) return 95;
+  if (normCore && normProdName.length >= 4 && normCore.includes(normProdName)) return 96;
 
   // Meaningful tokens
-  const queryTokens = cleanNormMsg.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
+  const targetText = normCore && normCore.length >= 3 ? normCore : cleanNormMsg;
+  const queryTokens = targetText.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
   const prodTokens = normProdName.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
   if (queryTokens.length === 0) return 0;
 
   let matchCount = 0;
   for (const qt of queryTokens) {
-    if (prodTokens.includes(qt) || prodTokens.some((pt) => pt.includes(qt) || qt.includes(pt))) {
+    if (prodTokens.includes(qt) || prodTokens.some((pt) => pt === qt || (pt.length >= 4 && qt.length >= 4 && (pt.includes(qt) || qt.includes(pt))))) {
       matchCount++;
     }
   }
@@ -412,16 +440,16 @@ function calculateProductSimilarity(cleanNormMsg, product) {
   ];
   let brandMatch = false;
   for (const b of brands) {
-    if (cleanNormMsg.includes(b) && normProdName.includes(b)) {
+    if ((cleanNormMsg.includes(b) || normCore.includes(b)) && normProdName.includes(b)) {
       brandMatch = true;
       break;
     }
   }
 
-  const hasCategory = cleanNormMsg.includes(normField) || (normField.includes('dem tien') && cleanNormMsg.includes('dem tien'));
+  const hasCategory = cleanNormMsg.includes(normField) || normCore.includes(normField) || (normField.includes('dem tien') && cleanNormMsg.includes('dem tien'));
 
   // Extract model codes
-  const queryModels = extractModelCodes(cleanNormMsg);
+  const queryModels = extractModelCodes(cleanNormMsg + ' ' + normCore);
   const prodModels = extractModelCodes(normProdName + ' ' + normSlug);
 
   let modelMatch = false;
@@ -458,6 +486,19 @@ function calculateProductSimilarity(cleanNormMsg, product) {
     return 91;
   }
 
+  // Core category matching (Ghế, Bàn, Tủ lạnh, Máy lạnh, Máy đếm tiền, etc.)
+  const coreTarget = normCore || cleanNormMsg;
+  if (coreTarget.includes('ghe') && normProdName.includes('ghe')) {
+    if (coreTarget.includes('giam doc') && normProdName.includes('giam doc')) return 95;
+    if (coreTarget.includes('gaming') && normProdName.includes('gaming')) return 95;
+    return 85; // Similar chair (e.g. "ghế nhân viên", "ghế văn phòng" -> 85% for Ghế giám đốc/gaming)
+  }
+
+  if (coreTarget.includes('ban') && normProdName.includes('ban')) {
+    if (coreTarget.includes('giam doc') && normProdName.includes('giam doc')) return 95;
+    return 85; // Similar desk (e.g. "bàn làm việc", "bàn văn phòng" -> 85% for Bàn Giám Đốc)
+  }
+
   // Scenario 2: Same brand & category OR close model => 80% - 89%
   if (brandMatch && hasCategory) {
     return 86;
@@ -478,7 +519,7 @@ function calculateProductSimilarity(cleanNormMsg, product) {
     'phan loai tien', 'kiem dem tien', 'ket sat'
   ];
   for (const pt of productTypes) {
-    if (cleanNormMsg.includes(pt) && normProdName.includes(pt)) {
+    if ((cleanNormMsg.includes(pt) || normCore.includes(pt)) && normProdName.includes(pt)) {
       if (modelMatch) return 95;
       return 85;
     }
@@ -522,10 +563,12 @@ function evaluateProductMatch(message, normMessage, allProducts) {
   }
 
   const cleanNormMsg = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
+  const coreQuery = extractCoreProductQuery(message);
+  const normCore = removeVietnameseTones(coreQuery);
 
   const isForeign =
-    FOREIGN_BRANDS.some((fb) => new RegExp(`(^|\\s)${fb}(\\s|$)`).test(cleanNormMsg)) ||
-    FOREIGN_TYPES.some((ft) => new RegExp(`(^|\\s)${ft}(\\s|$)`).test(cleanNormMsg));
+    FOREIGN_BRANDS.some((fb) => new RegExp(`(^|\\s)${fb}(\\s|$)`).test(cleanNormMsg) || (normCore && new RegExp(`(^|\\s)${fb}(\\s|$)`).test(normCore))) ||
+    FOREIGN_TYPES.some((ft) => new RegExp(`(^|\\s)${ft}(\\s|$)`).test(cleanNormMsg) || (normCore && new RegExp(`(^|\\s)${ft}(\\s|$)`).test(normCore)));
 
   if (isForeign) {
     const hasActualMatch = allProducts.some((p) => {
@@ -537,14 +580,13 @@ function evaluateProductMatch(message, normMessage, allProducts) {
     });
 
     if (!hasActualMatch) {
-      const cleanCandidate = message.replace(/^(?:bên bạn|bên em|có bán|có|cho hỏi|tôi muốn mua)\s+/i, '').replace(/[?!.,;]+/g, '').trim();
       return {
         tier: 3,
         similarity: 0,
         topProduct: null,
         rankedProducts: [],
         matchedField: null,
-        missingProductQuery: cleanCandidate || message.trim()
+        missingProductQuery: coreQuery || message.trim()
       };
     }
   }
@@ -553,7 +595,7 @@ function evaluateProductMatch(message, normMessage, allProducts) {
 
   const scored = allProducts.map((p) => ({
     product: p,
-    similarity: calculateProductSimilarity(cleanNormMsg, p)
+    similarity: calculateProductSimilarity(cleanNormMsg, p, coreQuery)
   }));
 
   scored.sort((a, b) => b.similarity - a.similarity);
@@ -571,14 +613,16 @@ function evaluateProductMatch(message, normMessage, allProducts) {
     tier = 3;
   }
 
-  const missingProductQuery = detectMissingProductInquiry(message, normMessage, rankedProducts, matchedField, allProducts);
+  const missingProductQuery = (tier === 3)
+    ? detectMissingProductInquiry(message, normMessage, rankedProducts, matchedField, allProducts, coreQuery)
+    : null;
 
   return {
     tier,
     similarity: bestSimilarity,
     topProduct: bestSimilarity >= 80 ? topMatch.product : null,
     rankedProducts,
-    matchedField,
+    matchedField: matchedField || (bestSimilarity >= 80 && topMatch ? topMatch.product.field : null),
     missingProductQuery
   };
 }
@@ -633,15 +677,17 @@ function findMatchingField(normMsg, allProducts) {
 
   // 3. Domain keyword mapping matched against existing catalog fields
   const fieldHints = [
-    { match: ['may dem tien', 'dem tien', 'xiudun', 'xinda', 'julong', 'lidix', '2166', '6688', '9999'], fieldPattern: 'may dem tien' },
-    { match: ['tra thuong hang', 'doi dep', 'oolong', 'hoang tra', 'hac tra', 'hong tra', 'tra xanh', 'ngu vi tra', 'tra'], fieldPattern: 'tra' },
+    { match: ['noi that', 'ghe', 'ban', 'ghe van phong', 'ghe nhan vien', 'ghe giam doc', 'ban giam doc', 'ban lam viec', 'tu ho so'], fieldPattern: 'noi that' },
+    { match: ['may dem tien', 'dem tien', 'xiudun', 'xinda', 'julong', 'lidix', '2166', '6688', '9999', 'hang tin', 'hangtin', 'ls-200f', '1718'], fieldPattern: 'may dem tien' },
+    { match: ['tra thuong hang', 'doi dep', 'oolong', 'hoang tra', 'hac tra', 'hong tra', 'tra xanh', 'ngu vi tra', 'tra', 'che'], fieldPattern: 'tra' },
     { match: ['giai phap ai', 'nen tang', 'chatbot', 'humanoid', '33 ky nang', 'ky nang'], fieldPattern: 'ai' },
     { match: ['bat dong san', 'nghi duong', 'biet thu', 'villa', 'eco-villa', 'bao loc'], fieldPattern: 'bat dong san' },
-    { match: ['van phong', 'may in', 'canon', 'lbp', 'hp', 'epson'], fieldPattern: 'van phong' },
-    { match: ['cong nghe', 'laptop', 'dell', 'vostro', 'may tinh', 'dien thoai', 'iphone', 'samsung'], fieldPattern: 'cong nghe' },
+    { match: ['thiet bi van phong', 'may bo tien', 'dong chung tu', 'chung tu', 'bo tien', 'thiet bi', 'may in', 'canon', 'lbp', 'epson'], fieldPattern: 'thiet bi' },
+    { match: ['cong nghe', 'laptop', 'dell', 'vostro', 'may tinh', 'dien thoai', 'macbook', 'asus', 'lenovo', 'vivobook', 'omnibook', 'ideapad', 'legion', 'man hinh'], fieldPattern: 'cong nghe' },
+    { match: ['tivi', 'tv', 'qled', 'oled', 'giai tri'], fieldPattern: 'tivi' },
     { match: ['bao tri', 'bao duong', 've sinh may', 'sua chua'], fieldPattern: 'bao tri' },
     { match: ['ket sat', 'bofa', 'van tay', 'viet tiep'], fieldPattern: 'ket sat' },
-    { match: ['gia dung', 'tu lanh', 'may lanh', 'dieu hoa', 'sharp', 'daikin'], fieldPattern: 'gia dung' }
+    { match: ['gia dung', 'dien lanh', 'tu lanh', 'may lanh', 'dieu hoa', 'may hut am', 'edison', 'sharp', 'daikin'], fieldPattern: 'gia dung' }
   ];
 
   for (const hint of fieldHints) {
@@ -810,24 +856,10 @@ function cleanInquiredProductName(str) {
 /**
  * Detect if customer is inquiring about a product/item not available in the database.
  */
-function detectMissingProductInquiry(message, normMessage, matchedProducts, matchedField, allProducts = []) {
+function detectMissingProductInquiry(message, normMessage, matchedProducts, matchedField, allProducts = [], coreQuery = '') {
   if (!message || typeof message !== 'string') return null;
-  // If matched a live product or live category in DB, it's NOT missing!
-  if ((matchedProducts && matchedProducts.length > 0) || matchedField) return null;
-
-  // Extra safeguard: Check if candidate tokens match any product in database
-  if (allProducts && allProducts.length > 0) {
-    const cleanNorm = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
-    const tokens = cleanNorm.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
-    for (const p of allProducts) {
-      const normName = removeVietnameseTones(p.name);
-      for (const t of tokens) {
-        if (normName.includes(t)) {
-          return null; // Product is in DB!
-        }
-      }
-    }
-  }
+  // If matched a live product (similarity >= 80%) in DB, it's NOT missing!
+  if (matchedProducts && matchedProducts.length > 0) return null;
 
   // Filter out non-product questions, general queries, budget queries, or comparison questions
   if (
@@ -852,6 +884,15 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     normMessage.includes('dia chi')
   ) {
     return null;
+  }
+
+  const cleanCore = coreQuery || extractCoreProductQuery(message);
+  const normCleanCore = removeVietnameseTones(cleanCore).toLowerCase();
+
+  // If clean core query was extracted and isn't just generic words
+  const nonProductWords = ['gi', 'nhung gi', 'san pham gi', 'mat hang gi', 'the', 'khong', 'chut', 'thoi gian', 'ai o day', 'ban', 'shop'];
+  if (cleanCore && cleanCore.length >= 2 && !nonProductWords.includes(normCleanCore)) {
+    return cleanInquiredProductName(cleanCore);
   }
 
   const trimmed = message.trim();
@@ -892,7 +933,7 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     'may ', 'dien thoai', 'laptop', 'iphone', 'ipad', 'samsung', 'canon', 'hp', 'epson',
     'brother', 'may in', 'may giat', 'may lanh', 'dieu hoa', 'tu lanh', 'camera', 'ket sat',
     'dong ho', 'tai nghe', 'loa', 'ban phim', 'chuot', 'tivi', 'xe may', 'o to', 'noi com',
-    'loc nuoc', 'hut bui', 'quat', 'robot hut bui', 'may chieu'
+    'loc nuoc', 'hut bui', 'quat', 'robot hut bui', 'may chieu', 'tu quan ao', 'ban', 'ghe'
   ];
   if (productDeviceKeywords.some((k) => normMessage.includes(k))) {
     return cleanInquiredProductName(trimmed);
@@ -1413,9 +1454,25 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isBudgetAsk = Boolean(extractBudget(normMessage));
     const isCompareAsk = normMessage.includes('so sanh') || normMessage.includes('khac nhau');
     const isOverviewAsk = isCatalogOverviewQuery(normMessage);
+    const isProductInquiry = Boolean(
+      normMessage.includes('mua') ||
+      normMessage.includes('ban') ||
+      normMessage.includes('tim') ||
+      normMessage.includes('can') ||
+      normMessage.includes('xem') ||
+      normMessage.includes('gia') ||
+      normMessage.includes('ghe') ||
+      normMessage.includes('laptop') ||
+      normMessage.includes('may') ||
+      (productMatch && (productMatch.topProduct || productMatch.missingProductQuery)) ||
+      matchedField
+    );
+
     if (
       !replyText &&
       justUpdatedAddressing &&
+      !isProductInquiry &&
+      !missingProductQuery &&
       !matchedField &&
       matchedFromText.length === 0 &&
       !isBudgetAsk &&
@@ -1429,7 +1486,8 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
 
     // Inquiring product not available in database (Tier 3: S < 80%)
     if (!replyText && !extractedPhone && missingProductQuery) {
-      replyText = `Dạ hiện tại bên em chưa có sẵn mẫu **${missingProductQuery}** trong danh mục. Bạn vui lòng cho tôi xin **Số điện thoại** để chủ nhân (${ownerName}) trực tiếp kiểm tra nguồn hàng kho và gọi lại hỗ trợ báo giá cho bạn ngay nhé!`;
+      const capRef = capitalizeFirst(customerRef);
+      replyText = `Dạ hiện tại bên em chưa có sẵn mẫu **${missingProductQuery}** trong danh mục. ${capRef} vui lòng cho tôi xin **Số điện thoại** để chủ nhân (${ownerName}) trực tiếp kiểm tra nguồn hàng kho và gọi lại hỗ trợ báo giá cho ${customerRef} ngay nhé!`;
     }
 
     if (!replyText) {
@@ -1524,7 +1582,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       : null;
 
     const recommendedField = mentionsRelatedProduct
-      ? matchedField || recommendedProduct?.field || (asksGeneralCatalog ? 'Tất cả' : null)
+      ? (productMatch.topProduct?.field || matchedField || recommendedProduct?.field || (asksGeneralCatalog ? 'Tất cả' : null))
       : null;
 
     // Collect products when related products are mentioned/requested
