@@ -352,13 +352,13 @@ function extractModelCodes(str) {
 }
 
 const FOREIGN_BRANDS = [
-  'iphone', 'ipad', 'apple', 'samsung', 'toshiba', 'panasonic',
-  'daikin', 'lg', 'xiaomi', 'sony', 'brother', 'sharp',
+  'iphone', 'ipad', 'toshiba', 'panasonic',
+  'xiaomi', 'sony', 'brother',
   'casio', 'mitsubishi', 'hitachi'
 ];
 const FOREIGN_TYPES = [
-  'may giat', 'tu lanh', 'dieu hoa', 'may lanh', 'may may',
-  'xe may', 'o to', 'noi com', 'tivi', 'hut bui', 'may ep'
+  'may giat', 'may may',
+  'xe may', 'o to', 'noi com', 'hut bui', 'may ep'
 ];
 
 function isForeignProductQuery(cleanNormMsg, normProdName) {
@@ -406,7 +406,10 @@ function calculateProductSimilarity(cleanNormMsg, product) {
   }
 
   // Brand detection
-  const brands = ['xinda', 'hang tin', 'hangtin', 'edison', 'julong', 'like sys', 'likesys', 'lda', 'xiudun', 'ds', 'ht', 'canon', 'dell', 'bofa'];
+  const brands = [
+    'xinda', 'hang tin', 'hangtin', 'edison', 'julong', 'like sys', 'likesys', 'lda', 'xiudun', 'ds', 'ht', 'canon', 'dell', 'bofa',
+    'apple', 'macbook', 'asus', 'lenovo', 'hp', 'samsung', 'daikin', 'sharp', 'lg', 'ama', 'ideapad', 'vivobook', 'omnibook', 'legion'
+  ];
   let brandMatch = false;
   for (const b of brands) {
     if (cleanNormMsg.includes(b) && normProdName.includes(b)) {
@@ -445,6 +448,12 @@ function calculateProductSimilarity(cleanNormMsg, product) {
   }
 
   const matchRatio = matchCount / Math.max(queryTokens.length, 1);
+  if (matchRatio >= 0.75 && queryTokens.length >= 2) {
+    if (brandMatch || modelMatch || matchRatio >= 0.9) {
+      return 93;
+    }
+    return 90;
+  }
   if (matchRatio >= 0.8 && brandMatch) {
     return 91;
   }
@@ -458,6 +467,9 @@ function calculateProductSimilarity(cleanNormMsg, product) {
   }
   if (hasCategory && matchCount >= 2) {
     return 80;
+  }
+  if (matchRatio >= 0.5 && queryTokens.length >= 2) {
+    return 82;
   }
 
   // Specific product type overlap (e.g. "máy bó tiền thếp", "máy đóng chứng từ", "máy hút ẩm")
