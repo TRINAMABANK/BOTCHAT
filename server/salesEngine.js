@@ -297,6 +297,10 @@ const STOP_WORDS = new Set([
  */
 function extractCoreProductQuery(rawMsg) {
   if (!rawMsg || typeof rawMsg !== 'string') return '';
+  // Nếu là câu chào, xưng tên hoặc hỏi thăm sức khoẻ, tuyệt đối không tách sản phẩm
+  if (isCustomerNameDeclaration(rawMsg) || isGreetingMessage(removeVietnameseTones(rawMsg)) || isHealthInquiry(removeVietnameseTones(rawMsg))) {
+    return '';
+  }
   let s = rawMsg.trim();
   let prev = '';
   while (prev !== s) {
@@ -475,18 +479,17 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   // 0A. KIỂM TRA MÂU THUẪN THÔNG SỐ KỸ THUẬT RÕ RÀNG (KÍCH THƯỚC INCH, DUNG TÍCH LÍT, CÔNG SUẤT HP):
   // Nếu khách hỏi cụ thể một kích cỡ/thông số (ví dụ: "65 inch", "600 lít", "2.5 hp")
   // mà sản phẩm có thông số khác (ví dụ: 55 inch, 23.8 inch, 417 lít) thì TUYỆT ĐỐI KHÔNG KHỚP (trả về 0%).
-  const queryInchMatch = (cleanNormMsg + ' ' + normCore).match(/\b(\d{2}(?:\.\d)?)\s*(?:inch|in|"|'')\b/);
+  const queryInchMatch = (cleanNormMsg + ' ' + normCore).match(/\b(\d+(?:\.\d)?)\s*(?:inch|in|"|'')\b/i);
   if (queryInchMatch) {
     const qInch = parseFloat(queryInchMatch[1]);
-    const prodInchMatch = normProdName.match(/\b(\d{2}(?:\.\d)?)\s*(?:inch|in|"|'')\b/);
+    const prodInchMatch = (normProdName + ' ' + normSlug).match(/\b(\d+(?:\.\d)?)\s*(?:inch|in|"|'')\b/i);
     if (prodInchMatch) {
       const pInch = parseFloat(prodInchMatch[1]);
-      if (Math.abs(qInch - pInch) > 1) {
+      if (Math.abs(qInch - pInch) > 1.5) {
         return 0; // Mâu thuẫn kích thước màn hình rõ ràng
       }
     } else {
-      // Sản phẩm không có kích thước inch nhưng query chỉ định inch rõ ràng
-      if (!normProdName.includes('inch')) return 0;
+      return 0; // Sản phẩm không có kích thước inch
     }
   }
 
@@ -514,6 +517,7 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
     }
   }
 
+
   // 0B. Nếu đang có ngữ cảnh danh mục cụ thể (ví dụ Tivi) mà sản phẩm lại thuộc danh mục khác (ví dụ Laptop/Màn hình PC):
   // Không bao giờ gợi ý chéo danh mục trừ khi khách hàng nêu đích danh từ khóa danh mục đó
   if (contextField && contextField !== 'Tất cả') {
@@ -532,10 +536,11 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   if (normCore && normCore.length >= 4 && normProdName.includes(normCore)) return 95;
   if (normCore && normProdName.length >= 4 && normCore.includes(normProdName)) return 96;
 
-  // Meaningful tokens
+  // Meaningful tokens - loại bỏ cả các đơn vị đo lường đơn lẻ (inch, lit, hp, w) để không làm sai lệch tỉ lệ tương đồng
+  const UNIT_ONLY_TOKENS = new Set(['inch', 'in', 'lit', 'l', 'hp', 'ngua', 'kg', 'g', 'gr', 'w', 'kw', 'v', 'hz', 'cm', 'mm', 'm']);
   const targetText = normCore && normCore.length >= 3 ? normCore : cleanNormMsg;
-  const queryTokens = targetText.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
-  const prodTokens = normProdName.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
+  const queryTokens = targetText.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t) && !UNIT_ONLY_TOKENS.has(t));
+  const prodTokens = normProdName.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t) && !UNIT_ONLY_TOKENS.has(t));
   if (queryTokens.length === 0) return 0;
 
   let matchCount = 0;
@@ -703,6 +708,20 @@ function evaluateProductMatch(message, normMessage, allProducts, contextField = 
     };
   }
 
+  // TÌNH HUỐNG KHÁCH HÀNG HỎI THĂM SỨC KHOẺ ("bạn khoẻ không", "khỏe không"...):
+  // Tuyệt đối KHÔNG quảng cáo sản phẩm ngay, không mở Cột 2!
+  if (isHealthInquiry(normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isHealthInquiry: true
+    };
+  }
+
   // TÌNH HUỐNG KHÁCH HÀNG CHÀO HỎI THUẦN TÚY ("hi", "chào", "chào bạn", "hello"...):
   // Tuyệt đối KHÔNG ĐƯỢC gán là sản phẩm hay tìm kiếm hàng hoá!
   if (isGreetingMessage(normMessage)) {
@@ -857,7 +876,7 @@ function evaluateProductMatch(message, normMessage, allProducts, contextField = 
  */
 function findMatchingProducts(normMsg, allProducts) {
   if (!normMsg || !allProducts || allProducts.length === 0) return [];
-  if (isGreetingMessage(normMsg) || isCatalogOverviewQuery(normMsg) || isCustomerNameDeclaration(null, normMsg)) return [];
+  if (isHealthInquiry(normMsg) || isGreetingMessage(normMsg) || isCatalogOverviewQuery(normMsg) || isCustomerNameDeclaration(null, normMsg)) return [];
   const cleanNormMsg = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
   const scored = allProducts.map((p) => ({
     product: p,
@@ -875,8 +894,10 @@ function findMatchingProducts(normMsg, allProducts) {
  */
 function findMatchingField(normMsg, allProducts) {
   if (!normMsg || !allProducts || allProducts.length === 0) return null;
-  // Khi khách hỏi tổng quan kinh doanh gì / bán gì, không ép vào một danh mục cụ thể
-  if (isCatalogOverviewQuery(normMsg)) return null;
+  // Khi khách hỏi thăm sức khoẻ, chào hỏi, xưng tên hoặc hỏi tổng quan, không dò danh mục
+  if (isHealthInquiry(normMsg) || isGreetingMessage(normMsg) || isCatalogOverviewQuery(normMsg) || isCustomerNameDeclaration(null, normMsg)) {
+    return null;
+  }
 
   const fields = [...new Set(allProducts.map((p) => p.field).filter(Boolean))];
   const cleanNorm = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
@@ -889,31 +910,19 @@ function findMatchingField(normMsg, allProducts) {
     }
   }
 
-  // 2. Token overlap with live field name (word-by-word exact token match, length >= 3)
-  const tokens = cleanNorm.split(/\s+/).filter((t) => t.length >= 3 && !STOP_WORDS.has(t));
-  for (const f of fields) {
-    const normF = removeVietnameseTones(f);
-    const fieldTokens = normF.split(/\s+/);
-    for (const t of tokens) {
-      if (fieldTokens.includes(t)) {
-        return f;
-      }
-    }
-  }
-
-  // 3. Domain keyword mapping matched against existing catalog fields
+  // 2. Domain keyword mapping matched against existing catalog fields (multi-word composite hints only)
   const fieldHints = [
-    { match: ['noi that', 'ghe', 'ban', 'ghe van phong', 'ghe nhan vien', 'ghe giam doc', 'ban giam doc', 'ban lam viec', 'tu ho so'], fieldPattern: 'noi that' },
+    { match: ['noi that van phong', 'noi that', 'ban ghe van phong', 'ban giam doc', 'ban lam viec', 'ban hop', 'ban van phong', 'ghe giam doc', 'ghe van phong', 'ghe xoay', 'ghe luoi', 'tu ho so'], fieldPattern: 'noi that' },
     { match: ['may dem tien', 'dem tien', 'xiudun', 'xinda', 'julong', 'lidix', '2166', '6688', '9999', 'hang tin', 'hangtin', 'ls-200f', '1718'], fieldPattern: 'may dem tien' },
-    { match: ['tra thuong hang', 'doi dep', 'oolong', 'hoang tra', 'hac tra', 'hong tra', 'tra xanh', 'ngu vi tra', 'tra', 'che'], fieldPattern: 'tra' },
-    { match: ['giai phap ai', 'nen tang', 'chatbot', 'humanoid', '33 ky nang', 'ky nang'], fieldPattern: 'ai' },
+    { match: ['tra thuong hang', 'tra cao cap', 'doi dep', 'oolong', 'hoang tra', 'hac tra', 'hong tra', 'tra xanh', 'ngu vi tra'], fieldPattern: 'tra' },
+    { match: ['giai phap ai', 'nen tang ai', 'robot ban hang', 'humanoid', '33 ky nang'], fieldPattern: 'ai' },
     { match: ['bat dong san', 'nghi duong', 'biet thu', 'villa', 'eco-villa', 'bao loc'], fieldPattern: 'bat dong san' },
-    { match: ['thiet bi van phong', 'may bo tien', 'dong chung tu', 'chung tu', 'bo tien', 'thiet bi', 'may in', 'canon', 'lbp', 'epson'], fieldPattern: 'thiet bi' },
-    { match: ['cong nghe', 'laptop', 'dell', 'vostro', 'may tinh', 'dien thoai', 'macbook', 'asus', 'lenovo', 'vivobook', 'omnibook', 'ideapad', 'legion', 'man hinh'], fieldPattern: 'cong nghe' },
-    { match: ['tivi', 'tv', 'qled', 'oled', 'giai tri'], fieldPattern: 'tivi' },
-    { match: ['bao tri', 'bao duong', 've sinh may', 'sua chua'], fieldPattern: 'bao tri' },
-    { match: ['ket sat', 'bofa', 'van tay', 'viet tiep'], fieldPattern: 'ket sat' },
-    { match: ['gia dung', 'dien lanh', 'tu lanh', 'may lanh', 'dieu hoa', 'may hut am', 'edison', 'sharp', 'daikin'], fieldPattern: 'gia dung' }
+    { match: ['thiet bi van phong', 'may bo tien', 'dong chung tu', 'may dong chung tu', 'may in', 'canon', 'lbp', 'epson'], fieldPattern: 'thiet bi' },
+    { match: ['cong nghe', 'laptop', 'dell vostro', 'may vi tinh', 'dien thoai thong minh', 'macbook', 'asus vivobook', 'lenovo ideapad', 'man hinh may tinh'], fieldPattern: 'cong nghe' },
+    { match: ['tivi', 'tv qled', 'tv oled', 'tivi samsung', 'tivi giai tri'], fieldPattern: 'tivi' },
+    { match: ['bao tri', 'bao duong may', 've sinh may', 'sua chua may'], fieldPattern: 'bao tri' },
+    { match: ['ket sat', 'bofa', 'ket sat van tay', 'ket sat viet tiep'], fieldPattern: 'ket sat' },
+    { match: ['gia dung', 'dien lanh', 'tu lanh', 'may lanh', 'dieu hoa', 'may hut am', 'edison'], fieldPattern: 'gia dung' }
   ];
 
   for (const hint of fieldHints) {
@@ -950,6 +959,20 @@ function isGreetingMessage(normMsg) {
     const reg = new RegExp('(^|\\s)' + phrase + '(\\s|$)');
     return reg.test(clean);
   });
+}
+
+/**
+ * Kiểm tra khách hàng hỏi thăm sức khoẻ ("bạn khoẻ không", "khỏe không", "dạo này thế nào", "sức khoẻ sao rồi"...):
+ * Khi khách hỏi thăm sức khoẻ:
+ * - Trả lời lịch sự: "Dạ tôi khoẻ, cảm ơn [customerRef]! Còn [customerRef] thì sao ạ? Hôm nay tôi có thể giúp gì cho [customerRef]?"
+ * - TUYỆT ĐỐI KHÔNG quảng cáo sản phẩm ngay, không mở Cột 2, không hỏi ngân sách!
+ */
+function isHealthInquiry(normMsg) {
+  if (!normMsg) return false;
+  const clean = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
+  const hasHealth = /\b(?:(?:ban\s+)?(?:co\s+)?khoe\s+(?:khong|chua|ko|k|ha|nhi|khong\s+a|nhe)|khoe\s+(?:khong|ko|k|chu|ha)|suc\s+khoe|dao\s+nay\s+(?:the\s+nao|sao\s+roi|on\s+khong|khoe\s+khong)|the\s+nao\s+roi|on\s+khong|co\s+on\s+khong|ban\s+on\s+chu)\b/i.test(clean);
+  const hasHardwareOrProductSubject = /\b(?:may|dong\s+co|pin|cau\s+hinh|tivi|tv|laptop|may\s+dem\s+tien|tu\s+lanh|may\s+lanh|ban\s+lam\s+viec|ban\s+giam\s+doc|ban\s+hop|ban\s+ghe)\b/i.test(clean);
+  return hasHealth && !hasHardwareOrProductSubject;
 }
 
 /**
@@ -1137,6 +1160,7 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
 
   // Filter out non-product questions, general queries, budget queries, or comparison questions
   if (
+    isHealthInquiry(normMessage) ||
     isCustomerNameDeclaration(message, normMessage) ||
     detectSecurityViolation(normMessage) ||
     isGreetingMessage(normMessage) ||
@@ -1294,8 +1318,9 @@ function extractCustomerAddressing(rawMsg) {
  * Tuyệt đối coi đây là thông tin xưng hô của khách hàng, không bao giờ đối chiếu hay coi là sản phẩm.
  */
 function isCustomerNameDeclaration(rawMsg, normMsg) {
-  if (!rawMsg || typeof rawMsg !== 'string') return false;
-  const clean = (normMsg || removeVietnameseTones(rawMsg))
+  const text = rawMsg || normMsg;
+  if (!text || typeof text !== 'string') return false;
+  const clean = removeVietnameseTones(text)
     .replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ')
     .toLowerCase()
     .trim();
@@ -1476,13 +1501,32 @@ export class SalesEngine {
             prevActiveProduct = meta.activeProduct;
           }
           if (!prevField) {
-            prevField = meta.activeField || meta.recommendedField || meta.activeProduct?.field || null;
+            const fCand = meta.activeField || meta.recommendedField || meta.activeProduct?.field || null;
+            if (fCand && fCand !== 'Tất cả') {
+              prevField = fCand;
+            }
           }
           if (hMsg.sender_type === 'user' && meta.selectedProduct) {
             if (!prevActiveProduct) prevActiveProduct = meta.selectedProduct;
-            if (!prevField) prevField = meta.selectedProduct.field;
+            if (!prevField && meta.selectedProduct.field && meta.selectedProduct.field !== 'Tất cả') {
+              prevField = meta.selectedProduct.field;
+            }
           }
         } catch {}
+      }
+
+      // Quét thêm nội dung tin nhắn để khôi phục sản phẩm & danh mục đang đàm thoại nếu metadata thiếu
+      if (!prevField || !prevActiveProduct) {
+        const textContent = hMsg.content || '';
+        const normContent = removeVietnameseTones(textContent).toLowerCase();
+        for (const p of allProducts) {
+          const normPName = removeVietnameseTones(p.name || '').toLowerCase();
+          if (normContent.includes(normPName)) {
+            if (!prevActiveProduct) prevActiveProduct = p;
+            if (!prevField && p.field && p.field !== 'Tất cả') prevField = p.field;
+            break;
+          }
+        }
       }
     }
 
@@ -1672,6 +1716,41 @@ export class SalesEngine {
     // 7. Generate Smart Response (Guided Order Flow -> Google Gemini LLM / OpenAI -> Smart Catalog AI Brain)
     let replyText = orderFlowReply || '';
 
+    const isHealth = isHealthInquiry(normMessage);
+    const isName = isCustomerNameDeclaration(message, normMessage);
+    const isMissing = Boolean(missingProductQuery);
+
+    // Xử lý các tình huống có quy tắc chuẩn xác từ khách hàng (hỏi thăm sức khoẻ, chào hỏi, xưng tên, hỏi hàng chưa có)
+    if (!replyText) {
+      if (isHealth) {
+        const friendRef = (!customerRef || customerRef === 'Quý khách' || customerRef === 'quý khách') ? 'bạn' : customerRef;
+        replyText = `Dạ tôi khoẻ, cảm ơn ${friendRef}! Còn ${friendRef} thì sao ạ? Hôm nay tôi có thể giúp gì cho ${friendRef}?`;
+      } else if (isName) {
+        replyText = `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì để tôi hỗ trợ nhé?`;
+      } else if (isGreeting) {
+        if (!hasAddressingInfo) {
+          replyText = `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của ${ownerName}.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang cần tìm sản phẩm hoặc giải pháp gì ạ? Bạn có thể nhắn sản phẩm cần tìm để tôi mở bảng Cột 2 hỗ trợ ngay nhé!`;
+        } else {
+          replyText = `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng của ${ownerName}. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
+        }
+      } else if (isMissing) {
+        const capRef = capitalizeFirst(customerRef);
+        const activeScopeField = conversationContextField || matchedField || activeHistoryField || null;
+        const sameCategoryProducts = activeScopeField && activeScopeField !== 'Tất cả'
+          ? allProducts.filter((p) => p.field === activeScopeField)
+          : [];
+        let col2Guide = '';
+        if (sameCategoryProducts.length > 0) {
+          const uniqueNames = [...new Set(sameCategoryProducts.map((p) => p.name))].slice(0, 2);
+          const sampleProds = uniqueNames.map((n) => `**${n}**`).join(', ');
+          col2Guide = `\n\nTuy nhiên, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có (như ${sampleProds}) đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
+        } else {
+          col2Guide = `\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tự do tham khảo các mẫu khác ở Cột 2 nhé.`;
+        }
+        replyText = `Dạ hiện tại bên em chưa có sẵn mẫu **${missingProductQuery}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
+      }
+    }
+
     const geminiKey = settings.gemini_api_key || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     const hasGeminiKey = Boolean(geminiKey && !geminiKey.includes('your_') && geminiKey.trim().length > 8);
 
@@ -1679,7 +1758,7 @@ export class SalesEngine {
     const hasOpenAiKey = Boolean(openAiKey && !openAiKey.includes('your_') && openAiKey.trim().length > 12);
 
     const provider = settings.llm_provider || 'gemini';
-    const canUseLlm = (hasGeminiKey || hasOpenAiKey) && !detectSecurityViolation(normMessage);
+    const canUseLlm = (hasGeminiKey || hasOpenAiKey) && !detectSecurityViolation(normMessage) && !isHealth && !isName && !isGreeting && !isMissing;
 
     if (!replyText && canUseLlm) {
       try {
@@ -1881,6 +1960,12 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       }
     }
 
+    // Handle customer health inquiry politely without premature product ads
+    if (isHealthInquiry(normMessage)) {
+      const friendRef = (!customerRef || customerRef === 'Quý khách' || customerRef === 'quý khách') ? 'bạn' : customerRef;
+      replyText = `Dạ tôi khoẻ, cảm ơn ${friendRef}! Còn ${friendRef} thì sao ạ? Hôm nay tôi có thể giúp gì cho ${friendRef}?`;
+    }
+
     // Handle pure customer addressing introduction ("Tôi là anh Nam", "Gọi tôi là chị Lan", "Tôi tên Trí")
     const isNameDecl = isCustomerNameDeclaration(message, normMessage);
     const isBudgetAsk = Boolean(extractBudget(normMessage));
@@ -1978,6 +2063,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isMissingProduct = Boolean(missingProductQuery);
 
     const isNonProductIntent =
+      isHealthInquiry(normMessage) ||
       detectSecurityViolation(normMessage) ||
       normMessage.includes('so dien thoai') ||
       normMessage.includes('chu nhan') ||
@@ -2023,7 +2109,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const revealCatalog = mentionsRelatedProduct;
 
     // Resolve category and products to display in Column 2 (strictly honoring active conversation domain)
-    const activeScopeField = matchedField || conversationContextField || activeHistoryField || (selectedProduct?.field) || null;
+    const activeScopeField = matchedField || conversationContextField || activeHistoryField || (conversationActiveProduct?.field) || (activeProduct?.field) || (selectedProduct?.field) || null;
 
     const recommendedProduct = mentionsRelatedProduct
       ? (!isMissingProduct ? (productMatch.topProduct || matchedFromText[0]) : null) || (activeScopeField && activeScopeField !== 'Tất cả' ? allProducts.find((p) => p.field === activeScopeField) || null : null)
@@ -2056,6 +2142,9 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           if (scoped.length > 0) pool = scoped;
         } else if (normMessage.includes('dem tien') || normMessage.includes('xiudun')) {
           pool = pool.filter((p) => p.field === 'Máy đếm tiền');
+        } else {
+          // Chưa xác định được danh mục đang hỏi ngân sách -> không tự ý gom toàn bộ sản phẩm khác loại (như lấy Trà)
+          pool = [];
         }
         if (budget?.max !== undefined) {
           const under = pool.filter((p) => (p.price || 0) <= budget.max && (p.price || 0) > 0);
@@ -2389,6 +2478,12 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       return `Dạ, tôi là trợ lý bán hàng của ${ownerName}. Tôi xin phép chỉ tư vấn thông tin và giá niêm yết chính thức của các sản phẩm đã được phê duyệt ạ. ${capRef} đang quan tâm sản phẩm nào để tôi hỗ trợ nhé?`;
     }
 
+    // 0A. Hỏi thăm sức khoẻ ("bạn khoẻ không", "khỏe không"...) -> Đáp lại lịch sự, tuyệt đối không quảng cáo sản phẩm ngay
+    if (isHealthInquiry(normMessage)) {
+      const friendRef = (!customerRef || customerRef === 'Quý khách' || customerRef === 'quý khách') ? 'bạn' : customerRef;
+      return `Dạ tôi khoẻ, cảm ơn ${friendRef}! Còn ${friendRef} thì sao ạ? Hôm nay tôi có thể giúp gì cho ${friendRef}?`;
+    }
+
     // 0B. Phân biệt rõ ràng: Khách hàng khai báo tên để xưng hô ("Tôi tên Trí", "Em tên Linh"...)
     if (isCustomerNameDeclaration(message, normMessage)) {
       return `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHiện **${customerRef}** đang cần tìm sản phẩm thuộc lĩnh vực nào để tôi tư vấn ngay ạ?`;
@@ -2473,7 +2568,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       let pool = allProducts.filter((p) => p.field !== 'Dịch vụ bảo trì' || normMessage.includes('bao tri'));
 
       // Category scoping: STRICTLY preserve active category context when available
-      const activeField = matchedField || conversationContextField || (selectedProduct?.field) || null;
+      const activeField = matchedField || conversationContextField || (conversationActiveProduct?.field) || (activeProduct?.field) || (selectedProduct?.field) || null;
       if (activeField && activeField !== 'Tất cả') {
         const fieldScoped = pool.filter(
           (p) =>
@@ -2593,8 +2688,11 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       return `Dạ, sản phẩm phù hợp nhất với nhu cầu của ${customerRef} là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n📝 **Đặc tính:** ${shortDesc || top.group_name || 'Chính hãng chất lượng cao'}.\n\nThông số chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**.${budgetAsk}`;
     }
 
-    // 8B. Field / Category Discovery ("cho xem may dem tien", "tu van tra", "xem ket sat")
-    if (matchedField && !isExplicitButtonAction) {
+    // 8B. Field / Category Discovery (chỉ kích hoạt khi khách hàng thực sự hỏi xem danh mục / lĩnh vực)
+    const isExplicitCategoryBrowse =
+      /(?:danh\s+muc|linh\s+vuc|nganh\s+hang|cac\s+dong\s+san\s+pham|toan\s+bo\s+san\s+pham|xem\s+danh\s+muc|mo\s+danh\s+muc|co\s+nhung\s+mat\s+hang\s+nao\s+trong|co\s+nhung\s+san\s+pham\s+nao\s+trong)\b/i.test(normMessage) ||
+      (matchedField && (normMessage.startsWith('xem ') || normMessage.startsWith('mo ') || normMessage.startsWith('danh muc ')));
+    if (matchedField && isExplicitCategoryBrowse && !isExplicitButtonAction) {
       const fieldProducts = allProducts.filter((p) => p.field === matchedField);
       if (fieldProducts.length > 0) {
         const previewLines = fieldProducts
