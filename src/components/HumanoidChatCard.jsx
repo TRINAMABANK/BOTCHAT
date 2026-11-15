@@ -14,9 +14,9 @@ import AudioWaveform from './AudioWaveform';
 /**
  * Render inline **bold** and *italic* markdown cleanly without raw asterisks.
  */
-function renderFormattedText(text) {
-  if (!text) return null;
-  const parts = String(text).split(/(\*\*[^*]+\*\*|\*[^*\n]+\*)/g);
+function renderInlineFormatting(inlineText) {
+  if (!inlineText) return null;
+  const parts = String(inlineText).split(/(\*\*[^*]+\*\*|\*[^*\n]+\*)/g);
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
@@ -33,6 +33,47 @@ function renderFormattedText(text) {
       );
     }
     return <React.Fragment key={idx}>{part}</React.Fragment>;
+  });
+}
+
+/**
+ * Render formatted message text.
+ * Dòng câu hỏi xưng hô ("Xin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô...")
+ * luôn được hiển thị nổi bật bằng MÀU TRẮNG TÍM theo yêu cầu người dùng.
+ */
+function renderFormattedText(text) {
+  if (!text) return null;
+  const lines = String(text).split('\n');
+
+  return lines.map((line, pIdx) => {
+    const trimmed = line.trim();
+
+    // Kiểm tra dòng hỏi tên / cách xưng hô
+    const isPoliteAddressingLine =
+      trimmed.includes('cách xưng hô để tôi tiện') ||
+      trimmed.includes('Xin lỗi, bạn vui lòng cho tôi biết tên') ||
+      trimmed.includes('cách xưng hô để tôi thuận tiện') ||
+      (trimmed.includes('cách xưng hô') && (trimmed.includes('phục vụ') || trimmed.includes('tiện')));
+
+    if (isPoliteAddressingLine) {
+      return (
+        <div
+          key={pIdx}
+          className="my-2.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-[#290d47]/95 via-[#3b0764]/90 to-[#1a0b36]/95 border border-fuchsia-400/60 shadow-[0_0_18px_rgba(192,38,211,0.35)] flex items-center space-x-2.5 font-medium backdrop-blur-md"
+        >
+          <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse flex-shrink-0 shadow-[0_0_8px_rgba(232,121,249,0.9)]" />
+          <span className="text-white text-xs leading-relaxed drop-shadow-[0_1px_2px_rgba(168,85,247,0.5)] font-semibold">
+            {trimmed}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div key={pIdx} className={pIdx > 0 && trimmed === '' ? 'h-2' : ''}>
+        {renderInlineFormatting(line)}
+      </div>
+    );
   });
 }
 
