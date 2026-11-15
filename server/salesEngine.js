@@ -311,7 +311,7 @@ function extractCoreProductQuery(rawMsg) {
     s = s.replace(/^(?:báo\s+giá\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?|tư\s+vấn\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?)\s+/i, '');
     s = s.replace(/^(?:cái|chiếc|mẫu|loại|dòng|con|bộ)\s+/i, '');
   }
-  s = s.replace(/\s+(?:giá\s+bao\s+nhiêu|nhiêu\s+tiền|bao\s+nhiêu\s+tiền|bao\s+nhiêu|hết\s+bao\s+nhiêu|không\s+ạ|không|hông|ko|k|vậy|thế|nhỉ|nè|nhé|nha|ạ|ơi|mà|ma|đấy|day|đó|do|hả|ha)[?!.,;]*$/i, '');
+  s = s.replace(/\s+(?:thì\s+có\s+không|thi\s+co\s+khong|thì\s+có|thi\s+co|có\s+không|co\s+khong|giá\s+bao\s+nhiêu|nhiêu\s+tiền|bao\s+nhiêu\s+tiền|bao\s+nhiêu|hết\s+bao\s+nhiêu|không\s+ạ|không|hông|ko|k|vậy|thế|nhỉ|nè|nhé|nha|ạ|ơi|mà|ma|đấy|day|đó|do|hả|ha)[?!.,;]*$/i, '');
   s = s.replace(/[?!.,;]+/g, '').trim();
   return s;
 }
@@ -811,7 +811,7 @@ function evaluateProductMatch(message, normMessage, allProducts, contextField = 
         topProduct: null,
         rankedProducts: [],
         matchedField: null,
-        missingProductQuery: coreQuery || message.trim()
+        missingProductQuery: formatMissingProductName(coreQuery || message.trim(), contextField)
       };
     }
   }
