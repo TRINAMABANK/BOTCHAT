@@ -188,6 +188,7 @@ function extractCustomerName(rawMsg, allowBare = true) {
   if (!rawMsg || typeof rawMsg !== 'string') return null;
   let s = rawMsg.trim();
   if (s.includes('?') || s.includes('@')) return null;
+  if (isCatalogOverviewQuery(s)) return null;
 
   // Strip phone portion if present at the end
   s = s.replace(/[,.;:\s]+(?:sđt|sdt|so\s+dien\s+thoai|số\s+điện\s+thoại|so|số|dien\s+thoai|điện\s+thoại|phone)?\s*(?:là|la|:)?\s*0[35789]\d{8}\b.*$/i, '').trim();
@@ -226,7 +227,8 @@ function extractCustomerName(rawMsg, allowBare = true) {
     'hanh', 'chao', 'alo', 'hello', 'hi', 'ship', 'shop', 'robot', 'ai',
     'san', 'pham', 'thong', 'tin', 'dia', 'chi', 'so', 'dien', 'thoai',
     'sdt', 'dong', 'vnd', 'khong', 'chuc', 'nang', 'ok', 'duoc', 'cam', 'on', 'roi',
-    'vang', 'dung', 'sai', 'co', 'the', 'nao', 'tiet', 'sanh', 'ton', 'kho'
+    'vang', 'dung', 'sai', 'co', 'the', 'nao', 'tiet', 'sanh', 'ton', 'kho',
+    'gi', 'kinh', 'doanh', 'cai', 'mat', 'hang', 'nganh', 'linh', 'vuc', 'the', 'nao', 'sao', 'dau'
   ]);
 
   const words = norm.split(/\s+/).filter(Boolean);
@@ -249,8 +251,88 @@ const STOP_WORDS = new Set([
   'nao', 'bao', 'nhieu', 'tien', 'gia', 'duoi', 'tren', 'tam', 'khoang', 'khong',
   'duoc', 'nhan', 'chu', 'dien', 'thoai', 'sdt', 'so', 'san', 'pham', 'tu', 'van',
   'so', 'sanh', 'giup', 'voi', 'nha', 'nhe', 'anh', 'chi', 'ben', 'shop', 'may', 'cai', 'chiec',
-  'tri', 'quang', 'nhut', 'toi', 'minh', 'em', 'la', 'ten', 'chao', 'alo', 'hi', 'oi', 'day', 'a', 'da'
+  'tri', 'quang', 'nhut', 'toi', 'minh', 'em', 'la', 'ten', 'chao', 'alo', 'hi', 'oi', 'day', 'a', 'da',
+  'gi', 'kinh', 'doanh', 'the', 'vay', 'co', 'cac'
 ]);
+
+const CATALOG_OVERVIEW_KEYWORDS = [
+  'kinh doanh gi',
+  'kinh doanh nhung gi',
+  'kinh doanh cai gi',
+  'kinh doanh mat hang gi',
+  'kinh doanh mat hang nao',
+  'kinh doanh mat hang',
+  'kinh doanh san pham gi',
+  'kinh doanh san pham',
+  'kinh doanh gi the',
+  'kinh doanh gi vay',
+  'dang kinh doanh gi',
+  'chuyen kinh doanh gi',
+  'kinh doanh nganh nao',
+  'linh vuc kinh doanh',
+  'ban gi',
+  'ban nhung gi',
+  'ban cai gi',
+  'ban nhung mat hang',
+  'ban nhung san pham',
+  'ban san pham gi',
+  'ban mat hang gi',
+  'ban gi the',
+  'ban gi vay',
+  'dang ban gi',
+  'chuyen ban gi',
+  'co ban gi',
+  'co ban gi khong',
+  'co gi de ban',
+  'co gi ban',
+  'co san pham gi',
+  'co nhung san pham gi',
+  'co mat hang gi',
+  'co nhung mat hang gi',
+  'co nhung mat hang',
+  'co nhung gi',
+  'co gi khong',
+  'co gi',
+  'shop co gi',
+  'shop ban gi',
+  'ben ban co gi',
+  'ben ban ban gi',
+  'ben em co gi',
+  'ben em ban gi',
+  'ben anh co gi',
+  'ben anh ban gi',
+  'ban co gi',
+  'ban co san pham nao',
+  'danh muc san pham',
+  'danh muc tong',
+  'cac danh muc',
+  'xem danh muc',
+  'cho xem danh muc',
+  'cac san pham',
+  'tat ca san pham',
+  'xem tat ca',
+  'cac linh vuc',
+  'nganh hang'
+];
+
+/**
+ * Kiểm tra xem khách có đang hỏi danh mục tổng quan / hỏi bán gì, kinh doanh gì, có sản phẩm gì
+ */
+function isCatalogOverviewQuery(normMsg) {
+  if (!normMsg) return false;
+  const clean = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
+  if (CATALOG_OVERVIEW_KEYWORDS.some((k) => clean.includes(k))) {
+    return true;
+  }
+  if (
+    /\b(kinh doanh|ban|co|cung cap)\s+(cai\s+)?gi\b/.test(clean) ||
+    /\b(kinh doanh|ban|co|cung cap)\s+(nhung\s+)?(gi|mat hang|san pham|linh vuc)\b/.test(clean) ||
+    /\b(co|ban|kinh doanh)\s+(nhung\s+)?(mon|do|hang|gi)\s+(gi|khong|nao)\b/.test(clean)
+  ) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Extract model codes and numbers from product names and customer queries.
@@ -413,6 +495,20 @@ function evaluateProductMatch(message, normMessage, allProducts) {
     };
   }
 
+  // TÌNH HUỐNG HỎI DANH MỤC TỔNG QUAN / BẠN KINH DOANH GÌ / BÁN CÁI GÌ / CÓ SẢN PHẨM GÌ:
+  // Không chọn sản phẩm lẻ và không ép vào 1 danh mục cụ thể
+  if (isCatalogOverviewQuery(normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isGeneralCatalogQuery: true
+    };
+  }
+
   const cleanNormMsg = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
 
   const isForeign =
@@ -497,23 +593,27 @@ function findMatchingProducts(normMsg, allProducts) {
  */
 function findMatchingField(normMsg, allProducts) {
   if (!normMsg || !allProducts || allProducts.length === 0) return null;
+  // Khi khách hỏi tổng quan kinh doanh gì / bán gì, không ép vào một danh mục cụ thể
+  if (isCatalogOverviewQuery(normMsg)) return null;
+
   const fields = [...new Set(allProducts.map((p) => p.field).filter(Boolean))];
   const cleanNorm = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
 
   // 1. Direct normalized field name match
   for (const f of fields) {
     const normF = removeVietnameseTones(f);
-    if (cleanNorm.includes(normF) || normF.includes(cleanNorm.trim())) {
+    if (cleanNorm.includes(normF)) {
       return f;
     }
   }
 
-  // 2. Token overlap with any live field
-  const tokens = cleanNorm.split(/\s+/).filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
+  // 2. Token overlap with live field name (word-by-word exact token match, length >= 3)
+  const tokens = cleanNorm.split(/\s+/).filter((t) => t.length >= 3 && !STOP_WORDS.has(t));
   for (const f of fields) {
     const normF = removeVietnameseTones(f);
+    const fieldTokens = normF.split(/\s+/);
     for (const t of tokens) {
-      if (normF.includes(t)) {
+      if (fieldTokens.includes(t)) {
         return f;
       }
     }
@@ -528,7 +628,8 @@ function findMatchingField(normMsg, allProducts) {
     { match: ['van phong', 'may in', 'canon', 'lbp', 'hp', 'epson'], fieldPattern: 'van phong' },
     { match: ['cong nghe', 'laptop', 'dell', 'vostro', 'may tinh', 'dien thoai', 'iphone', 'samsung'], fieldPattern: 'cong nghe' },
     { match: ['bao tri', 'bao duong', 've sinh may', 'sua chua'], fieldPattern: 'bao tri' },
-    { match: ['ket sat', 'bofa', 'van tay', 'viet tiep'], fieldPattern: 'ket sat' }
+    { match: ['ket sat', 'bofa', 'van tay', 'viet tiep'], fieldPattern: 'ket sat' },
+    { match: ['gia dung', 'tu lanh', 'may lanh', 'dieu hoa', 'sharp', 'daikin'], fieldPattern: 'gia dung' }
   ];
 
   for (const hint of fieldHints) {
@@ -539,22 +640,6 @@ function findMatchingField(normMsg, allProducts) {
   }
 
   return null;
-}
-
-const CATALOG_OVERVIEW_KEYWORDS = [
-  'ban gi',
-  'ban nhung gi',
-  'co nhung gi',
-  'co gi ban',
-  'san pham gi',
-  'san pham nao',
-  'danh muc',
-  'linh vuc',
-  'xem tat ca'
-];
-
-function isCatalogOverviewQuery(normMsg) {
-  return CATALOG_OVERVIEW_KEYWORDS.some((k) => normMsg.includes(k));
 }
 
 const GREETING_PHRASES = [
@@ -817,6 +902,7 @@ function extractCustomerAddressing(rawMsg) {
   const trimmed = rawMsg.trim();
   const norm = removeVietnameseTones(trimmed).toLowerCase();
   if (!trimmed || norm.includes('tro ly ban hang') || norm.includes('san pham')) return null;
+  if (isCatalogOverviewQuery(trimmed)) return null;
 
   let pronoun = null;
   let name = null;
@@ -827,7 +913,11 @@ function extractCustomerAddressing(rawMsg) {
   if (matchPronoun) {
     const rawP = matchPronoun[1].toLowerCase();
     // Ignore "em" if starts with "bên em" / "em ơi"
-    if (!(rawP === 'em' && /bên\s+em|shop\s+em|em\s+ơi/i.test(trimmed))) {
+    if (rawP === 'em' && /bên\s+em|shop\s+em|em\s+ơi/i.test(trimmed)) {
+      // ignore
+    } else if (rawP === 'bạn' && !/(?:tôi|mình|tên|gọi|xưng|cứ\s+gọi).*(?:bạn)/i.test(trimmed)) {
+      // Customer is talking TO the bot ("bạn ơi", "bạn kinh doanh gì", "bạn bán gì"), not identifying self as "bạn"
+    } else {
       pronoun = rawP;
     }
   }
@@ -1158,7 +1248,18 @@ export class SalesEngine {
           cleanNormMsg.includes('toshiba');
 
         let dynamicMatchDirective = '';
-        if (productMatch.tier === 1 && productMatch.topProduct) {
+        if (isCatalogOverviewQuery(normMessage)) {
+          const fields = [...new Set(allProducts.map((p) => p.field).filter(Boolean))];
+          dynamicMatchDirective = `
+CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - HỎI BẠN KINH DOANH GÌ / BÁN CÁI GÌ / CÓ SẢN PHẨM GÌ:
+- Khách đang hỏi chung về các mặt hàng / lĩnh vực kinh doanh của shop ("${message}").
+- BẮT BUỘC THEO ĐÚNG CHỈ THỊ CỦA CHỦ NHÂN:
+  1. CHỈ NÊU DANH MỤC TỔNG (các lĩnh vực sản phẩm: ${fields.join(', ')}).
+  2. TUYỆT ĐỐI KHÔNG NÊU TÊN TỪNG SẢN PHẨM CỤ THỂ, KHÔNG BÁO GIÁ SẢN PHẨM NÀO TRONG CHAT!
+  3. Thông báo rõ toàn bộ danh mục và các mẫu sản phẩm đã được mở sẵn ở Cột 2, mời khách tự xem sản phẩm ở Cột 2.
+  4. Hỏi khách đang quan tâm đến lĩnh vực nào hoặc có mức ngân sách khoảng bao nhiêu tiền để tư vấn chuẩn nhất.
+`;
+        } else if (productMatch.tier === 1 && productMatch.topProduct) {
           const top = productMatch.topProduct;
           dynamicMatchDirective = `
 CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG 1 (Độ khớp ${productMatch.similarity}% >= 90%):
@@ -1199,7 +1300,13 @@ BẠN ĐƯỢC TRANG BỊ TRÍ TUỆ NHÂN TẠO GOOGLE GEMINI THÔNG MINH, NHI�
 
 ${dynamicMatchDirective}
 
-QUY TẮC XỬ LÝ 3 TÌNH HUỐNG SẢN PHẨM:
+QUY TẮC XỬ LÝ CÁC TÌNH HUỐNG SẢN PHẨM:
+0. TÌNH HUỐNG HỎI TỔNG QUAN - BẠN KINH DOANH GÌ / BÁN CÁI GÌ / CÓ SẢN PHẨM GÌ:
+   - CHỈ NÊU DANH MỤC TỔNG (các lĩnh vực kinh doanh trong hệ thống).
+   - TUYỆT ĐỐI KHÔNG NÊU TÊN TỪNG SẢN PHẨM CỤ THỂ, KHÔNG NÊU GIÁ TIỀN TRONG CHAT!
+   - Thông báo rõ hệ thống đã mở toàn bộ danh mục ở Cột 2, mời khách hàng tự xem sản phẩm ở Cột 2.
+   - Hỏi khách đang quan tâm đến lĩnh vực nào hoặc số tiền dự tính mua để tư vấn phù hợp nhất.
+
 1. TÌNH HUỐNG 1 - SẢN PHẨM GIỐNG TỪ 90% TRỞ LÊN (Khách hỏi đúng sản phẩm hoặc khớp cao với danh mục):
    - Tư vấn điểm nổi bật chính và BÁO GIÁ NIÊM YẾT CHÍNH XÁC.
    - Hướng dẫn khách xem thông số và hình ảnh trực quan ở Cột 2 (hệ thống đã tự động mở sẵn Cột 2).
@@ -1847,40 +1954,23 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       return `${politeAskBanner}Dạ, báo giá chính thức cho **${target.name}** là: **${formatPrice(target)}**.\n\n${capRef} vui lòng cho biết số lượng dự kiến và SĐT để tôi chuyển chủ nhân gửi báo giá ưu đãi chi tiết nhé!`;
     }
 
-    // 8. Catalog Overview / What do you sell? ("co nhung gi", "ban gi", "danh muc")
-    if (!matchedField && isCatalogOverviewQuery(normMessage)) {
-      const fields = [...new Set(allProducts.map((p) => p.field))];
-      const overview = fields
-        .map((f) => {
-          const items = allProducts.filter((p) => p.field === f);
-          const names = items.slice(0, 2).map((x) => `${x.name} (${formatPrice(x)})`).join(', ');
-          return `• **${f}:** ${names}${items.length > 2 ? ` và ${items.length - 2} mẫu khác` : ''}`;
-        })
+    // 8. Catalog Overview / What do you sell? ("kinh doanh gi", "ban gi", "co san pham gi", "danh muc")
+    // YÊU CẦU: CHỈ BẬT CỘT 2 VÀ ĐỒNG THỜI CHỈ NÊU DANH MỤC TỔNG KHÔNG NÊU SẢN PHẨM, KHÁCH HÀNG TỰ XEM SẢN PHẨM Ở CỘT 2
+    if (isCatalogOverviewQuery(normMessage)) {
+      const fields = [...new Set(allProducts.map((p) => p.field).filter(Boolean))];
+      const categoryBullets = fields
+        .map((f) => `• **${f}**`)
         .join('\n');
-      return `${politeAskBanner}Dạ, bên tôi đang có các danh mục sản phẩm chính sau:\n\n${overview}\n\nTôi đã mở danh mục trực quan ở **Cột 2**. ${capRef} muốn xem chi tiết nhóm nào ạ?`;
-    }
 
-    // 8B. Field / Category Discovery ("cho xem may dem tien", "tu van tra", "xem ket sat")
-    if (matchedField && !isExplicitButtonAction) {
-      const fieldProducts = allProducts.filter((p) => p.field === matchedField);
-      const asksSpecificModel = matchedFromText.length > 0 && normMessage.split(/\s+/).some((t) => /\d{3,}/.test(t));
-      if (fieldProducts.length > 0 && !asksSpecificModel) {
-        const previewLines = fieldProducts
-          .slice(0, 4)
-          .map((p, i) => {
-            const short = formatShortDesc(p.description, 70);
-            return `${i + 1}. **${p.name}** — **${formatPrice(p)}**${short ? ` (${short})` : ''}`;
-          })
-          .join('\n');
-        const budgetAsk = hasBudgetInQuery
-          ? ` ${capRef} muốn xem chi tiết mẫu nào hay cần hỗ trợ đặt mua ạ?`
-          : ` Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn mẫu chuẩn nhất nhé?`;
-        return `Dạ, tôi đã mở danh mục **${matchedField}** ở **Cột 2**:\n\n${previewLines}\n\nBạn có thể bấm vào thẻ sản phẩm để xem chi tiết.${budgetAsk}`;
-      }
+      const budgetAsk = hasBudgetInQuery
+        ? ` ${capRef} muốn xem chi tiết lĩnh vực nào hay cần hỗ trợ đặt mua ạ?`
+        : ` ${capRef} đang quan tâm đến lĩnh vực nào hoặc có mức ngân sách khoảng bao nhiêu tiền để tôi tư vấn chuẩn nhất nhé?`;
+
+      return `${politeAskBanner}Dạ xin chào ${customerRef}! Hiện bên em đang kinh doanh các lĩnh vực sản phẩm chính sau:\n\n${categoryBullets}\n\nToàn bộ danh mục và các mẫu sản phẩm chi tiết đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tự xem sản phẩm trực tiếp ở Cột 2 nhé.\n\n${budgetAsk}`;
     }
 
     // 9. Smart Product Match from Customer's Text (Tier 1: >= 90% vs Tier 2: 80% - 90%)
-    if (matchedFromText.length > 0 || (productMatch && productMatch.topProduct)) {
+    if ((productMatch && (productMatch.tier === 1 || productMatch.tier === 2) && productMatch.topProduct) || matchedFromText.length > 0) {
       const top = (productMatch && productMatch.topProduct) || matchedFromText[0];
       const tier = productMatch?.tier || 1;
       const shortDesc = formatShortDesc(top.description, 85);
@@ -1898,6 +1988,24 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         ? ` ${capRef} muốn tôi tư vấn thêm hay hỗ trợ đặt mua ngay ạ?`
         : ` Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn cấu hình và ưu đãi phù hợp nhất nhé?`;
       return `Dạ, sản phẩm phù hợp nhất với nhu cầu của ${customerRef} là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n📝 **Đặc tính:** ${shortDesc || top.group_name || 'Chính hãng chất lượng cao'}.\n\nThông số chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**.${budgetAsk}`;
+    }
+
+    // 8B. Field / Category Discovery ("cho xem may dem tien", "tu van tra", "xem ket sat")
+    if (matchedField && !isExplicitButtonAction) {
+      const fieldProducts = allProducts.filter((p) => p.field === matchedField);
+      if (fieldProducts.length > 0) {
+        const previewLines = fieldProducts
+          .slice(0, 4)
+          .map((p, i) => {
+            const short = formatShortDesc(p.description, 70);
+            return `${i + 1}. **${p.name}** — **${formatPrice(p)}**${short ? ` (${short})` : ''}`;
+          })
+          .join('\n');
+        const budgetAsk = hasBudgetInQuery
+          ? ` ${capRef} muốn xem chi tiết mẫu nào hay cần hỗ trợ đặt mua ạ?`
+          : ` Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn mẫu chuẩn nhất nhé?`;
+        return `Dạ, tôi đã mở danh mục **${matchedField}** ở **Cột 2**:\n\n${previewLines}\n\nBạn có thể bấm vào thẻ sản phẩm để xem chi tiết.${budgetAsk}`;
+      }
     }
 
     // TÌNH HUỐNG 3: Không giống gì hết / không có trong data (< 80%)
