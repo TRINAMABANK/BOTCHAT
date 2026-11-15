@@ -7,7 +7,8 @@ import {
   RotateCcw,
   Volume2,
   VolumeX,
-  FastForward
+  FastForward,
+  Square
 } from 'lucide-react';
 import AudioWaveform from './AudioWaveform';
 
@@ -99,6 +100,7 @@ export const HumanoidChatCard = ({
   onSkipStreaming,
   onToggleVoice,
   onSpeakMessage,
+  onStopSpeaking,
   onQuickPrompt,
   onResetChat,
   onMicClick,
@@ -239,6 +241,19 @@ export const HumanoidChatCard = ({
               isListening={botState === 'listening'}
             />
           </div>
+
+          {/* Nút dừng phát giọng nói nhanh khi robot đang đọc */}
+          {botState === 'speaking' && onStopSpeaking && (
+            <button
+              type="button"
+              onClick={onStopSpeaking}
+              className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-rose-600/90 hover:bg-rose-500 text-white text-[11px] font-bold shadow-[0_0_12px_rgba(244,63,94,0.7)] animate-pulse transition-all flex-shrink-0 active:scale-95"
+              title="Dừng robot phát giọng nói ngay lập tức"
+            >
+              <VolumeX size={13} />
+              <span>Dừng</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -265,6 +280,19 @@ export const HumanoidChatCard = ({
               >
                 <FastForward size={11} />
                 <span className="hidden sm:inline">Hiện nhanh</span>
+              </button>
+            )}
+
+            {/* Dừng đọc nhanh trong header khi Robot đang phát âm */}
+            {botState === 'speaking' && onStopSpeaking && (
+              <button
+                type="button"
+                onClick={onStopSpeaking}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-rose-950/90 hover:bg-rose-900 text-rose-300 border border-rose-500/60 text-[11px] font-bold shadow-sm animate-pulse transition-all"
+                title="Dừng robot đọc"
+              >
+                <VolumeX size={12} />
+                <span>Dừng đọc</span>
               </button>
             )}
 
@@ -369,15 +397,25 @@ export const HumanoidChatCard = ({
                     }`}
                   >
                     <span>{timeStr}</span>
-                    {!isUser && msg.content && onSpeakMessage && (
+                    {!isUser && msg.content && (onSpeakMessage || onStopSpeaking) && (
                       <button
                         type="button"
-                        onClick={() => onSpeakMessage(msg.content)}
-                        className="flex items-center space-x-1 text-cyan-400/80 hover:text-cyan-200 transition-colors py-0.5 px-1.5 rounded hover:bg-cyan-950/60 border border-transparent hover:border-cyan-500/30 ml-2"
-                        title="Nghe Robot đọc lại nội dung này bằng tiếng Việt"
+                        onClick={() => {
+                          if (botState === 'speaking' && onStopSpeaking) {
+                            onStopSpeaking();
+                          } else if (onSpeakMessage) {
+                            onSpeakMessage(msg.content);
+                          }
+                        }}
+                        className={`flex items-center space-x-1 py-0.5 px-2 rounded-md border text-[10px] font-medium transition-all ml-2 ${
+                          botState === 'speaking'
+                            ? 'text-rose-300 bg-rose-950/70 border-rose-500/50 shadow-[0_0_8px_rgba(244,63,94,0.4)]'
+                            : 'text-cyan-400/80 hover:text-cyan-200 hover:bg-cyan-950/60 border-transparent hover:border-cyan-500/30'
+                        }`}
+                        title={botState === 'speaking' ? 'Dừng đọc' : 'Nghe Robot đọc câu trả lời này bằng tiếng Việt'}
                       >
-                        <Volume2 size={11} />
-                        <span>Đọc lại</span>
+                        {botState === 'speaking' ? <VolumeX size={11} /> : <Volume2 size={11} />}
+                        <span>{botState === 'speaking' ? 'Dừng đọc' : 'Đọc lại'}</span>
                       </button>
                     )}
                   </div>

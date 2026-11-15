@@ -17,7 +17,13 @@ import {
   Bot
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { speakVietnamese, stopSpeaking, isSpeechSupported } from './utils/speech';
+import {
+  speakVietnamese,
+  stopSpeaking,
+  isSynthesisSupported,
+  isRecognitionSupported,
+  VoiceRecognizer
+} from './utils/speech';
 
 const createWelcomeMessage = () => ({
   id: `msg_welcome_${Date.now()}`,
@@ -49,6 +55,19 @@ export const App = () => {
   const [mobileViewTab, setMobileViewTab] = useState('chat'); // 'chat' | 'catalog'
   const [fieldSyncTick, setFieldSyncTick] = useState(0);
   const skipStreamingRef = useRef(false);
+  const recognizerRef = useRef(null);
+  const [interimText, setInterimText] = useState('');
+  const [voiceAlert, setVoiceAlert] = useState(null);
+
+  // Cleanup speech synthesis & recognition on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        recognizerRef.current?.abort();
+      } catch {}
+      stopSpeaking();
+    };
+  }, []);
 
   // Detect mobile phone (< 768px or mobile user agent)
   const [isMobile, setIsMobile] = useState(() => {
@@ -188,7 +207,18 @@ export const App = () => {
 
   // Send Message to AI Sales Engine
   const handleSendMessage = async (text, overrideProduct = null, actionType = null) => {
-    if (!text.trim() || isThinking || isStreaming) return;
+    if (!text || !text.trim() || isThinking || isStreaming) return;
+
+    // Hủy nhận diện giọng nói nếu đang active
+    if (recognizerRef.current?.isListening) {
+      try {
+        recognizerRef.current.abort();
+      } catch {}
+    }
+    setInterimText('');
+
+    // Dừng phát âm thanh trước đó nếu đang nói
+    stopSpeaking();
 
     const prodToUse = overrideProduct !== undefined ? overrideProduct : selectedProduct;
 
@@ -225,7 +255,9 @@ export const App = () => {
 
       setIsThinking(false);
       setIsStreaming(true);
-      setBotState('speaking');
+      if (!voiceEnabled) {
+        setBotState('idle');
+      }
 
       if (data.revealCatalog) {
         setIsCatalogRevealed(true);
@@ -313,46 +345,75 @@ export const App = () => {
     }
   };
 
-  // Real Vietnamese Speech-to-Text voice capture
+  // Real Vietnamese Speech-to-Text voice capture using VoiceRecognizer module
   const handleVoiceInput = () => {
-    if (botState === 'listening') {
+    // Nếu robot đang phát giọng nói, dừng nói trước
+    if (botState === 'speaking') {
+      stopSpeaking();
       setBotState('idle');
-      return;
     }
-    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRec) {
-      alert('Trình duyệt hiện tại chưa hỗ trợ nhận diện giọng nói. Bạn vui lòng gõ câu hỏi vào ô bên dưới hoặc dùng Chrome/Edge.');
-      return;
-    }
-    const recognition = new SpeechRec();
-    recognition.lang = 'vi-VN';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    setBotState('listening');
 
-    recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript;
-      if (transcript) {
-        handleSendMessage(transcript, selectedProduct, null);
-      } else {
-        setBotState('idle');
-      }
-    };
-    recognition.onerror = () => setBotState('idle');
-    recognition.onend = () => {
-      setBotState((prev) => (prev === 'listening' ? 'idle' : prev));
-    };
-    try {
-      recognition.start();
-    } catch {
+    // Nếu đang lắng nghe, nhấn lần nữa để dừng nghe
+    if (botState === 'listening') {
+      try {
+        recognizerRef.current?.stop();
+      } catch {}
       setBotState('idle');
+      setInterimText('');
+      return;
     }
+
+    if (!isRecognitionSupported()) {
+      setVoiceAlert(
+        'Trình duyệt này chưa hỗ trợ nhận diện giọng nói Web Speech. Bạn vui lòng dùng Google Chrome hoặc Microsoft Edge để trò chuyện bằng giọng nói nhé!'
+      );
+      return;
+    }
+
+    setVoiceAlert(null);
+    setInterimText('');
+
+    recognizerRef.current = new VoiceRecognizer({
+      onStart: () => {
+        setBotState('listening');
+        setInterimText('');
+        setVoiceAlert(null);
+      },
+      onInterim: (text) => {
+        setInterimText(text);
+      },
+      onFinal: (finalText) => {
+        setInterimText('');
+        setBotState('idle');
+        if (finalText && finalText.trim()) {
+          handleSendMessage(finalText.trim(), selectedProduct, null);
+        }
+      },
+      onError: (friendlyMsg, errCode) => {
+        setBotState('idle');
+        setInterimText('');
+        if (friendlyMsg) {
+          setVoiceAlert(friendlyMsg);
+        }
+      },
+      onEnd: () => {
+        setBotState((prev) => (prev === 'listening' ? 'idle' : prev));
+      }
+    });
+
+    recognizerRef.current.start();
+  };
+
+  // Dừng phát âm thanh ngay lập tức
+  const handleStopSpeaking = () => {
+    stopSpeaking();
+    setBotState((prev) => (prev === 'speaking' ? 'idle' : prev));
   };
 
   // Toggle Text-to-Speech Vietnamese Voice
   const handleToggleVoice = () => {
-    if (!isSpeechSupported()) {
-      alert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
+    if (!isSynthesisSupported()) {
+      setVoiceAlert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
       return;
     }
     if (voiceEnabled) {
@@ -361,7 +422,7 @@ export const App = () => {
       try {
         localStorage.setItem('triai_voice_enabled', 'false');
       } catch {}
-      setBotState('idle');
+      setBotState((prev) => (prev === 'speaking' ? 'idle' : prev));
     } else {
       setVoiceEnabled(true);
       try {
@@ -371,7 +432,8 @@ export const App = () => {
         'Dạ, tôi đã bật giọng nói tiếng Việt. Từ giờ tôi sẽ đọc câu trả lời cho bạn nghe nhé!',
         {
           onStart: () => setBotState('speaking'),
-          onEnd: () => setBotState((prev) => (prev === 'speaking' ? 'idle' : prev))
+          onEnd: () => setBotState((prev) => (prev === 'speaking' ? 'idle' : prev)),
+          onError: () => setBotState((prev) => (prev === 'speaking' ? 'idle' : prev))
         }
       );
     }
@@ -379,13 +441,19 @@ export const App = () => {
 
   // Read a specific message aloud in Vietnamese
   const handleSpeakMessage = (text) => {
-    if (!isSpeechSupported()) {
-      alert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
+    if (!isSynthesisSupported()) {
+      setVoiceAlert('Trình duyệt hiện tại chưa hỗ trợ phát giọng nói Web Speech. Bạn nên dùng Google Chrome hoặc Microsoft Edge để có trải nghiệm tốt nhất!');
+      return;
+    }
+    if (botState === 'speaking') {
+      stopSpeaking();
+      setBotState('idle');
       return;
     }
     speakVietnamese(text, {
       onStart: () => setBotState('speaking'),
-      onEnd: () => setBotState((prev) => (prev === 'speaking' ? 'idle' : prev))
+      onEnd: () => setBotState((prev) => (prev === 'speaking' ? 'idle' : prev)),
+      onError: () => setBotState((prev) => (prev === 'speaking' ? 'idle' : prev))
     });
   };
 
@@ -644,6 +712,7 @@ export const App = () => {
               onSkipStreaming={() => { skipStreamingRef.current = true; }}
               onToggleVoice={handleToggleVoice}
               onSpeakMessage={handleSpeakMessage}
+              onStopSpeaking={handleStopSpeaking}
               onQuickPrompt={(prompt) => handleSendMessage(prompt, selectedProduct, null)}
               onResetChat={handleResetChat}
               onMicClick={handleVoiceInput}
@@ -673,10 +742,15 @@ export const App = () => {
           onSendMessage={handleSendMessage}
           onOpenPhoneModal={() => setIsPhoneModalOpen(true)}
           onMicClick={handleVoiceInput}
+          onStopSpeaking={handleStopSpeaking}
           isListening={botState === 'listening'}
+          isSpeaking={botState === 'speaking'}
           isThinking={isThinking}
           isStreaming={isStreaming}
           isCatalogRevealed={isCatalogRevealed}
+          interimText={interimText}
+          voiceAlert={voiceAlert}
+          onDismissVoiceAlert={() => setVoiceAlert(null)}
           orderStep={orderStep}
           focusTick={inputFocusTick}
         />
