@@ -534,7 +534,8 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '') {
     return 85; // Similar chair (e.g. "ghế nhân viên", "ghế văn phòng" -> 85% for Ghế giám đốc/gaming)
   }
 
-  if (coreTarget.includes('ban') && normProdName.includes('ban')) {
+  const isDeskQuery = /\b(ban ghe|ban lam viec|ban giam doc|ban van phong|ban hop|ban go|ban mdf|cai ban|chiec ban|mua ban)\b/.test(coreTarget);
+  if (isDeskQuery && normProdName.includes('ban')) {
     if (coreTarget.includes('giam doc') && normProdName.includes('giam doc')) return 95;
     return 85; // Similar desk (e.g. "bàn làm việc", "bàn văn phòng" -> 85% for Bàn Giám Đốc)
   }
@@ -626,6 +627,20 @@ function evaluateProductMatch(message, normMessage, allProducts) {
       rankedProducts: [],
       matchedField: null,
       missingProductQuery: null
+    };
+  }
+
+  // TÌNH HUỐNG KHÁCH HÀNG CHÀO HỎI THUẦN TÚY ("hi", "chào", "chào bạn", "hello"...):
+  // Tuyệt đối KHÔNG ĐƯỢC gán là sản phẩm hay tìm kiếm hàng hoá!
+  if (isGreetingMessage(normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isGreeting: true
     };
   }
 
@@ -769,6 +784,7 @@ function evaluateProductMatch(message, normMessage, allProducts) {
  */
 function findMatchingProducts(normMsg, allProducts) {
   if (!normMsg || !allProducts || allProducts.length === 0) return [];
+  if (isGreetingMessage(normMsg) || isCatalogOverviewQuery(normMsg) || isCustomerNameDeclaration(null, normMsg)) return [];
   const cleanNormMsg = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
   const scored = allProducts.map((p) => ({
     product: p,
