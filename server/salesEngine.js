@@ -622,6 +622,20 @@ function evaluateProductMatch(message, normMessage, allProducts) {
     };
   }
 
+  // TÌNH HUỐNG KHÁCH HÀNG NÓI TÊN ĐỂ XƯNG HÔ ("Tôi tên Trí", "Em tên Linh", "Anh là Nam"...):
+  // Tuyệt đối KHÔNG ĐƯỢC gán là sản phẩm hay tìm kiếm hàng hoá!
+  if (isCustomerNameDeclaration(message, normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isNameDeclaration: true
+    };
+  }
+
   const cleanNormMsg = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
 
   // RELATIVE / CONTEXTUAL QUERIES:
@@ -968,6 +982,7 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
 
   // Filter out non-product questions, general queries, budget queries, or comparison questions
   if (
+    isCustomerNameDeclaration(message, normMessage) ||
     detectSecurityViolation(normMessage) ||
     isGreetingMessage(normMessage) ||
     isCatalogOverviewQuery(normMessage) ||
@@ -997,7 +1012,7 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     normMessage.includes('o dau') ||
     normMessage.includes('dia chi') ||
     /(?:khong\s+cho|khong\s+can|thoi\s+khoi|bo\s+qua|cu\s+tu\s+van|khong\s+tien|khong\s+noi|chua\s+tien|khong\s+thich|khoi\s+can)\b/.test(normMessage) ||
-    /(?:ten\s+la|ten\s+toi|ten\s+minh|ten\s+em|ten\s+anh|ten\s+chi|toi\s+la|minh\s+la|em\s+la|anh\s+la|chi\s+la)\b/.test(normMessage) ||
+    /(?:ten\s+la|ten\s+toi|ten\s+minh|ten\s+em|ten\s+anh|ten\s+chi|toi\s+ten|minh\s+ten|em\s+ten|anh\s+ten|chi\s+ten|toi\s+la|minh\s+la|em\s+la|anh\s+la|chi\s+la)\b/.test(normMessage) ||
     /(?:bi\s+sai|lac\s+de|nham\s+roi|khong\s+dung)\b/.test(normMessage)
   ) {
     return null;
@@ -1044,7 +1059,8 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     'may ', 'dien thoai', 'laptop', 'iphone', 'ipad', 'samsung', 'canon', 'hp', 'epson',
     'brother', 'may in', 'may giat', 'may lanh', 'dieu hoa', 'tu lanh', 'camera', 'ket sat',
     'dong ho', 'tai nghe', 'loa', 'ban phim', 'chuot', 'tivi', 'xe may', 'o to', 'noi com',
-    'loc nuoc', 'hut bui', 'quat', 'robot hut bui', 'may chieu', 'tu quan ao', 'ban', 'ghe'
+    'loc nuoc', 'hut bui', 'quat', 'robot hut bui', 'may chieu', 'tu quan ao',
+    'ban ghe', 'ban lam viec', 'ban giam doc', 'ban hop', 'ban van phong', 'ghe'
   ];
   if (productDeviceKeywords.some((k) => normMessage.includes(k))) {
     return cleanInquiredProductName(trimmed);
@@ -1100,6 +1116,52 @@ function extractCustomerAddressing(rawMsg) {
 
   if (!pronoun && !name) return null;
   return { pronoun, name };
+}
+
+/**
+ * Phân biệt rõ ràng lúc nào khách đang khai báo TÊN ĐỂ XƯNG HÔ vs lúc nào là HÀNG HOÁ.
+ * Khi khách xưng tên ("Tôi tên Trí", "Mình tên Nam", "Anh là Tuấn", "Em tên Linh"...):
+ * Tuyệt đối coi đây là thông tin xưng hô của khách hàng, không bao giờ đối chiếu hay coi là sản phẩm.
+ */
+function isCustomerNameDeclaration(rawMsg, normMsg) {
+  if (!rawMsg || typeof rawMsg !== 'string') return false;
+  const clean = (normMsg || removeVietnameseTones(rawMsg))
+    .replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ')
+    .toLowerCase()
+    .trim();
+
+  // Pattern tự giới thiệu bản thân
+  const introPatterns = [
+    /^(?:toi|minh|em|anh|chi)\s+ten\s+(?:la\s+)?([a-z\s]{2,30})$/,
+    /^ten\s+(?:toi|minh|em|anh|chi)\s+(?:la\s+)?([a-z\s]{2,30})$/,
+    /^ten\s+(?:la\s+)?([a-z\s]{2,30})$/,
+    /^(?:cu\s+)?goi\s+(?:cho\s+)?(?:toi|minh|em|anh|chi)?\s*(?:la\s+)?([a-z\s]{2,30})$/,
+    /^(?:xung\s+ho\s+la|xung\s+la)\s+([a-z\s]{2,30})$/,
+    /^(?:toi|minh|em|anh|chi)\s+la\s+([a-z\s]{2,30})$/
+  ];
+
+  for (const p of introPatterns) {
+    const m = clean.match(p);
+    if (m) {
+      const candidate = m[1].trim();
+      const words = candidate.split(/\s+/).filter(Boolean);
+      if (words.length >= 1 && words.length <= 3 && !hasBlockedNameTokens(candidate)) {
+        return true;
+      }
+    }
+  }
+
+  // Tên được bóc tách từ extractCustomerAddressing
+  const addr = extractCustomerAddressing(rawMsg);
+  if (addr && addr.name && !hasBlockedNameTokens(addr.name)) {
+    const hasIntroKeyword = /(?:ten\s+la|ten\s+toi|ten\s+minh|ten\s+em|ten\s+anh|ten\s+chi|toi\s+ten|minh\s+ten|em\s+ten|anh\s+ten|chi\s+ten|toi\s+la|minh\s+la|em\s+la|anh\s+la|chi\s+la|goi\s+la|xung\s+la)\b/.test(clean);
+    const hasProductIntent = /(?:mua|ban|gia|bao\s+nhieu|san\s+pham|tivi|laptop|may|ghe|ban\s+ghe)\b/.test(clean);
+    if (hasIntroKeyword && !hasProductIntent) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function getCustomerRef(profile) {
@@ -1614,26 +1676,26 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       }
     }
 
-    // Handle pure customer addressing introduction ("Tôi là anh Nam", "Gọi tôi là chị Lan")
+    // Handle pure customer addressing introduction ("Tôi là anh Nam", "Gọi tôi là chị Lan", "Tôi tên Trí")
+    const isNameDecl = isCustomerNameDeclaration(message, normMessage);
     const isBudgetAsk = Boolean(extractBudget(normMessage));
     const isCompareAsk = normMessage.includes('so sanh') || normMessage.includes('khac nhau');
-    const isProductInquiry = Boolean(
-      normMessage.includes('mua') ||
-      normMessage.includes('ban') ||
-      normMessage.includes('tim') ||
-      normMessage.includes('can') ||
-      normMessage.includes('xem') ||
-      normMessage.includes('gia') ||
-      normMessage.includes('ghe') ||
-      normMessage.includes('laptop') ||
-      normMessage.includes('may') ||
+    const isProductInquiry = !isNameDecl && Boolean(
+      normMessage.includes('can mua') ||
+      normMessage.includes('muon mua') ||
+      normMessage.includes('tim mua') ||
+      normMessage.includes('hoi mua') ||
+      normMessage.includes('bao gia') ||
+      normMessage.includes('gia bao nhieu') ||
+      /(?:co\s+ban|ban\s+cho|ban\s+hang|mua\s+ban)\b/.test(normMessage) ||
+      /\b(?:ban\s+ghe|ban\s+lam\s+viec|ghe|tivi|laptop|may|tra)\b/.test(normMessage) ||
       (productMatch && (productMatch.topProduct || productMatch.missingProductQuery)) ||
       matchedField
     );
 
     if (
       !replyText &&
-      justUpdatedAddressing &&
+      (justUpdatedAddressing || isNameDecl) &&
       !isProductInquiry &&
       !missingProductQuery &&
       !matchedField &&
@@ -2092,6 +2154,11 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     // 0. Security & Anti-Prompt-Injection
     if (detectSecurityViolation(normMessage)) {
       return `Dạ, tôi là trợ lý bán hàng của chủ nhân (${ownerName}). Tôi xin phép chỉ tư vấn thông tin và giá niêm yết chính thức của các sản phẩm đã được phê duyệt ạ. ${capRef} đang quan tâm sản phẩm nào để tôi hỗ trợ nhé?`;
+    }
+
+    // 0B. Phân biệt rõ ràng: Khách hàng khai báo tên để xưng hô ("Tôi tên Trí", "Em tên Linh"...)
+    if (isCustomerNameDeclaration(message, normMessage)) {
+      return `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHiện **${customerRef}** đang cần tìm sản phẩm thuộc lĩnh vực nào để tôi tư vấn ngay ạ?`;
     }
 
     // 1. Lead Captured Confirmation
