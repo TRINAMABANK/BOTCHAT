@@ -39,7 +39,7 @@ export const PhoneContactModal = ({
     }
 
     onSubmit({
-      name: name.trim() || 'Quý khách',
+      name: name.trim() || (cleanPhone ? `Khách ${cleanPhone}` : 'Khách hàng'),
       phone: cleanPhone,
       note: note.trim(),
       consent

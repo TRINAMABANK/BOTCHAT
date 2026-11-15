@@ -182,9 +182,9 @@ function extractPhoneNumber(rawMsg) {
 }
 
 /**
- * Extract customer name cleanly (supports bare replies during guided order step 'ask_name').
+ * Extract customer name cleanly (supports full intro phrases, casual introductions, and standalone names).
  */
-function extractCustomerName(rawMsg, allowBare = false) {
+function extractCustomerName(rawMsg, allowBare = true) {
   if (!rawMsg || typeof rawMsg !== 'string') return null;
   let s = rawMsg.trim();
   if (s.includes('?') || s.includes('@')) return null;
@@ -193,40 +193,55 @@ function extractCustomerName(rawMsg, allowBare = false) {
   s = s.replace(/[,.;:\s]+(?:sđt|sdt|so\s+dien\s+thoai|số\s+điện\s+thoại|so|số|dien\s+thoai|điện\s+thoại|phone)?\s*(?:là|la|:)?\s*0[35789]\d{8}\b.*$/i, '').trim();
   s = s.replace(/[,.;:\s]+(?:sđt|sdt|so\s+dien\s+thoai|số\s+điện\s+thoại|so|số|phone)$/i, '').trim();
 
+  // Strip leading greetings
+  s = s.replace(/^(?:dạ|da|dạ chào shop|chào shop|chào bạn|chào robot|alo|xin chào)[,.;:\s]+/i, '').trim();
+
   const introPatterns = [
-    /^(?:tên tôi là|tên mình là|tên em là|tên anh là|tên chị là|tôi tên là|mình tên là|em tên là|anh tên là|chị tên là|tôi là|mình là|em là|anh là|chị là|gọi tôi là|gọi mình là|tên là|tôi tên|mình tên|em tên|anh tên|chị tên)\s+/i,
+    /^(?:tên tôi là|tên mình là|tên em là|tên anh là|tên chị là|tôi tên là|mình tên là|em tên là|anh tên là|chị tên là|tôi là|mình là|em là|anh là|chị là|tên là|tôi tên|mình tên|em tên|anh tên|chị tên|tên:)\s+/i,
+    /^(?:cứ\s+)?gọi\s+(?:cho\s+)?(?:tôi|mình|em|anh|chị)?\s*(?:là\s+)?/i,
+    /^(?:xưng\s+hô\s+là|xưng\s+là)\s+/i,
     /^(?:tôi|mình|em|anh|chị)\s+(?:tên\s+)?/i
   ];
-  let matchedIntro = false;
+
   for (const p of introPatterns) {
     if (p.test(s)) {
       s = s.replace(p, '');
-      matchedIntro = true;
       break;
     }
   }
 
-  if (matchedIntro) {
-    s = s.replace(/^(?:anh|chị|cô|chú|bác|ông|bà|em|bạn)\s+/i, '');
-    s = s.replace(/[,.;!?]+$/, '').trim();
-    s = s.replace(/\s+(?:nhe|nha|a|ạ|nhé|nhi|đây|day)$/i, '').trim();
-    if (s.length >= 2 && s.length <= 40 && s.split(/\s+/).length <= 6) {
-      return s;
-    }
+  // Strip leading honorific if followed by name (e.g. "anh Nam" -> "Nam")
+  s = s.replace(/^(?:anh|chị|cô|chú|bác|ông|bà|em|bạn)\s+/i, '');
+
+  // Strip trailing punctuation & casual particles (e.g. "nhé", "ạ", "nha")
+  s = s.replace(/[,.;!?]+$/, '').trim();
+  s = s.replace(/\s+(?:nhe|nha|a|ạ|nhé|nhi|đây|day|nè|ne)$/i, '').trim();
+
+  if (s.length < 2 || s.length > 40) return null;
+  if (/\d/.test(s)) return null;
+
+  const norm = removeVietnameseTones(s).toLowerCase();
+  const blockedTokens = new Set([
+    'gia', 'bao', 'nhieu', 'tien', 'may', 'xem', 'dem', 'hut', 'am', 'mua', 'ban',
+    'hanh', 'chao', 'alo', 'hello', 'hi', 'ship', 'shop', 'robot', 'ai',
+    'san', 'pham', 'thong', 'tin', 'dia', 'chi', 'so', 'dien', 'thoai',
+    'sdt', 'dong', 'vnd', 'khong', 'chuc', 'nang', 'ok', 'duoc', 'cam', 'on', 'roi',
+    'vang', 'dung', 'sai', 'co', 'the', 'nao', 'tiet', 'sanh', 'ton', 'kho'
+  ]);
+
+  const words = norm.split(/\s+/).filter(Boolean);
+  if (words.length < 1 || words.length > 5) return null;
+
+  for (const w of words) {
+    if (blockedTokens.has(w)) return null;
   }
 
-  if (!allowBare) return null;
-  if (/\d{4,}/.test(s)) return null;
-  const norm = removeVietnameseTones(s);
-  const blockedBare = ['bao hanh', 'bao nhieu', 'gia', 'so sanh', 'huy', 'khong mua', 'thoi', 'tu van', 'ship', 'ton kho', 'san pham'];
-  if (blockedBare.some((w) => norm.includes(w))) return null;
+  if (!allowBare && words.length === 1) return null;
 
-  const bare = s.replace(/^(?:ten\s+)?(?:anh|chi|em|toi|minh|chu|co|bac)\s+/i, '').replace(/[,.;!?]+$/, '').trim();
-  const finalName = bare.length >= 2 ? bare : s.replace(/[,.;!?]+$/, '').trim();
-  if (finalName.length >= 2 && finalName.length <= 40 && finalName.split(/\s+/).length <= 6) {
-    return finalName;
-  }
-  return null;
+  return s
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
 }
 
 const STOP_WORDS = new Set([
@@ -800,33 +815,20 @@ function capitalizeFirst(str) {
 function extractCustomerAddressing(rawMsg) {
   if (!rawMsg || typeof rawMsg !== 'string') return null;
   const trimmed = rawMsg.trim();
-  const norm = removeVietnameseTones(trimmed);
+  const norm = removeVietnameseTones(trimmed).toLowerCase();
   if (!trimmed || norm.includes('tro ly ban hang') || norm.includes('san pham')) return null;
 
   let pronoun = null;
   let name = null;
 
-  // Match explicit self-intro pronoun + optional name (e.g. "Tôi là anh Nam", "Gọi mình là chị Lan", "Cô tên Hoa")
-  const pronounMatch = trimmed.match(
-    /(?:tôi là|mình là|em là|gọi tôi là|gọi mình là|xưng là|cứ gọi là|tên tôi là|tôi tên)?\s*\b(anh|chị|cô|chú|bác|ông|bà|bạn|em)\b(?:\s+(?:tên\s+(?:là\s+)?)?([A-ZÀ-Ỹ][a-zà-ỹ]{1,18}(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]{1,18}){0,3}))?/i
-  );
-
-  // Only treat pronounMatch as customer self-addressing if there's an intro cue OR short addressing phrase (avoid matching "chị ơi cho xem máy")
-  const hasIntroCue = /(?:toi la|minh la|goi toi la|goi minh la|xung ho|xung la|toi ten|minh ten|ten toi|ten minh|goi la|ten la)/i.test(norm);
-  const shortHonorificIntro = /^(?:toi|minh|anh|chi|co|chu|bac|em)\s+(?:ten\s+)?[a-zà-ỹ]{2,20}(?:\s+[a-zà-ỹ]{2,20})?$/i.test(norm);
-
-  if (pronounMatch && (hasIntroCue || shortHonorificIntro)) {
-    const rawPronoun = pronounMatch[1].toLowerCase();
-    // Ignore "em" as customer pronoun if the sentence literally starts with "bên em" / "em ơi"
-    if (!(rawPronoun === 'em' && /bên\s+em|shop\s+em|em\s+ơi/i.test(trimmed))) {
-      pronoun = rawPronoun;
-      if (pronounMatch[2]) {
-        const candidateName = pronounMatch[2].trim();
-        const normCand = removeVietnameseTones(candidateName);
-        if (!['la', 'nhe', 'nha', 'oi', 'day', 'ne', 'cho', 'xem', 'mua', 'hoi'].includes(normCand)) {
-          name = candidateName;
-        }
-      }
+  // Match pronouns with Unicode awareness: anh, chị, cô, chú, bác, ông, bà, em, bạn
+  const pronounReg = /(?:^|\s)(anh|chị|cô|chú|bác|ông|bà|em|bạn)(?:\s|$)/i;
+  const matchPronoun = trimmed.match(pronounReg);
+  if (matchPronoun) {
+    const rawP = matchPronoun[1].toLowerCase();
+    // Ignore "em" if starts with "bên em" / "em ơi"
+    if (!(rawP === 'em' && /bên\s+em|shop\s+em|em\s+ơi/i.test(trimmed))) {
+      pronoun = rawP;
     }
   }
 
@@ -836,10 +838,7 @@ function extractCustomerAddressing(rawMsg) {
     else if (/(?:toi la nu|minh la nu|gioi tinh nu)\b/.test(norm)) pronoun = 'chị';
   }
 
-  // Fallback explicit name ("Tôi tên Minh", "Mình tên Hùng")
-  if (!name) {
-    name = extractCustomerName(trimmed, false);
-  }
+  name = extractCustomerName(trimmed, true);
 
   if (!pronoun && !name) return null;
   return { pronoun, name };
@@ -962,13 +961,31 @@ export class SalesEngine {
     const normMessage = removeVietnameseTones(message || '');
     const normAction = removeVietnameseTones(actionType || '');
     const parsedAddr = extractCustomerAddressing(message);
+    const detectedName = extractCustomerName(message, true);
+    const resolvedName = parsedAddr?.name || detectedName || customerInfo?.name || prevCustomerProfile?.name || null;
+    const resolvedPronoun = parsedAddr?.pronoun || prevCustomerProfile?.pronoun || null;
+
     const customerProfile = {
-      pronoun: parsedAddr?.pronoun || prevCustomerProfile?.pronoun || null,
-      name: parsedAddr?.name || customerInfo?.name || prevCustomerProfile?.name || null,
+      pronoun: resolvedPronoun,
+      name: resolvedName,
       askedAddressing: Boolean(prevCustomerProfile?.askedAddressing),
       pendingMissingProduct: prevCustomerProfile?.pendingMissingProduct || null
     };
-    const justUpdatedAddressing = Boolean(parsedAddr);
+
+    // If customer just told their name, immediately update any existing lead in this conversation
+    if (resolvedName && convId) {
+      const fullLeadName = resolvedPronoun ? `${capitalizeFirst(resolvedPronoun)} ${resolvedName}` : resolvedName;
+      try {
+        await db.run(
+          "UPDATE leads SET customer_name = ?, updated_at = ? WHERE conversation_id = ? AND (customer_name LIKE 'Khách%' OR customer_name = 'Quý Khách' OR customer_name = 'Quý khách' OR customer_name = '' OR customer_name IS NULL)",
+          [fullLeadName, now, convId]
+        );
+      } catch (leadUpdateErr) {
+        console.error('[CRM UPDATE ERROR]', leadUpdateErr.message);
+      }
+    }
+
+    const justUpdatedAddressing = Boolean(parsedAddr || detectedName);
     const hasAddressingInfo = Boolean(customerProfile.pronoun || customerProfile.name);
     const customerRef = getCustomerRef(customerProfile);
 
@@ -1043,7 +1060,14 @@ export class SalesEngine {
     }
 
     if (!orderFlowReply && extractedPhone) {
-      let customerName = customerInfo?.name || extractCustomerName(message, false) || 'Quý Khách';
+      let customerName = null;
+      if (customerProfile.name) {
+        customerName = customerProfile.pronoun ? `${capitalizeFirst(customerProfile.pronoun)} ${customerProfile.name}` : customerProfile.name;
+      } else if (customerProfile.pronoun) {
+        customerName = `${capitalizeFirst(customerProfile.pronoun)} (${extractedPhone})`;
+      } else {
+        customerName = `Khách ${extractedPhone}`;
+      }
 
       const existingLead = await db.get(
         'SELECT id FROM leads WHERE conversation_id = ? AND phone = ?',
@@ -1595,6 +1619,11 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const existingLead = await db.get('SELECT id FROM leads WHERE conversation_id = ? AND phone = ?', [convId, flow.phone]);
     if (!existingLead) {
       const leadId = `lead_${randomUUID().slice(0, 8)}`;
+      const orderCustomerName = flow.name
+        ? (customerProfile?.pronoun ? `${capitalizeFirst(customerProfile.pronoun)} ${flow.name}` : flow.name)
+        : (customerProfile?.name
+          ? (customerProfile?.pronoun ? `${capitalizeFirst(customerProfile.pronoun)} ${customerProfile.name}` : customerProfile.name)
+          : `Khách ${flow.phone}`);
       await db.run(
         `INSERT INTO leads (
           id, customer_name, phone, email, product_id, product_name, quantity, customer_requirement,
@@ -1602,7 +1631,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRÍ AI Humanoid Widget', 'WIDGET_HUMANOID_V1', 1, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?)`,
         [
           leadId,
-          flow.name,
+          orderCustomerName,
           flow.phone,
           extractedEmail || customerInfo?.email || null,
           flow.productId,

@@ -842,7 +842,7 @@ export const OwnerDashboard = ({
                             {/* Khách hàng */}
                             <td className="py-3 px-3 align-middle">
                               <div className="font-bold text-white text-xs sm:text-sm leading-snug break-words whitespace-normal">
-                                {ld.customer_name}
+                                {ld.customer_name && ld.customer_name !== 'Quý Khách' && ld.customer_name !== 'Quý khách' ? ld.customer_name : (ld.phone ? `Khách ${ld.phone}` : 'Khách hàng')}
                               </div>
                               {ld.email && (
                                 <div className="text-[11px] text-cyan-300/80 break-all leading-tight mt-0.5">
