@@ -184,7 +184,7 @@ function extractPhoneNumber(rawMsg) {
 /**
  * Extract customer name cleanly (supports full intro phrases, casual introductions, and standalone names).
  */
-function extractCustomerName(rawMsg, allowBare = true) {
+function extractCustomerName(rawMsg, allowBare = false) {
   if (!rawMsg || typeof rawMsg !== 'string') return null;
   let s = rawMsg.trim();
   if (s.includes('?') || s.includes('@')) return null;
@@ -204,12 +204,17 @@ function extractCustomerName(rawMsg, allowBare = true) {
     /^(?:tôi|mình|em|anh|chị)\s+(?:tên\s+)?/i
   ];
 
+  let matchedIntro = false;
   for (const p of introPatterns) {
     if (p.test(s)) {
       s = s.replace(p, '');
+      matchedIntro = true;
       break;
     }
   }
+
+  // If allowBare is false and no intro pattern matched, it cannot be considered a customer name
+  if (!allowBare && !matchedIntro) return null;
 
   // Strip leading honorific if followed by name (e.g. "anh Nam" -> "Nam")
   s = s.replace(/^(?:anh|chị|cô|chú|bác|ông|bà|em|bạn)\s+/i, '');
@@ -228,7 +233,9 @@ function extractCustomerName(rawMsg, allowBare = true) {
     'san', 'pham', 'thong', 'tin', 'dia', 'chi', 'so', 'dien', 'thoai',
     'sdt', 'dong', 'vnd', 'khong', 'chuc', 'nang', 'ok', 'duoc', 'cam', 'on', 'roi',
     'vang', 'dung', 'sai', 'co', 'the', 'nao', 'tiet', 'sanh', 'ton', 'kho',
-    'gi', 'kinh', 'doanh', 'cai', 'mat', 'hang', 'nganh', 'linh', 'vuc', 'the', 'nao', 'sao', 'dau'
+    'gi', 'kinh', 'doanh', 'cai', 'mat', 'hang', 'nganh', 'linh', 'vuc', 'the', 'nao', 'sao', 'dau',
+    'loai', 'mau', 'dong', 're', 'dat', 'nhat', 'nhi', 'tot', 'hon', 'khac', 'nao', 'cao', 'thap',
+    'binh', 'dan', 'chuan', 'chinh', 'hang', 'nho', 'to', 'lon', 'dep', 'xau', 'moi', 'cu', 'tam', 'chiec'
   ]);
 
   const words = norm.split(/\s+/).filter(Boolean);
@@ -237,8 +244,6 @@ function extractCustomerName(rawMsg, allowBare = true) {
   for (const w of words) {
     if (blockedTokens.has(w)) return null;
   }
-
-  if (!allowBare && words.length === 1) return null;
 
   return s
     .split(/\s+/)
@@ -252,7 +257,9 @@ const STOP_WORDS = new Set([
   'duoc', 'nhan', 'chu', 'dien', 'thoai', 'sdt', 'so', 'san', 'pham', 'tu', 'van',
   'so', 'sanh', 'giup', 'voi', 'nha', 'nhe', 'anh', 'chi', 'ben', 'shop', 'may', 'cai', 'chiec',
   'tri', 'quang', 'nhut', 'toi', 'minh', 'em', 'la', 'ten', 'chao', 'alo', 'hi', 'oi', 'day', 'a', 'da',
-  'gi', 'kinh', 'doanh', 'the', 'vay', 'co', 'cac'
+  'gi', 'kinh', 'doanh', 'the', 'vay', 'co', 'cac',
+  // Budget / superlative / relative query words that should NEVER match as product name tokens:
+  're', 'dat', 'nhat', 'nhi', 'tot', 'hon', 'khac', 'nua', 'moi', 'cu', 'cao', 'thap'
 ]);
 
 /**
@@ -563,6 +570,48 @@ function evaluateProductMatch(message, normMessage, allProducts) {
   }
 
   const cleanNormMsg = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
+
+  // RELATIVE / CONTEXTUAL QUERIES:
+  // e.g. "lấy cho anh loại rẻ nhất", "loại rẻ nhất", "mẫu đắt nhất", "dưới 10 triệu", "so sánh các mẫu", "có mẫu nào khác không"
+  const hasBudget = Boolean(extractBudget(normMessage));
+  const hasCompare = normMessage.includes('so sanh') || normMessage.includes('khac nhau');
+  const isAskOther =
+    normMessage.includes('mau khac') ||
+    normMessage.includes('loai khac') ||
+    normMessage.includes('dong khac') ||
+    normMessage.includes('xem them') ||
+    normMessage.includes('con loai nao') ||
+    normMessage.includes('con mau nao') ||
+    normMessage.includes('co loai nao khac') ||
+    normMessage.includes('co mau nao khac') ||
+    normMessage.includes('nao khac');
+
+  const hasExplicitDomainKeyword = [
+    'tivi', 'tv', 'laptop', 'tu lanh', 'may lanh', 'dieu hoa', 'ghe', 'ban',
+    'dem tien', 'ket sat', 'may in', 'dien thoai', 'tra', 'may hut am', 'may bo tien'
+  ].some((kw) => cleanNormMsg.includes(kw));
+
+  const hasSpecificBrandOrModel = allProducts.some((p) => {
+    const normP = removeVietnameseTones(p.name || '').toLowerCase();
+    const codes = extractModelCodes(normP);
+    const msgCodes = extractModelCodes(cleanNormMsg);
+    if (msgCodes.some((mc) => codes.includes(mc))) return true;
+    const prodBrands = ['samsung', 'daikin', 'sharp', 'lg', 'xinda', 'lenovo', 'dell', 'hp', 'asus', 'edison', 'bofa', 'julong', 'canon'];
+    return prodBrands.some((b) => cleanNormMsg.includes(b) && normP.includes(b));
+  });
+
+  if ((hasBudget || hasCompare || isAskOther) && !hasExplicitDomainKeyword && !hasSpecificBrandOrModel) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isRelativeQuery: true
+    };
+  }
+
   const coreQuery = extractCoreProductQuery(message);
   const normCore = removeVietnameseTones(coreQuery);
 
@@ -869,6 +918,15 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     Boolean(extractBudget(normMessage)) ||
     normMessage.includes('so sanh') ||
     normMessage.includes('khac nhau') ||
+    normMessage.includes('mau khac') ||
+    normMessage.includes('loai khac') ||
+    normMessage.includes('dong khac') ||
+    normMessage.includes('xem them') ||
+    normMessage.includes('con loai nao') ||
+    normMessage.includes('con mau nao') ||
+    normMessage.includes('co loai nao khac') ||
+    normMessage.includes('co mau nao khac') ||
+    normMessage.includes('nao khac') ||
     normMessage.includes('ban ten gi') ||
     normMessage.includes('ban la ai') ||
     normMessage.includes('em la ai') ||
@@ -890,7 +948,10 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
   const normCleanCore = removeVietnameseTones(cleanCore).toLowerCase();
 
   // If clean core query was extracted and isn't just generic words
-  const nonProductWords = ['gi', 'nhung gi', 'san pham gi', 'mat hang gi', 'the', 'khong', 'chut', 'thoi gian', 'ai o day', 'ban', 'shop'];
+  const nonProductWords = [
+    'gi', 'nhung gi', 'san pham gi', 'mat hang gi', 'the', 'khong', 'chut', 'thoi gian',
+    'ai o day', 'ban', 'shop', 'nao khac', 'loai khac', 'mau khac', 'dong khac', 'xem them', 'con khong', 'nua khong'
+  ];
   if (cleanCore && cleanCore.length >= 2 && !nonProductWords.includes(normCleanCore)) {
     return cleanInquiredProductName(cleanCore);
   }
@@ -904,7 +965,10 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
   if (p1 && p1[1]) {
     const candidate = p1[1].trim().replace(/[?!.,]+$/, '');
     const normCand = removeVietnameseTones(candidate);
-    const ignored = ['gi', 'nhung gi', 'san pham gi', 'mat hang gi', 'the', 'khong', 'chut', 'thoi gian', 'ai o day'];
+    const ignored = [
+      'gi', 'nhung gi', 'san pham gi', 'mat hang gi', 'the', 'khong', 'chut', 'thoi gian',
+      'ai o day', 'mau nao khac', 'loai nao khac', 'nao khac', 'loai khac', 'mau khac', 'xem them'
+    ];
     if (candidate.length >= 2 && !ignored.includes(normCand)) {
       return cleanInquiredProductName(candidate);
     }
@@ -981,7 +1045,7 @@ function extractCustomerAddressing(rawMsg) {
     else if (/(?:toi la nu|minh la nu|gioi tinh nu)\b/.test(norm)) pronoun = 'chị';
   }
 
-  name = extractCustomerName(trimmed, true);
+  name = extractCustomerName(trimmed, false);
 
   if (!pronoun && !name) return null;
   return { pronoun, name };
@@ -1082,20 +1146,33 @@ export class SalesEngine {
     );
     const history = recentDesc.reverse();
 
-    // Recover any active multi-step purchase flow & customer addressing profile from latest assistant metadata
+    // Recover any active multi-step purchase flow, customer addressing profile & product/category context from history
     let prevOrderFlow = null;
     let prevCustomerProfile = null;
+    let prevActiveProduct = null;
+    let prevField = null;
+
     for (let i = history.length - 1; i >= 0; i--) {
-      if (history[i].sender_type === 'assistant' && history[i].metadata_json) {
+      const hMsg = history[i];
+      if (hMsg.metadata_json) {
         try {
-          const meta = JSON.parse(history[i].metadata_json);
+          const meta = JSON.parse(hMsg.metadata_json);
           if (!prevOrderFlow && meta.orderFlow && meta.orderFlow.active) {
             prevOrderFlow = meta.orderFlow;
           }
           if (!prevCustomerProfile && meta.customerProfile) {
             prevCustomerProfile = meta.customerProfile;
           }
-          if (prevOrderFlow || prevCustomerProfile) break;
+          if (!prevActiveProduct && meta.activeProduct) {
+            prevActiveProduct = meta.activeProduct;
+          }
+          if (!prevField) {
+            prevField = meta.activeField || meta.recommendedField || meta.activeProduct?.field || null;
+          }
+          if (hMsg.sender_type === 'user' && meta.selectedProduct) {
+            if (!prevActiveProduct) prevActiveProduct = meta.selectedProduct;
+            if (!prevField) prevField = meta.selectedProduct.field;
+          }
         } catch {}
       }
     }
@@ -1104,7 +1181,8 @@ export class SalesEngine {
     const normMessage = removeVietnameseTones(message || '');
     const normAction = removeVietnameseTones(actionType || '');
     const parsedAddr = extractCustomerAddressing(message);
-    const detectedName = extractCustomerName(message, true);
+    const allowBareName = Boolean(prevOrderFlow?.step === 'ask_name' || (prevCustomerProfile?.askedAddressing && !prevCustomerProfile?.name));
+    const detectedName = extractCustomerName(message, allowBareName);
     const resolvedName = parsedAddr?.name || detectedName || customerInfo?.name || prevCustomerProfile?.name || null;
     const resolvedPronoun = parsedAddr?.pronoun || prevCustomerProfile?.pronoun || null;
 
@@ -1142,6 +1220,14 @@ export class SalesEngine {
     const activeProduct = productMatch.topProduct || matchedFromText[0] || selectedProduct || null;
     const explicitQty = extractExplicitQuantity(normMessage);
     const detectedQty = explicitQty ?? 1;
+
+    // Context Category Resolution:
+    // When a customer makes a relative query (e.g. "lấy loại rẻ nhất", "loại nào đắt nhất", "dưới 10 triệu", "so sánh", "có mẫu nào khác", etc.)
+    // without explicitly naming a new category/product, we MUST strictly stay within the current active category!
+    const isOverviewAsk = isCatalogOverviewQuery(normMessage);
+    const activeSelectedField = selectedProduct?.field || null;
+    const conversationContextField = isOverviewAsk ? null : (matchedField || activeSelectedField || prevField || prevActiveProduct?.field || null);
+    const conversationActiveProduct = activeProduct || selectedProduct || prevActiveProduct || null;
 
     // 6. Detect Phone, Email, Name & auto-capture Lead into CRM
     const emailMatches = message ? message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) : null;
@@ -1347,11 +1433,27 @@ CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG 3 (Không g
 `;
         }
 
+        if (conversationContextField && !isCatalogOverviewQuery(normMessage)) {
+          dynamicMatchDirective += `
+CHỈ THỊ ĐẶC BIỆT - DUY TRÌ ĐÚNG DANH MỤC HIỆN TẠI ("${conversationContextField}"):
+- Cuộc hội thoại đang ở danh mục "${conversationContextField}".
+- Khách đang hỏi câu hỏi tiếp theo/tương đối (về giá, loại rẻ nhất/đắt nhất, so sánh, hoặc tư vấn thêm: "${message}").
+- BẮT BUỘC chỉ tư vấn các sản phẩm thuộc danh mục "${conversationContextField}".
+- TUYỆT ĐỐI KHÔNG nhảy sang sản phẩm thuộc danh mục khác (ví dụ: đang hỏi tivi thì KHÔNG ĐƯỢC giới thiệu trà hay bàn ghế)!
+`;
+        }
+
         const systemPrompt = `
 Bạn là ${botName}, trợ lý bán hàng xuất sắc của chủ nhân ${ownerName}.
 BẠN ĐƯỢC TRANG BỊ TRÍ TUỆ NHÂN TẠO GOOGLE GEMINI THÔNG MINH, NHIỆM VỤ TƯ VẤN BÁN HÀNG VÀ CHỐT KHÁCH THEO ĐÚNG CÁC TÌNH HUỐNG SAU:
 
 ${dynamicMatchDirective}
+
+QUY TẮC DUY TRÌ ĐÚNG DANH MỤC ĐANG TRAO ĐỔI (TUYỆT ĐỐI KHÔNG LẠC ĐỀ):
+- Khi khách hàng đang trao đổi về một sản phẩm hoặc danh mục cụ thể (ví dụ: Tivi, Bàn ghế, Laptop, Máy đếm tiền...):
+  + Nếu khách hỏi câu tương đối (như "lấy loại rẻ nhất", "loại nào rẻ nhất", "mẫu đắt nhất", "dưới 10 triệu", "so sánh", "có mẫu nào khác không"):
+  + BẮT BUỘC giữ nguyên danh mục hiện tại đó${conversationContextField ? ` (${conversationContextField})` : ''}.
+  + TUYỆT ĐỐI KHÔNG nhảy sang sản phẩm thuộc danh mục khác (như đang hỏi Tivi thì KHÔNG ĐƯỢC giới thiệu Trà hay Bàn ghế)!
 
 QUY TẮC XỬ LÝ CÁC TÌNH HUỐNG SẢN PHẨM:
 0. TÌNH HUỐNG HỎI TỔNG QUAN - BẠN KINH DOANH GÌ / BÁN CÁI GÌ / CÓ SẢN PHẨM GÌ:
@@ -1453,7 +1555,6 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     // Handle pure customer addressing introduction ("Tôi là anh Nam", "Gọi tôi là chị Lan")
     const isBudgetAsk = Boolean(extractBudget(normMessage));
     const isCompareAsk = normMessage.includes('so sanh') || normMessage.includes('khac nhau');
-    const isOverviewAsk = isCatalogOverviewQuery(normMessage);
     const isProductInquiry = Boolean(
       normMessage.includes('mua') ||
       normMessage.includes('ban') ||
@@ -1498,6 +1599,8 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         productMatch,
         matchedFromText,
         matchedField,
+        conversationContextField,
+        conversationActiveProduct,
         selectedProduct,
         activeProduct,
         actionType,
@@ -1528,17 +1631,6 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
 
     replyText = applyCustomerAddressing(replyText, customerProfile);
 
-    // 8. Save Assistant reply
-    const assistantMsgId = `msg_${randomUUID().slice(0, 8)}`;
-    const assistantNow = new Date().toISOString();
-    await db.run(
-      `INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, metadata_json, created_at)
-       VALUES (?, ?, 'assistant', 'tri-ai-sales-robot', ?, ?, ?)`,
-      [assistantMsgId, convId, replyText, JSON.stringify({ leadCreated, activeProduct, actionType, orderFlow: nextOrderFlow, customerProfile }), assistantNow]
-    );
-
-    await db.run('UPDATE conversations SET updated_at = ?, last_message_at = ? WHERE id = ?', [assistantNow, assistantNow, convId]);
-
     const isMobile = clientDevice === 'mobile';
 
     const isNonProductIntent =
@@ -1557,6 +1649,15 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const asksGeneralCatalog = isCatalogOverviewQuery(normMessage);
     const hasBudgetQuery = Boolean(extractBudget(normMessage));
     const hasCompareQuery = normMessage.includes('so sanh') || normMessage.includes('khac nhau');
+    const isAskOtherModels =
+      normMessage.includes('mau khac') ||
+      normMessage.includes('loai khac') ||
+      normMessage.includes('dong khac') ||
+      normMessage.includes('xem them') ||
+      normMessage.includes('con loai nao') ||
+      normMessage.includes('con mau nao') ||
+      normMessage.includes('co loai nao khac') ||
+      normMessage.includes('co mau nao khac');
 
     const wantsProducts =
       !isNonProductIntent &&
@@ -1573,16 +1674,19 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       !missingProductQuery &&
       (productMatch.tier === 1 ||
         productMatch.tier === 2 ||
-        (productMatch.tier === 3 && (wantsProducts || Boolean(matchedField) || asksGeneralCatalog || hasBudgetQuery || hasCompareQuery || Boolean(actionType))));
+        (productMatch.tier === 3 && (wantsProducts || Boolean(matchedField) || asksGeneralCatalog || hasBudgetQuery || hasCompareQuery || isAskOtherModels || Boolean(actionType))));
 
     const revealCatalog = mentionsRelatedProduct;
 
+    // Resolve category and products to display in Column 2 (strictly honoring active conversation domain)
+    const activeScopeField = matchedField || conversationContextField || (selectedProduct?.field) || null;
+
     const recommendedProduct = mentionsRelatedProduct
-      ? productMatch.topProduct || matchedFromText[0] || (matchedField ? allProducts.find((p) => p.field === matchedField) || null : null)
+      ? productMatch.topProduct || matchedFromText[0] || (activeScopeField && activeScopeField !== 'Tất cả' ? allProducts.find((p) => p.field === activeScopeField) || null : null)
       : null;
 
     const recommendedField = mentionsRelatedProduct
-      ? (productMatch.topProduct?.field || matchedField || recommendedProduct?.field || (asksGeneralCatalog ? 'Tất cả' : null))
+      ? (productMatch.topProduct?.field || matchedField || activeScopeField || recommendedProduct?.field || (asksGeneralCatalog ? 'Tất cả' : null))
       : null;
 
     // Collect products when related products are mentioned/requested
@@ -1592,22 +1696,38 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         returnProducts = productMatch.rankedProducts.slice(0, 4);
       } else if (matchedFromText.length > 0) {
         returnProducts = matchedFromText.slice(0, 4);
-      } else if (matchedField) {
-        returnProducts = allProducts.filter((p) => p.field === matchedField).slice(0, 6);
       } else if (hasBudgetQuery) {
         const budget = extractBudget(normMessage);
         let pool = allProducts.filter((p) => p.field !== 'Dịch vụ bảo trì' || normMessage.includes('bao tri'));
-        if (normMessage.includes('dem tien') || normMessage.includes('xiudun')) {
+        if (activeScopeField && activeScopeField !== 'Tất cả') {
+          const scoped = pool.filter(
+            (p) =>
+              p.field === activeScopeField ||
+              removeVietnameseTones(p.field).includes(removeVietnameseTones(activeScopeField))
+          );
+          if (scoped.length > 0) pool = scoped;
+        } else if (normMessage.includes('dem tien') || normMessage.includes('xiudun')) {
           pool = pool.filter((p) => p.field === 'Máy đếm tiền');
         }
         if (budget?.max !== undefined) {
           const under = pool.filter((p) => (p.price || 0) <= budget.max && (p.price || 0) > 0);
           returnProducts = (under.length > 0 ? under : pool).slice(0, 4);
+        } else if (budget?.sort === 'asc') {
+          const sorted = [...pool].sort((a, b) => (a.price || 0) - (b.price || 0));
+          returnProducts = sorted.slice(0, 4);
+        } else if (budget?.sort === 'desc') {
+          const sorted = [...pool].sort((a, b) => (b.price || 0) - (a.price || 0));
+          returnProducts = sorted.slice(0, 4);
         } else {
           returnProducts = pool.slice(0, 4);
         }
       } else if (hasCompareQuery) {
-        returnProducts = allProducts.filter((p) => p.field === 'Máy đếm tiền').slice(0, 4);
+        const compareField = activeScopeField && activeScopeField !== 'Tất cả' ? activeScopeField : 'Máy đếm tiền';
+        returnProducts = allProducts.filter((p) => p.field === compareField).slice(0, 4);
+      } else if (isAskOtherModels && activeScopeField && activeScopeField !== 'Tất cả') {
+        returnProducts = allProducts.filter((p) => p.field === activeScopeField).slice(0, 6);
+      } else if (activeScopeField && activeScopeField !== 'Tất cả') {
+        returnProducts = allProducts.filter((p) => p.field === activeScopeField).slice(0, 6);
       } else if (actionType && activeProduct) {
         returnProducts = [activeProduct];
       } else if (asksGeneralCatalog) {
@@ -1616,6 +1736,34 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         returnProducts = [recommendedProduct];
       }
     }
+
+    // 8. Save Assistant reply with complete context metadata for subsequent turns
+    const targetSavedProduct = activeProduct || productMatch.topProduct || matchedFromText[0] || conversationActiveProduct || selectedProduct || null;
+    const targetSavedField = recommendedField || activeScopeField || targetSavedProduct?.field || null;
+
+    const assistantMsgId = `msg_${randomUUID().slice(0, 8)}`;
+    const assistantNow = new Date().toISOString();
+    await db.run(
+      `INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, metadata_json, created_at)
+       VALUES (?, ?, 'assistant', 'tri-ai-sales-robot', ?, ?, ?)`,
+      [
+        assistantMsgId,
+        convId,
+        replyText,
+        JSON.stringify({
+          leadCreated,
+          activeProduct: targetSavedProduct,
+          activeField: targetSavedField,
+          recommendedField,
+          actionType,
+          orderFlow: nextOrderFlow,
+          customerProfile
+        }),
+        assistantNow
+      ]
+    );
+
+    await db.run('UPDATE conversations SET updated_at = ?, last_message_at = ? WHERE id = ?', [assistantNow, assistantNow, convId]);
 
     const enrichedProducts = returnProducts.map((p) => ({
       id: p.id,
@@ -1852,14 +2000,16 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     normMessage,
     allProducts,
     productMatch = null,
-    matchedFromText,
-    matchedField,
-    selectedProduct,
-    activeProduct,
-    actionType,
-    detectedQty,
-    extractedPhone,
-    leadCreated,
+    matchedFromText = [],
+    matchedField = null,
+    conversationContextField = null,
+    conversationActiveProduct = null,
+    selectedProduct = null,
+    activeProduct = null,
+    actionType = null,
+    detectedQty = 1,
+    extractedPhone = null,
+    leadCreated = null,
     ownerName,
     phonePrompt,
     hotline,
@@ -1887,12 +2037,13 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       if (pendingMissingProduct) {
         return `Dạ cảm ơn ${customerRef}! Tôi đã ghi nhận số điện thoại **${extractedPhone}** để chuyển cho chủ nhân (${ownerName}) kiểm tra nguồn hàng **${pendingMissingProduct}** và phản hồi lại cho ${customerRef} sớm nhất nhé!`;
       }
-      const unitPrice = activeProduct?.price || 0;
+      const unitPrice = activeProduct?.price || conversationActiveProduct?.price || 0;
+      const targetName = activeProduct?.name || conversationActiveProduct?.name || 'Tư vấn chuyên sâu';
       const qtyLine =
         detectedQty > 1 && unitPrice > 0
           ? `\n- **Số lượng & Tạm tính:** ${detectedQty} sản phẩm (~${formatVnd(unitPrice * detectedQty)})`
           : '';
-      return `Dạ cảm ơn ${customerRef}! Tôi đã ghi nhận thông tin đặt hàng vào hệ thống:\n- **Sản phẩm:** ${activeProduct ? activeProduct.name : 'Tư vấn chuyên sâu'}${qtyLine}\n- **Số điện thoại:** ${extractedPhone}\n\nChủ nhân (${ownerName}) sẽ trực tiếp liên hệ hỗ trợ ${customerRef} sớm nhất.${showHotline ? ` Hotline: **${hotline}**.` : ''}`;
+      return `Dạ cảm ơn ${customerRef}! Tôi đã ghi nhận thông tin đặt hàng vào hệ thống:\n- **Sản phẩm:** ${targetName}${qtyLine}\n- **Số điện thoại:** ${extractedPhone}\n\nChủ nhân (${ownerName}) sẽ trực tiếp liên hệ hỗ trợ ${customerRef} sớm nhất.${showHotline ? ` Hotline: **${hotline}**.` : ''}`;
     }
 
     // 2. Owner Phone / Contact Request
@@ -1914,9 +2065,9 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('dat mua') ||
       normMessage.includes('mua ngay') ||
       normMessage.includes('dat hang') ||
-      (detectedQty > 1 && activeProduct && (normMessage.includes('mua') || normMessage.includes('tong') || normMessage.includes('bao nhieu')))
+      (detectedQty > 1 && (activeProduct || conversationActiveProduct) && (normMessage.includes('mua') || normMessage.includes('tong') || normMessage.includes('bao nhieu')))
     ) {
-      const targetProd = activeProduct || allProducts[0];
+      const targetProd = activeProduct || conversationActiveProduct || allProducts[0];
       const totalEstimate = (targetProd?.price || 0) * detectedQty;
       const qtyText =
         detectedQty > 1
@@ -1943,7 +2094,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       const refField =
         (normMessage.includes('dem tien') || normMessage.includes('xiudun'))
           ? 'Máy đếm tiền'
-          : (hardwareMatches[0]?.field || selectedProduct?.field || 'Máy đếm tiền');
+          : (hardwareMatches[0]?.field || matchedField || conversationContextField || selectedProduct?.field || 'Máy đếm tiền');
       const sameFieldProds = allProducts.filter((p) => p.field === refField);
       if (sameFieldProds.length >= 2) {
         return `${politeAskBanner}${buildProductComparisonReply(sameFieldProds.slice(0, 3), ownerName, customerRef, clientDevice)}`;
@@ -1951,22 +2102,39 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     }
 
     // 5. Budget & Price Range Intelligence ("duoi 5 trieu", "re nhat", "tam 6 trieu")
+    // QUY TẮC BẮT BUỘC: Giữ nguyên danh mục đang trao đổi, tuyệt đối không nhảy sang danh mục khác!
     const budget = extractBudget(normMessage);
     if (budget && !isExplicitButtonAction) {
       let pool = allProducts.filter((p) => p.field !== 'Dịch vụ bảo trì' || normMessage.includes('bao tri'));
-      if (normMessage.includes('dem tien') || normMessage.includes('xiudun')) {
+
+      // Category scoping: STRICTLY preserve active category context when available
+      const activeField = matchedField || conversationContextField || (selectedProduct?.field) || null;
+      if (activeField && activeField !== 'Tất cả') {
+        const fieldScoped = pool.filter(
+          (p) =>
+            p.field === activeField ||
+            (p.field && removeVietnameseTones(p.field).includes(removeVietnameseTones(activeField))) ||
+            (p.field && removeVietnameseTones(activeField).includes(removeVietnameseTones(p.field)))
+        );
+        if (fieldScoped.length > 0) {
+          pool = fieldScoped;
+        }
+      } else if (normMessage.includes('dem tien') || normMessage.includes('xiudun')) {
         pool = pool.filter((p) => p.field === 'Máy đếm tiền');
       } else if (normMessage.includes('may')) {
         pool = pool.filter((p) => p.field === 'Máy đếm tiền' || p.field === 'Thiết bị văn phòng' || p.field === 'Thiết bị công nghệ');
       }
 
       if (budget.min !== undefined || budget.max !== undefined) {
-        pool = pool.filter((p) => {
+        const filtered = pool.filter((p) => {
           const price = p.price || 0;
           if (budget.min !== undefined && price < budget.min) return false;
           if (budget.max !== undefined && price > budget.max) return false;
           return true;
         });
+        if (filtered.length > 0) {
+          pool = filtered;
+        }
       }
 
       if (budget.sort === 'asc') {
@@ -1975,17 +2143,15 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         pool.sort((a, b) => (b.price || 0) - (a.price || 0));
       } else {
         // Prefer best-value match closest to budget ceiling & active category
-        pool.sort((a, b) => {
-          const aMatch = a.field === (selectedProduct?.field || 'Máy đếm tiền') ? 1 : 0;
-          const bMatch = b.field === (selectedProduct?.field || 'Máy đếm tiền') ? 1 : 0;
-          if (aMatch !== bMatch) return bMatch - aMatch;
-          return (b.price || 0) - (a.price || 0);
-        });
+        pool.sort((a, b) => (b.price || 0) - (a.price || 0));
       }
 
       if (pool.length === 0) {
-        const cheapest = [...allProducts].sort((a, b) => (a.price || 0) - (b.price || 0))[0];
-        return `${politeAskBanner}Dạ, trong tầm giá này hiện chưa có mẫu khớp sẵn. Mẫu có giá tốt nhất là **${cheapest.name}** (${formatPrice(cheapest)}).\n\n${capRef} có thể để lại SĐT để chủ nhân tư vấn giải pháp phù hợp ngân sách hơn nhé!`;
+        const categoryPool = activeField ? allProducts.filter((p) => p.field === activeField) : allProducts;
+        const fallbackPool = categoryPool.length > 0 ? categoryPool : allProducts;
+        const cheapest = [...fallbackPool].sort((a, b) => (a.price || 0) - (b.price || 0))[0];
+        const categoryNote = activeField && activeField !== 'Tất cả' ? ` trong danh mục **${activeField}**` : '';
+        return `${politeAskBanner}Dạ, trong tầm giá này hiện chưa có mẫu${categoryNote} phù hợp. Mẫu có giá tốt nhất là **${cheapest.name}** (${formatPrice(cheapest)}).\n\n${capRef} có thể để lại SĐT để chủ nhân tư vấn giải pháp phù hợp ngân sách hơn nhé!`;
       }
 
       const picks = pool.slice(0, 3);
@@ -1994,13 +2160,14 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         .join('\n');
 
       const guideText = `Tôi đã mở danh sách ở **Cột 2**, ${capRef} có thể bấm xem chi tiết hoặc nhắn tôi tư vấn sâu hơn nhé!`;
+      const scopeIntro = activeField && activeField !== 'Tất cả' ? ` trong danh mục **${activeField}**` : '';
 
-      return `${politeAskBanner}Dạ, theo mức ngân sách của ${customerRef}, tôi xin gợi ý các lựa chọn phù hợp:\n\n${listText}\n\n${guideText}`;
+      return `${politeAskBanner}Dạ, theo mức ngân sách của ${customerRef}${scopeIntro}, tôi xin gợi ý các lựa chọn phù hợp:\n\n${listText}\n\n${guideText}`;
     }
 
     // 6. Warranty, Inventory, Delivery & Discount Objections
     if (normMessage.includes('bao hanh') || normMessage.includes('sua chua') || normMessage.includes('loi')) {
-      const target = matchedFromText[0] || selectedProduct;
+      const target = matchedFromText[0] || conversationActiveProduct || selectedProduct;
       const specs = parseSpecs(target);
       const warranty = specs['Bảo hành'] || specs['Bảo hành & Support'];
       if (target && warranty) {
@@ -2014,13 +2181,13 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     }
 
     if (normMessage.includes('giam gia') || normMessage.includes('chiet khau') || normMessage.includes('dat qua') || normMessage.includes('bot gia') || normMessage.includes('uu dai')) {
-      const target = matchedFromText[0] || selectedProduct;
+      const target = matchedFromText[0] || conversationActiveProduct || selectedProduct;
       return `${politeAskBanner}Dạ, giá niêm yết của **${target ? target.name : 'sản phẩm'}** (${target ? formatPrice(target) : ''}) là giá chính hãng đã được phê duyệt. Khi đặt mua từ 2 sản phẩm trở lên, chủ nhân luôn có chính sách chiết khấu riêng. ${capRef} để lại SĐT để nhận ưu đãi tốt nhất nhé!`;
     }
 
     // 7. Quote Action
     if (normAction.includes('bao gia') || normMessage.includes('bao gia')) {
-      const target = activeProduct || allProducts[0];
+      const target = activeProduct || conversationActiveProduct || allProducts[0];
       return `${politeAskBanner}Dạ, báo giá chính thức cho **${target.name}** là: **${formatPrice(target)}**.\n\n${capRef} vui lòng cho biết số lượng dự kiến và SĐT để tôi chuyển chủ nhân gửi báo giá ưu đãi chi tiết nhé!`;
     }
 
@@ -2075,6 +2242,37 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           ? ` ${capRef} muốn xem chi tiết mẫu nào hay cần hỗ trợ đặt mua ạ?`
           : ` Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn mẫu chuẩn nhất nhé?`;
         return `Dạ, tôi đã mở danh mục **${matchedField}** ở **Cột 2**:\n\n${previewLines}\n\nBạn có thể bấm vào thẻ sản phẩm để xem chi tiết.${budgetAsk}`;
+      }
+    }
+
+    // 8C. Discovery of other models in current category ("còn mẫu nào khác không", "xem thêm mẫu", "có loại nào khác")
+    const isAskOtherModels =
+      normMessage.includes('mau khac') ||
+      normMessage.includes('loai khac') ||
+      normMessage.includes('dong khac') ||
+      normMessage.includes('xem them') ||
+      normMessage.includes('con loai nao') ||
+      normMessage.includes('con mau nao') ||
+      normMessage.includes('co loai nao khac') ||
+      normMessage.includes('co mau nao khac');
+
+    if (isAskOtherModels && !isExplicitButtonAction) {
+      const targetScopeField = matchedField || conversationContextField || (selectedProduct?.field) || null;
+      if (targetScopeField && targetScopeField !== 'Tất cả') {
+        const sameFieldProds = allProducts.filter((p) => p.field === targetScopeField);
+        if (sameFieldProds.length > 0) {
+          const previewLines = sameFieldProds
+            .slice(0, 4)
+            .map((p, i) => {
+              const short = formatShortDesc(p.description, 70);
+              return `${i + 1}. **${p.name}** — **${formatPrice(p)}**${short ? ` (${short})` : ''}`;
+            })
+            .join('\n');
+          const budgetAsk = hasBudgetInQuery
+            ? ` ${capRef} muốn xem chi tiết mẫu nào hay cần hỗ trợ đặt mua ạ?`
+            : ` Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn mẫu chuẩn nhất nhé?`;
+          return `Dạ, trong danh mục **${targetScopeField}**, bên em có các mẫu nổi bật sau:\n\n${previewLines}\n\nToàn bộ sản phẩm đã được mở sẵn ở **Cột 2** để ${customerRef} tiện theo dõi.${budgetAsk}`;
+        }
       }
     }
 
