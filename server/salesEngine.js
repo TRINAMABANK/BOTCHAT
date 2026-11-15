@@ -1090,10 +1090,10 @@ function formatMissingProductName(rawName, contextField) {
   if (!rawName) return 'sản phẩm này';
   let s = cleanInquiredProductName(rawName);
   s = s
-    .replace(/^(?:anh|chi|em|toi|ban|minh|shop)?\s*(?:muon\s+mua|can\s+mua|hoi\s+mua|mua|can|muon|tim|hoi\s+ve|hoi|xem)\s+/i, '')
-    .replace(/\s+(?:thi\s+co\s+khong|thi\s+co|co\s+khong|co\s+chua|co\s+ban\s+khong|khong|co|a|nhe|ha)\b.*$/i, '')
-    .replace(/^(?:thi\s+co|co|hoi|lay)\s+/i, '')
-    .replace(/\s+(?:thi\s+co|co|khong)$/i, '')
+    .replace(/^(?:anh|chị|chi|em|tôi|toi|mình|minh|bạn|ban|shop)?\s*(?:muốn\s+mua|muon\s+mua|cần\s+mua|can\s+mua|hỏi\s+mua|hoi\s+mua|mua|cần|can|muốn|muon|tìm|tim|hỏi\s+về|hoi\s+ve|hỏi|hoi|xem|lấy|lay)\s+/i, '')
+    .replace(/\s+(?:thì\s+có\s+không|thi\s+co\s+khong|thì\s+có|thi\s+co|có\s+không|co\s+khong|có\s+chưa|co\s+chua|có\s+bán\s+không|co\s+ban\s+khong|không|khong|có|co|ạ|a|nhé|nhe|hả|ha)\b.*$/i, '')
+    .replace(/^(?:thì\s+có|thi\s+co|có|co|hỏi|hoi|lấy|lay)\s+/i, '')
+    .replace(/\s+(?:thì\s+có|thi\s+co|có|co|không|khong)$/i, '')
     .trim();
   const norm = removeVietnameseTones(s).toLowerCase();
 
