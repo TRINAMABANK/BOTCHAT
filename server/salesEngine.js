@@ -79,6 +79,32 @@ function formatShortDesc(desc, maxLen = 85) {
 }
 
 /**
+ * Xây dựng kịch bản bán hàng tập trung 100% vào chính TÊN SẢN PHẨM và các đặc tính, thông số kỹ thuật thực tế
+ * Tuyệt đối không dựa trên hoặc nêu nhóm sản phẩm chung chung.
+ */
+function buildProductSalesPitch(product) {
+  if (!product) return '';
+  const specs = parseSpecs(product);
+  const specEntries = Object.entries(specs).filter(([k]) => !['Bảo hành', 'Mô tả', 'Xuất xứ'].includes(k));
+  const topSpecs = specEntries.slice(0, 3).map(([k, v]) => `• **${k}:** ${v}`).join('\n');
+
+  let descPitch = '';
+  if (product.description) {
+    const firstLine = product.description.split(/[\r\n]+/)[0].replace(/^[-•*]\s*/, '').trim();
+    descPitch = firstLine;
+  }
+
+  const parts = [];
+  if (descPitch) {
+    parts.push(`📝 **Đặc tính nổi bật:** ${descPitch}`);
+  }
+  if (topSpecs) {
+    parts.push(`⚙️ **Thông số kỹ thuật:**\n${topSpecs}`);
+  }
+  return parts.join('\n\n');
+}
+
+/**
  * Detect prompt injection or unauthorized price/secret tampering attempts.
  */
 function detectSecurityViolation(normMsg) {
@@ -401,19 +427,32 @@ const CATALOG_OVERVIEW_KEYWORDS = [
 ];
 
 /**
- * Kiểm tra xem khách có đang hỏi danh mục tổng quan / hỏi bán gì, kinh doanh gì, có sản phẩm gì, hoặc yêu cầu tư vấn
+ * Kiểm tra xem khách có đang hỏi danh mục tổng quan / hỏi bán gì, kinh doanh gì, có sản phẩm gì, hoặc yêu cầu tư vấn chung
  */
 function isCatalogOverviewQuery(normMsg) {
   if (!normMsg) return false;
   const clean = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
+
+  // Nếu câu hỏi có chứa tên thương hiệu, mã máy hoặc loại sản phẩm cụ thể thì KHÔNG PHẢI hỏi tổng quan
+  const SPECIFIC_PRODUCT_INDICATORS = [
+    'edison', 'xinda', 'sharp', 'daikin', 'samsung', 'sony', 'lg', 'lenovo', 'dell', 'hp', 'asus',
+    'julong', 'hang tin', 'hangtin', 'like sys', 'likesys', 'lda', 'xiudun', 'bofa', 'canon', 'apple', 'macbook',
+    'tivi', 'tv', 'tu lanh', 'may lanh', 'dieu hoa', 'laptop', 'hut am', 'may hut am', 'man hinh',
+    'dem tien', 'may dem tien', 'bo tien', 'dong chung tu', 'kiem gia', 'ket sat',
+    'ban giam doc', 'ban lam viec', 'ban hop', 'ghe giam doc', 'ghe van phong', 'ghe gaming', 'tra '
+  ];
+  if (SPECIFIC_PRODUCT_INDICATORS.some((kw) => clean.includes(kw))) {
+    return false;
+  }
+
   if (CATALOG_OVERVIEW_KEYWORDS.some((k) => clean.includes(k))) {
     return true;
   }
   if (
-    /\btu\s+van\b/.test(clean) ||
     /\b(kinh doanh|ban|co|cung cap)\s+(cai\s+)?gi\b/.test(clean) ||
     /\b(kinh doanh|ban|co|cung cap)\s+(nhung\s+)?(gi|mat hang|san pham|linh vuc)\b/.test(clean) ||
-    /\b(co|ban|kinh doanh)\s+(nhung\s+)?(mon|do|hang|gi)\s+(gi|khong|nao)\b/.test(clean)
+    /\b(co|ban|kinh doanh)\s+(nhung\s+)?(mon|do|hang|gi)\s+(gi|khong|nao)\b/.test(clean) ||
+    /^(?:tu van|tu van giup|tu van ho|can tu van|muon tu van|tu van san pham|tu van mat hang)$/.test(clean)
   ) {
     return true;
   }
@@ -1805,11 +1844,12 @@ CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - HỎI BẠN KINH DOANH G�
 CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG 1 (Độ khớp ${productMatch.similarity}% >= 90%):
 - Khách đang hỏi đúng sản phẩm: "${top.name}".
 - Báo giá niêm yết chính xác: ${formatPrice(top)}.
-- BẮT BUỘC:
-  1. Tư vấn ngắn gọn tính năng nổi bật của ${top.name}.
-  2. Báo giá niêm yết: ${formatPrice(top)}.
-  3. Mời khách xem chi tiết và ảnh ở Cột 2 (hệ thống đã tự động mở sẵn Cột 2).
-  4. ${customerBudget ? 'Khách ĐÃ NÊU ngân sách, KHÔNG hỏi lại số tiền!' : 'BẮT BUỘC hỏi số tiền khách dự tính mua: "Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn cấu hình và ưu đãi phù hợp nhất nhé?"'}
+- BẮT BUỘC KỊCH BẢN BÁN HÀNG DỰA TRÊN CHÍNH TÊN SẢN PHẨM "${top.name}":
+  1. Kịch bản tư vấn BẮT BUỘC phải dựa trên chính TÊN SẢN PHẨM "${top.name}", nêu bật tính năng, ưu điểm vượt trội và thông số kỹ thuật thực tế của chính sản phẩm này từ mô tả (${top.description}) và thông số (${top.specs_json || 'N/A'}).
+  2. TUYỆT ĐỐI KHÔNG tư vấn chung chung theo NHÓM SẢN PHẨM hay gọi tên nhóm sản phẩm!
+  3. Báo giá niêm yết chính xác: ${formatPrice(top)}.
+  4. Hướng dẫn khách xem chi tiết và ảnh chụp thực tế của chính sản phẩm ở Cột 2 (hệ thống đã tự động mở sẵn Cột 2).
+  5. ${customerBudget ? 'Khách ĐÃ NÊU ngân sách, KHÔNG hỏi lại số tiền!' : 'BẮT BUỘC hỏi số tiền khách dự tính mua: "Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn cấu hình và ưu đãi phù hợp nhất nhé?"'}
 `;
         } else if (productMatch.tier === 2 && productMatch.topProduct) {
           const top = productMatch.topProduct;
@@ -1817,11 +1857,12 @@ CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG 1 (Độ kh
 CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG 2 (Độ khớp ${productMatch.similarity}% từ 80% đến dưới 90%):
 - Khách đang hỏi mẫu/tính năng gần giống. Sản phẩm tương tự phù hợp nhất có sẵn trong kho là: "${top.name}".
 - Báo giá niêm yết: ${formatPrice(top)}.
-- BẮT BUỘC:
+- BẮT BUỘC KỊCH BẢN BÁN HÀNG DỰA TRÊN CHÍNH TÊN SẢN PHẨM "${top.name}":
   1. Trả lời ngay với khách: "Dạ hiện bên em đang có sản phẩm tương tự rất phù hợp là **${top.name}**..."
-  2. Tư vấn ngắn gọn tính năng nổi bật + Báo giá niêm yết (${formatPrice(top)}).
-  3. Mời khách xem chi tiết và ảnh ở Cột 2.
-  4. ${customerBudget ? 'Khách ĐÃ NÊU ngân sách, KHÔNG hỏi lại số tiền!' : 'BẮT BUỘC hỏi số tiền khách dự tính mua: "Bạn dự tính mua trong khoảng bao nhiêu tiền để tôi tư vấn mẫu sát nhất với nhu cầu nhé?"'}
+  2. Kịch bản tư vấn tập trung 100% vào chính TÊN SẢN PHẨM "${top.name}", nêu các thông số và tính năng nổi trội của chính sản phẩm này. TUYỆT ĐỐI KHÔNG nói chung chung theo NHÓM SẢN PHẨM.
+  3. Báo giá niêm yết: ${formatPrice(top)}.
+  4. Hướng dẫn khách xem chi tiết và ảnh chụp thực tế ở Cột 2.
+  5. ${customerBudget ? 'Khách ĐÃ NÊU ngân sách, KHÔNG hỏi lại số tiền!' : 'BẮT BUỘC hỏi số tiền khách dự tính mua: "Bạn dự tính mua trong khoảng bao nhiêu tiền để tôi tư vấn mẫu sát nhất với nhu cầu nhé?"'}
 `;
         } else if (productMatch.tier === 3 && (productMatch.missingProductQuery || isProductInquiry)) {
           const missingName = productMatch.missingProductQuery || 'mẫu sản phẩm này';
@@ -1869,14 +1910,18 @@ QUY TẮC XỬ LÝ CÁC TÌNH HUỐNG SẢN PHẨM:
    - Thông báo rõ hệ thống đã mở toàn bộ danh mục ở Cột 2, mời khách hàng tự xem sản phẩm ở Cột 2.
    - Hỏi khách đang quan tâm đến lĩnh vực nào hoặc số tiền dự tính mua để tư vấn phù hợp nhất.
 
+QUY TẮC CỐT LÕI - KỊCH BẢN BÁN HÀNG PHẢI DỰA TRÊN CHÍNH TÊN SẢN PHẨM (TUYỆT ĐỐI KHÔNG DỰA TRÊN NHÓM SẢN PHẨM):
+- Khi khách hàng hỏi bất kỳ sản phẩm nào, kịch bản tư vấn bán hàng BẮT BUỘC phải dựa trên CHÍNH TÊN SẢN PHẨM CỤ THỂ mà khách hỏi (product.name), phân tích tính năng, thông số kỹ thuật thực tế và giá bán chính thức của chính sản phẩm đó.
+- TUYỆT ĐỐI KHÔNG tư vấn chung chung theo NHÓM SẢN PHẨM (product.group_name) hay lĩnh vực (product.field). Khách hỏi đích danh sản phẩm nào thì kịch bản chốt bán hàng phải xoay quanh 100% đúng TÊN SẢN PHẨM đó!
+
 1. TÌNH HUỐNG 1 - SẢN PHẨM GIỐNG TỪ 90% TRỞ LÊN (Khách hỏi đúng sản phẩm hoặc khớp cao với danh mục):
-   - Tư vấn điểm nổi bật chính và BÁO GIÁ NIÊM YẾT CHÍNH XÁC.
-   - Hướng dẫn khách xem thông số và hình ảnh trực quan ở Cột 2 (hệ thống đã tự động mở sẵn Cột 2).
+   - Kịch bản tư vấn dựa trên chính TÊN SẢN PHẨM, nêu điểm nổi bật chính, thông số và BÁO GIÁ NIÊM YẾT CHÍNH XÁC.
+   - Hướng dẫn khách xem thông số và hình ảnh thực tế ở Cột 2 (hệ thống đã tự động mở sẵn Cột 2).
    - LUÔN LUÔN HỎI SỐ TIỀN KHÁCH DỰ TÍNH MUA nếu khách chưa nói ngân sách (ví dụ: "Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn cấu hình và ưu đãi phù hợp nhất nhé?"). Nếu khách đã nói ngân sách thì không hỏi lại.
 
 2. TÌNH HUỐNG 2 - SẢN PHẨM GIỐNG TỪ 80% ĐẾN DƯỚI 90% (Khách hỏi mẫu/dòng/tính năng gần giống hoặc cùng phân khúc):
    - Báo ngay với khách: "Dạ hiện bên em đang có sản phẩm tương tự rất phù hợp là [Tên sản phẩm tương tự]..."
-   - Tư vấn ngắn gọn tính năng và BÁO GIÁ NIÊM YẾT.
+   - Kịch bản tư vấn dựa trên TÊN SẢN PHẨM tương tự, tính năng nổi bật + BÁO GIÁ NIÊM YẾT.
    - Hướng dẫn xem chi tiết trực quan ở Cột 2.
    - LUÔN LUÔN HỎI SỐ TIỀN KHÁCH DỰ TÍNH MUA: "Bạn dự tính mua trong khoảng bao nhiêu tiền để tôi tư vấn mẫu sát nhất với nhu cầu nhé?".
 
@@ -2671,21 +2716,21 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     if ((productMatch && (productMatch.tier === 1 || productMatch.tier === 2) && productMatch.topProduct) || matchedFromText.length > 0) {
       const top = (productMatch && productMatch.topProduct) || matchedFromText[0];
       const tier = productMatch?.tier || 1;
-      const shortDesc = formatShortDesc(top.description, 85);
+      const salesPitch = buildProductSalesPitch(top);
 
       if (tier === 2) {
-        // TÌNH HUỐNG 2: Giống từ 80% đến dưới 90% -> Báo có sản phẩm tương tự + tư vấn + báo giá + mở Cột 2 + hỏi số tiền
+        // TÌNH HUỐNG 2: Giống từ 80% đến dưới 90% -> Báo có sản phẩm tương tự + kịch bản bán hàng theo tên sản phẩm + báo giá + mở Cột 2 + hỏi số tiền
         const budgetAsk = hasBudgetInQuery
           ? ` ${capRef} muốn tôi tư vấn thêm hay hỗ trợ đặt mua ngay ạ?`
           : ` Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn mẫu sát nhất với nhu cầu của bạn nhé?`;
-        return `Dạ hiện bên em đang có sản phẩm tương tự rất phù hợp là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n📝 **Đặc tính:** ${shortDesc || top.group_name || 'Chính hãng chất lượng cao'}.\n\nThông số chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**.${budgetAsk}`;
+        return `Dạ hiện bên em đang có sản phẩm tương tự rất phù hợp là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n\n${salesPitch}\n\nThông số chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**.${budgetAsk}`;
       }
 
-      // TÌNH HUỐNG 1: Giống từ 90% trở lên -> Tư vấn + Báo giá niêm yết + Mở Cột 2 + Hỏi số tiền
+      // TÌNH HUỐNG 1: Giống từ 90% trở lên -> Kịch bản bán hàng dựa trên chính TÊN SẢN PHẨM + Báo giá niêm yết + Mở Cột 2 + Hỏi số tiền
       const budgetAsk = hasBudgetInQuery
         ? ` ${capRef} muốn tôi tư vấn thêm hay hỗ trợ đặt mua ngay ạ?`
         : ` Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn cấu hình và ưu đãi phù hợp nhất nhé?`;
-      return `Dạ, sản phẩm phù hợp nhất với nhu cầu của ${customerRef} là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n📝 **Đặc tính:** ${shortDesc || top.group_name || 'Chính hãng chất lượng cao'}.\n\nThông số chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**.${budgetAsk}`;
+      return `Dạ, sản phẩm phù hợp nhất với nhu cầu của ${customerRef} là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n\n${salesPitch}\n\nThông số chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**.${budgetAsk}`;
     }
 
     // 8B. Field / Category Discovery (chỉ kích hoạt khi khách hàng thực sự hỏi xem danh mục / lĩnh vực)
@@ -2760,8 +2805,8 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
 
     // 10. Button-triggered detail / price inquiry for Selected Product
     if (selectedProduct && (isExplicitButtonAction || normMessage.includes('hoi gia') || normMessage.includes('gia bao nhieu') || normMessage.includes('chi tiet') || normMessage.includes('thong so'))) {
-      const shortDesc = formatShortDesc(selectedProduct.description, 85);
-      return `${politeAskBanner}Dạ, thông tin về **${selectedProduct.name}**:\n🏷️ **Phân loại:** ${selectedProduct.field} → ${selectedProduct.group_name}\n💵 **Giá niêm yết:** **${formatPrice(selectedProduct)}**\n📋 **Đặc tính nổi bật:** ${shortDesc || 'Sản phẩm chính hãng chất lượng cao'}\n\n${capRef} muốn so sánh với mẫu khác, đặt mua, hay để lại SĐT để ${ownerName} tư vấn sâu hơn ạ?`;
+      const salesPitch = buildProductSalesPitch(selectedProduct);
+      return `${politeAskBanner}Dạ, thông tin chi tiết về **${selectedProduct.name}**:\n💵 **Giá niêm yết:** **${formatPrice(selectedProduct)}**\n\n${salesPitch}\n\n${capRef} muốn so sánh với mẫu khác, đặt mua, hay để lại SĐT để ${ownerName} tư vấn sâu hơn ạ?`;
     }
 
     // 11A. Robot Identity & Name Inquiry ("Bạn tên gì?", "Em tên gì?", "Bạn là ai?", "Robot là ai?")
