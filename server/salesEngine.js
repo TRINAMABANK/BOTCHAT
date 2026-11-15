@@ -699,9 +699,14 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
     return 92;
   }
 
-  // Trà cao cấp
-  if (coreTarget.includes('tra') && (normProdName.includes('tra') || normField.includes('tra'))) {
-    return 92;
+  // Trà cao cấp (dùng word boundary \btra\b để tránh từ tiếng Anh như 'Ultra')
+  if (/\b(tra|che|oolong)\b/i.test(coreTarget)) {
+    const hasTeaInProd = /\b(tra|che|oolong)\b/i.test(normProdName);
+    const hasTeaInField = /\b(tra|che|oolong)\b/i.test(normField);
+    if (hasTeaInProd || hasTeaInField) {
+      if (hasTeaInProd) return 96;
+      return 92;
+    }
   }
 
   // Máy đếm tiền
