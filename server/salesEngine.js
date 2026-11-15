@@ -748,7 +748,7 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
  * - Tier 2: 80% <= similarity < 90% (Similar product -> Advise similar + Price + Reveal Col 2 + Ask budget)
  * - Tier 3: similarity < 80% or missing product query -> Ask for customer phone number for owner
  */
-function evaluateProductMatch(message, normMessage, allProducts, contextField = null) {
+export function evaluateProductMatch(message, normMessage, allProducts, contextField = null) {
   if (!normMessage || !allProducts || allProducts.length === 0) {
     return {
       tier: 3,
@@ -944,7 +944,7 @@ function findMatchingProducts(normMsg, allProducts) {
 /**
  * Detect which product field (category) in the live catalog the customer is asking about.
  */
-function findMatchingField(normMsg, allProducts) {
+export function findMatchingField(normMsg, allProducts) {
   if (!normMsg || !allProducts || allProducts.length === 0) return null;
   // Khi khách hỏi thăm sức khoẻ, chào hỏi, xưng tên hoặc hỏi tổng quan, không dò danh mục
   if (isHealthInquiry(normMsg) || isGreetingMessage(normMsg) || isCatalogOverviewQuery(normMsg) || isCustomerNameDeclaration(null, normMsg)) {
