@@ -33,7 +33,9 @@ import {
   Link2,
   LogOut,
   KeyRound,
-  Lock
+  Lock,
+  Edit,
+  Pencil
 } from 'lucide-react';
 
 export const OwnerDashboard = ({
@@ -72,6 +74,21 @@ export const OwnerDashboard = ({
     image_url: '/assets/machine_2166.png',
     is_approved: true
   });
+
+  // Edit Product Modal Form State
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editProdForm, setEditProdForm] = useState({
+    field: '',
+    group_name: '',
+    name: '',
+    price: '',
+    specs: '',
+    description: '',
+    image_url: '',
+    is_approved: true
+  });
+  const [uploadingEditImage, setUploadingEditImage] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // URL Product Import & Analysis State
   const [showUrlModal, setShowUrlModal] = useState(false);
@@ -485,6 +502,115 @@ export const OwnerDashboard = ({
       showMessage(err.message || 'Lỗi khi đổi ảnh sản phẩm.');
     } finally {
       setUploadingProductId(null);
+    }
+  };
+
+  const handleOpenEditProduct = (p) => {
+    let specsStr = '';
+    if (p.specs_json) {
+      if (typeof p.specs_json === 'string') {
+        try {
+          const parsed = JSON.parse(p.specs_json);
+          if (parsed && typeof parsed === 'object') {
+            specsStr = Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n');
+          } else {
+            specsStr = p.specs_json;
+          }
+        } catch {
+          specsStr = p.specs_json;
+        }
+      } else if (typeof p.specs_json === 'object') {
+        specsStr = Object.entries(p.specs_json).map(([k, v]) => `${k}: ${v}`).join('\n');
+      }
+    }
+
+    setEditingProduct(p);
+    setEditProdForm({
+      field: p.field || '',
+      group_name: p.group_name || '',
+      name: p.name || '',
+      price: p.price !== undefined && p.price !== null ? String(p.price) : '',
+      specs: specsStr,
+      description: p.description || '',
+      image_url: p.image_url || '',
+      is_approved: p.is_approved === 1 || p.is_approved === true
+    });
+  };
+
+  const handleSelectEditProdImage = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setUploadingEditImage(true);
+      const url = await uploadImageFileToServer(file);
+      if (url) {
+        setEditProdForm((prev) => ({ ...prev, image_url: url }));
+        showMessage('Đã tải ảnh sản phẩm từ máy tính lên thành công!');
+      }
+    } catch (err) {
+      console.error(err);
+      showMessage(err.message || 'Lỗi khi tải ảnh lên.');
+    } finally {
+      setUploadingEditImage(false);
+    }
+  };
+
+  const handleUpdateProduct = async (e) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    try {
+      setSavingEdit(true);
+      let specsObj = {};
+      if (editProdForm.specs && editProdForm.specs.trim()) {
+        try {
+          specsObj = JSON.parse(editProdForm.specs);
+        } catch {
+          const lines = editProdForm.specs.split('\n');
+          let converted = {};
+          let hasKv = false;
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const parts = trimmed.split(/:\s*(.*)/);
+            if (parts.length >= 2) {
+              converted[parts[0].trim()] = parts[1].trim();
+              hasKv = true;
+            }
+          }
+          specsObj = hasKv ? converted : { 'Thông số': editProdForm.specs.trim() };
+        }
+      }
+
+      const res = await fetch(`/api/products/${editingProduct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          field: editProdForm.field.trim(),
+          group_name: editProdForm.group_name.trim(),
+          name: editProdForm.name.trim(),
+          price: parseInt(editProdForm.price, 10) || 0,
+          specs_json: specsObj,
+          description: editProdForm.description.trim(),
+          image_url: editProdForm.image_url.trim(),
+          is_approved: editProdForm.is_approved
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showMessage('Đã cập nhật thông tin sản phẩm thành công!');
+        setEditingProduct(null);
+        fetchData();
+        if (onRefreshData) onRefreshData();
+      } else {
+        showMessage(data.error || 'Cập nhật sản phẩm thất bại.');
+      }
+    } catch (err) {
+      console.error(err);
+      showMessage('Lỗi khi cập nhật sản phẩm: ' + err.message);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -1206,21 +1332,32 @@ export const OwnerDashboard = ({
                             </span>
                           </td>
                           <td className="py-3 px-3 align-middle text-right">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                requestDeleteConfirmation({
-                                  entity: 'product',
-                                  mode: 'single',
-                                  item: p
-                                })
-                              }
-                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white font-bold text-[11px] shadow-sm transition-all active:scale-95"
-                              title="Xóa sản phẩm này"
-                            >
-                              <Trash2 size={12} />
-                              <span>Xóa</span>
-                            </button>
+                            <div className="inline-flex items-center justify-end space-x-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditProduct(p)}
+                                className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-600/90 hover:bg-cyan-500 text-white font-bold text-[11px] shadow-sm transition-all active:scale-95 border border-cyan-400/30"
+                                title="Chỉnh sửa sản phẩm này"
+                              >
+                                <Edit size={12} />
+                                <span>Sửa</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  requestDeleteConfirmation({
+                                    entity: 'product',
+                                    mode: 'single',
+                                    item: p
+                                  })
+                                }
+                                className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white font-bold text-[11px] shadow-sm transition-all active:scale-95"
+                                title="Xóa sản phẩm này"
+                              >
+                                <Trash2 size={12} />
+                                <span>Xóa</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1988,6 +2125,191 @@ export const OwnerDashboard = ({
                   className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-bold text-xs shadow-md hover:brightness-110 active:scale-95 transition-all"
                 >
                   Lưu & Đăng bán
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edit Product Form */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-xl bg-[#07132c] border-2 border-cyan-500/40 rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 bg-[#091b3e] border-b border-cyan-500/30">
+              <h3 className="font-bold text-base text-white flex items-center space-x-2 font-display">
+                <Edit size={18} className="text-cyan-400" />
+                <span>Chỉnh sửa thông tin sản phẩm</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingProduct(null)}
+                className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateProduct} className="p-6 space-y-4 text-xs overflow-y-auto max-h-[75vh] bg-[#050c1f]">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">1. Lĩnh vực (*):</label>
+                <input
+                  type="text"
+                  required
+                  value={editProdForm.field}
+                  onChange={(e) => setEditProdForm({ ...editProdForm, field: e.target.value })}
+                  placeholder="Ví dụ: Gia dụng, Tivi & Thiết bị giải trí..."
+                  className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none focus:border-cyan-400 font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">2. Nhóm sản phẩm (*):</label>
+                <input
+                  type="text"
+                  required
+                  value={editProdForm.group_name}
+                  onChange={(e) => setEditProdForm({ ...editProdForm, group_name: e.target.value })}
+                  placeholder="Ví dụ: Tivi Samsung, Máy lạnh Inverter..."
+                  className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none focus:border-cyan-400 font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">3. Tên sản phẩm (*):</label>
+                <input
+                  type="text"
+                  required
+                  value={editProdForm.name}
+                  onChange={(e) => setEditProdForm({ ...editProdForm, name: e.target.value })}
+                  placeholder="Ví dụ: Smart Tivi Samsung 65 inch..."
+                  className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none focus:border-cyan-400 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  Giá bán phê duyệt (VNĐ) (*):
+                  {editProdForm.price && !isNaN(Number(editProdForm.price)) && (
+                    <span className="ml-2 text-cyan-300 font-mono font-bold">
+                      (~{Number(editProdForm.price).toLocaleString('vi-VN')} ₫)
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="number"
+                  required
+                  value={editProdForm.price}
+                  onChange={(e) => setEditProdForm({ ...editProdForm, price: e.target.value })}
+                  placeholder="Ví dụ: 10990000"
+                  className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl px-3.5 py-2.5 text-amber-300 text-sm font-bold font-mono outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1.5">Hình ảnh sản phẩm (Tải từ máy tính hoặc dán link):</label>
+                <div className="flex items-center gap-3 bg-[#050c1f] border border-cyan-500/30 rounded-xl p-2.5">
+                  <div className="w-16 h-16 rounded-xl bg-slate-950 border border-cyan-500/40 flex items-center justify-center overflow-hidden shrink-0">
+                    {editProdForm.image_url ? (
+                      <img
+                        src={editProdForm.image_url}
+                        alt="Xem trước ảnh"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <Image className="w-6 h-6 text-slate-500" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <label
+                      className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold cursor-pointer border transition-all shadow-sm ${
+                        uploadingEditImage
+                          ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/50 cursor-wait'
+                          : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white border-cyan-400/50'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingEditImage ? 'Đang tải ảnh lên...' : 'Chọn ảnh mới từ máy tính'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingEditImage}
+                        onChange={handleSelectEditProdImage}
+                        className="hidden"
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      value={editProdForm.image_url}
+                      onChange={(e) => setEditProdForm({ ...editProdForm, image_url: e.target.value })}
+                      placeholder="Hoặc dán đường dẫn ảnh (/uploads/..., https://...)"
+                      className="w-full bg-[#0a1f44] border border-cyan-500/30 rounded-lg px-2.5 py-1.5 text-slate-200 text-[11px] outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Thông số kỹ thuật:</label>
+                <textarea
+                  rows={3}
+                  value={editProdForm.specs}
+                  onChange={(e) => setEditProdForm({ ...editProdForm, specs: e.target.value })}
+                  placeholder="Kích thước: 65 inch&#10;Độ phân giải: 4K UHD&#10;Bảo hành: 24 tháng"
+                  className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl p-3 text-white text-xs outline-none focus:border-cyan-400 resize-none font-mono leading-relaxed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Mô tả sản phẩm:</label>
+                <textarea
+                  rows={2}
+                  value={editProdForm.description}
+                  onChange={(e) => setEditProdForm({ ...editProdForm, description: e.target.value })}
+                  placeholder="Mô tả tóm tắt tính năng nổi bật..."
+                  className="w-full bg-[#0a1f44] border border-cyan-500/40 rounded-xl p-3 text-white text-xs outline-none focus:border-cyan-400 resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="editApproveCheckbox"
+                  checked={editProdForm.is_approved}
+                  onChange={(e) => setEditProdForm({ ...editProdForm, is_approved: e.target.checked })}
+                  className="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0"
+                />
+                <label htmlFor="editApproveCheckbox" className="text-slate-200 font-semibold cursor-pointer">
+                  Phê duyệt giá bán cho sản phẩm này
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  disabled={savingEdit}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-bold text-xs transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit || uploadingEditImage}
+                  className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-bold text-xs shadow-md hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingEdit ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={13} />
+                      <span>Lưu thay đổi</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
