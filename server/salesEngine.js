@@ -181,6 +181,28 @@ function extractPhoneNumber(rawMsg) {
   return null;
 }
 
+const CUSTOMER_NAME_BLOCKED_TOKENS = new Set([
+  'dang', 'hoi', 'ma', 'can', 'muon', 'lay', 'xem', 'tim', 'co', 'biet', 'chua',
+  'nguoi', 'khach', 'hang', 'tivi', 'tv', 'ban', 'ghe', 'laptop', 'may', 'tra',
+  'gia', 'bao', 'nhieu', 'tien', 'dem', 'hut', 'am', 'mua',
+  'chao', 'alo', 'hello', 'hi', 'ship', 'shop', 'robot', 'ai',
+  'san', 'pham', 'thong', 'tin', 'dia', 'so', 'dien', 'thoai',
+  'sdt', 'dong', 'vnd', 'khong', 'chuc', 'nang', 'ok', 'duoc', 'cam', 'on', 'roi',
+  'vang', 'dung', 'sai', 'the', 'nao', 'tiet', 'sanh', 'ton', 'kho',
+  'gi', 'kinh', 'doanh', 'cai', 'mat', 'nganh', 'vuc', 'sao', 'dau',
+  'loai', 'mau', 'dong', 're', 'dat', 'nhat', 'nhi', 'tot', 'hon', 'khac', 'cao', 'thap',
+  'binh', 'dan', 'chuan', 'chinh', 'nho', 'to', 'lon', 'dep', 'xau', 'moi', 'cu', 'tam', 'chiec'
+]);
+
+function hasBlockedNameTokens(str) {
+  if (!str || typeof str !== 'string') return true;
+  const norm = removeVietnameseTones(str).toLowerCase().trim();
+  if (norm.length < 2 || norm.length > 30) return true;
+  const words = norm.split(/\s+/).filter(Boolean);
+  if (words.length < 1 || words.length > 3) return true;
+  return words.some((w) => CUSTOMER_NAME_BLOCKED_TOKENS.has(w));
+}
+
 /**
  * Extract customer name cleanly (supports full intro phrases, casual introductions, and standalone names).
  */
@@ -198,10 +220,10 @@ function extractCustomerName(rawMsg, allowBare = false) {
   s = s.replace(/^(?:dạ|da|dạ chào shop|chào shop|chào bạn|chào robot|alo|xin chào)[,.;:\s]+/i, '').trim();
 
   const introPatterns = [
-    /^(?:tên tôi là|tên mình là|tên em là|tên anh là|tên chị là|tôi tên là|mình tên là|em tên là|anh tên là|chị tên là|tôi là|mình là|em là|anh là|chị là|tên là|tôi tên|mình tên|em tên|anh tên|chị tên|tên:)\s+/i,
+    /^(?:tên tôi là|tên mình là|tên em là|tên anh là|tên chị là|tôi tên là|mình tên là|em tên là|anh tên là|chị tên là|tên là|tôi tên|mình tên|em tên|anh tên|chị tên|tên:)\s+/i,
     /^(?:cứ\s+)?gọi\s+(?:cho\s+)?(?:tôi|mình|em|anh|chị)?\s*(?:là\s+)?/i,
     /^(?:xưng\s+hô\s+là|xưng\s+là)\s+/i,
-    /^(?:tôi|mình|em|anh|chị)\s+(?:tên\s+)?/i
+    /^(?:tôi là|mình là|em là|anh là|chị là)\s+/i
   ];
 
   let matchedIntro = false;
@@ -219,30 +241,19 @@ function extractCustomerName(rawMsg, allowBare = false) {
   // Strip leading honorific if followed by name (e.g. "anh Nam" -> "Nam")
   s = s.replace(/^(?:anh|chị|cô|chú|bác|ông|bà|em|bạn)\s+/i, '');
 
-  // Strip trailing punctuation & casual particles (e.g. "nhé", "ạ", "nha")
+  // Strip trailing punctuation & casual particles (e.g. "nhé", "ạ", "nha", "mà")
   s = s.replace(/[,.;!?]+$/, '').trim();
-  s = s.replace(/\s+(?:nhe|nha|a|ạ|nhé|nhi|đây|day|nè|ne)$/i, '').trim();
+  s = s.replace(/\s+(?:nhe|nha|a|ạ|nhé|nhi|đây|day|nè|ne|mà|ma)$/i, '').trim();
 
-  if (s.length < 2 || s.length > 40) return null;
+  if (s.length < 2 || s.length > 30) return null;
   if (/\d/.test(s)) return null;
 
   const norm = removeVietnameseTones(s).toLowerCase();
-  const blockedTokens = new Set([
-    'gia', 'bao', 'nhieu', 'tien', 'may', 'xem', 'dem', 'hut', 'am', 'mua', 'ban',
-    'hanh', 'chao', 'alo', 'hello', 'hi', 'ship', 'shop', 'robot', 'ai',
-    'san', 'pham', 'thong', 'tin', 'dia', 'chi', 'so', 'dien', 'thoai',
-    'sdt', 'dong', 'vnd', 'khong', 'chuc', 'nang', 'ok', 'duoc', 'cam', 'on', 'roi',
-    'vang', 'dung', 'sai', 'co', 'the', 'nao', 'tiet', 'sanh', 'ton', 'kho',
-    'gi', 'kinh', 'doanh', 'cai', 'mat', 'hang', 'nganh', 'linh', 'vuc', 'the', 'nao', 'sao', 'dau',
-    'loai', 'mau', 'dong', 're', 'dat', 'nhat', 'nhi', 'tot', 'hon', 'khac', 'nao', 'cao', 'thap',
-    'binh', 'dan', 'chuan', 'chinh', 'hang', 'nho', 'to', 'lon', 'dep', 'xau', 'moi', 'cu', 'tam', 'chiec'
-  ]);
-
   const words = norm.split(/\s+/).filter(Boolean);
-  if (words.length < 1 || words.length > 5) return null;
+  if (words.length < 1 || words.length > 3) return null;
 
   for (const w of words) {
-    if (blockedTokens.has(w)) return null;
+    if (CUSTOMER_NAME_BLOCKED_TOKENS.has(w)) return null;
   }
 
   return s
@@ -274,6 +285,7 @@ function extractCoreProductQuery(rawMsg) {
     prev = s;
     s = s.replace(/^(?:dạ|vâng|ạ|alo|chào|hi|hello)\s+/i, '');
     s = s.replace(/^(?:anh|chị|tôi|mình|em|bạn|shop|ad|bác|chú|cô)\s+/i, '');
+    s = s.replace(/^(?:đang\s+hỏi\s+về|đang\s+hỏi|đang\s+nói\s+về|đang\s+nói|đang\s+tìm\s+hiểu|đang\s+tìm|đang\s+cần|đang\s+xem)\s+/i, '');
     s = s.replace(/^(?:cần\s+tìm\s+mua|muốn\s+tìm\s+mua|cần\s+mua|muốn\s+mua|đang\s+tìm|cần\s+tìm|tìm\s+mua|mua\s+giúp|mua\s+hộ|mua)\s+/i, '');
     s = s.replace(/^(?:bán\s+cho\s+(?:tôi|mình|anh|em|chị|bác|chú|cô)?|bán\s+hộ|bán)\s+/i, '');
     s = s.replace(/^(?:cho\s+(?:tôi|mình|anh|em|chị|bác|chú|cô)\s+xem|cho\s+xem|xem)\s+/i, '');
@@ -281,7 +293,7 @@ function extractCoreProductQuery(rawMsg) {
     s = s.replace(/^(?:báo\s+giá\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?|tư\s+vấn\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?)\s+/i, '');
     s = s.replace(/^(?:cái|chiếc|mẫu|loại|dòng|con|bộ)\s+/i, '');
   }
-  s = s.replace(/\s+(?:giá\s+bao\s+nhiêu|nhiêu\s+tiền|bao\s+nhiêu\s+tiền|bao\s+nhiêu|hết\s+bao\s+nhiêu|không\s+ạ|không|hông|ko|k|vậy|thế|nhỉ|nè|nhé|nha|ạ|ơi)[?!.,;]*$/i, '');
+  s = s.replace(/\s+(?:giá\s+bao\s+nhiêu|nhiêu\s+tiền|bao\s+nhiêu\s+tiền|bao\s+nhiêu|hết\s+bao\s+nhiêu|không\s+ạ|không|hông|ko|k|vậy|thế|nhỉ|nè|nhé|nha|ạ|ơi|mà|ma|đấy|day|đó|do|hả|ha)[?!.,;]*$/i, '');
   s = s.replace(/[?!.,;]+/g, '').trim();
   return s;
 }
@@ -504,6 +516,47 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '') {
   if (coreTarget.includes('ban') && normProdName.includes('ban')) {
     if (coreTarget.includes('giam doc') && normProdName.includes('giam doc')) return 95;
     return 85; // Similar desk (e.g. "bàn làm việc", "bàn văn phòng" -> 85% for Bàn Giám Đốc)
+  }
+
+  // Tivi / TV
+  if ((coreTarget.includes('tivi') || coreTarget.includes('tv')) && (normProdName.includes('tv') || normProdName.includes('tivi') || normField.includes('tivi'))) {
+    if (brandMatch || normProdName.includes('samsung') || normProdName.includes('sony') || normProdName.includes('lg')) return 95;
+    return 92;
+  }
+
+  // Tủ lạnh
+  if (coreTarget.includes('tu lanh') && normProdName.includes('tu lanh')) {
+    if (brandMatch) return 95;
+    return 92;
+  }
+
+  // Máy lạnh / điều hòa
+  if ((coreTarget.includes('may lanh') || coreTarget.includes('dieu hoa')) && (normProdName.includes('may lanh') || normProdName.includes('dieu hoa'))) {
+    if (brandMatch) return 95;
+    return 92;
+  }
+
+  // Laptop / Macbook / máy tính
+  if ((coreTarget.includes('laptop') || coreTarget.includes('macbook') || coreTarget.includes('may tinh')) && (normProdName.includes('laptop') || normProdName.includes('macbook') || normProdName.includes('ideapad') || normProdName.includes('vivobook') || normProdName.includes('omnibook'))) {
+    if (brandMatch) return 95;
+    return 92;
+  }
+
+  // Màn hình
+  if (coreTarget.includes('man hinh') && normProdName.includes('man hinh')) {
+    if (brandMatch) return 95;
+    return 92;
+  }
+
+  // Trà cao cấp
+  if (coreTarget.includes('tra') && (normProdName.includes('tra') || normField.includes('tra'))) {
+    return 92;
+  }
+
+  // Máy đếm tiền
+  if ((coreTarget.includes('dem tien') || coreTarget.includes('may dem')) && (normProdName.includes('dem tien') || normField.includes('dem tien'))) {
+    if (brandMatch) return 95;
+    return 92;
   }
 
   // Scenario 2: Same brand & category OR close model => 80% - 89%
@@ -860,6 +913,9 @@ function userExplicitlyWantsProducts({ normMessage, actionType, matchedFromText,
 function cleanInquiredProductName(str) {
   if (!str) return 'sản phẩm này';
   let s = str.trim();
+  s = s.replace(/^(?:anh|chị|em|tôi|mình|bạn)\s+(?:đang\s+hỏi\s+về|đang\s+hỏi|đang\s+cần|đang\s+tìm)\s+/i, '');
+  s = s.replace(/^(?:đang\s+hỏi\s+về|đang\s+hỏi|đang\s+nói\s+về|đang\s+nói)\s+/i, '');
+  s = s.replace(/\s+(?:mà|ma|đấy|day|đó|do)[?!.,]*$/i, '');
   const prefixes = [
     'cho toi hoi ben ban co ban', 'cho minh hoi ben ban co ban', 'cho em hoi ben ban co ban',
     'cho hoi ben ban co ban', 'cho hoi ben em co ban', 'cho hoi shop co ban',
@@ -939,21 +995,12 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     normMessage.includes('chu nhan') ||
     normMessage.includes('cho xin so') ||
     normMessage.includes('o dau') ||
-    normMessage.includes('dia chi')
+    normMessage.includes('dia chi') ||
+    /(?:khong\s+cho|khong\s+can|thoi\s+khoi|bo\s+qua|cu\s+tu\s+van|khong\s+tien|khong\s+noi|chua\s+tien|khong\s+thich|khoi\s+can)\b/.test(normMessage) ||
+    /(?:ten\s+la|ten\s+toi|ten\s+minh|ten\s+em|ten\s+anh|ten\s+chi|toi\s+la|minh\s+la|em\s+la|anh\s+la|chi\s+la)\b/.test(normMessage) ||
+    /(?:bi\s+sai|lac\s+de|nham\s+roi|khong\s+dung)\b/.test(normMessage)
   ) {
     return null;
-  }
-
-  const cleanCore = coreQuery || extractCoreProductQuery(message);
-  const normCleanCore = removeVietnameseTones(cleanCore).toLowerCase();
-
-  // If clean core query was extracted and isn't just generic words
-  const nonProductWords = [
-    'gi', 'nhung gi', 'san pham gi', 'mat hang gi', 'the', 'khong', 'chut', 'thoi gian',
-    'ai o day', 'ban', 'shop', 'nao khac', 'loai khac', 'mau khac', 'dong khac', 'xem them', 'con khong', 'nua khong'
-  ];
-  if (cleanCore && cleanCore.length >= 2 && !nonProductWords.includes(normCleanCore)) {
-    return cleanInquiredProductName(cleanCore);
   }
 
   const trimmed = message.trim();
@@ -1045,7 +1092,11 @@ function extractCustomerAddressing(rawMsg) {
     else if (/(?:toi la nu|minh la nu|gioi tinh nu)\b/.test(norm)) pronoun = 'chị';
   }
 
-  name = extractCustomerName(trimmed, false);
+  const hasActionOrProductVerbs = /(?:dang\s+hoi|can\s+mua|muon\s+mua|lay\s+cho|cho\s+anh|cho\s+toi|cho\s+em|xem|mua|ban|gia|hoi|so\s+sanh|tivi|laptop|may|ghe)\b/.test(norm);
+  if (!hasActionOrProductVerbs) {
+    name = extractCustomerName(trimmed, false);
+    if (name && hasBlockedNameTokens(name)) name = null;
+  }
 
   if (!pronoun && !name) return null;
   return { pronoun, name };
@@ -1161,7 +1212,12 @@ export class SalesEngine {
             prevOrderFlow = meta.orderFlow;
           }
           if (!prevCustomerProfile && meta.customerProfile) {
-            prevCustomerProfile = meta.customerProfile;
+            const rawPrevName = meta.customerProfile.name;
+            const validPrevName = rawPrevName && !hasBlockedNameTokens(rawPrevName) ? rawPrevName : null;
+            prevCustomerProfile = {
+              ...meta.customerProfile,
+              name: validPrevName
+            };
           }
           if (!prevActiveProduct && meta.activeProduct) {
             prevActiveProduct = meta.activeProduct;
@@ -1183,7 +1239,8 @@ export class SalesEngine {
     const parsedAddr = extractCustomerAddressing(message);
     const allowBareName = Boolean(prevOrderFlow?.step === 'ask_name' || (prevCustomerProfile?.askedAddressing && !prevCustomerProfile?.name));
     const detectedName = extractCustomerName(message, allowBareName);
-    const resolvedName = parsedAddr?.name || detectedName || customerInfo?.name || prevCustomerProfile?.name || null;
+    const rawResolvedName = parsedAddr?.name || detectedName || customerInfo?.name || prevCustomerProfile?.name || null;
+    const resolvedName = rawResolvedName && !hasBlockedNameTokens(rawResolvedName) ? rawResolvedName : null;
     const resolvedPronoun = parsedAddr?.pronoun || prevCustomerProfile?.pronoun || null;
 
     const customerProfile = {
@@ -1225,9 +1282,10 @@ export class SalesEngine {
     // When a customer makes a relative query (e.g. "lấy loại rẻ nhất", "loại nào đắt nhất", "dưới 10 triệu", "so sánh", "có mẫu nào khác", etc.)
     // without explicitly naming a new category/product, we MUST strictly stay within the current active category!
     const isOverviewAsk = isCatalogOverviewQuery(normMessage);
+    const isGreeting = isGreetingMessage(normMessage);
     const activeSelectedField = selectedProduct?.field || null;
-    const conversationContextField = isOverviewAsk ? null : (matchedField || activeSelectedField || prevField || prevActiveProduct?.field || null);
-    const conversationActiveProduct = activeProduct || selectedProduct || prevActiveProduct || null;
+    const conversationContextField = (isOverviewAsk || isGreeting) ? null : (matchedField || activeSelectedField || prevField || prevActiveProduct?.field || null);
+    const conversationActiveProduct = isGreeting ? null : (activeProduct || selectedProduct || prevActiveProduct || null);
 
     // 6. Detect Phone, Email, Name & auto-capture Lead into CRM
     const emailMatches = message ? message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) : null;
@@ -1896,7 +1954,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
 
     if (!flow.name) {
       const parsedName = extractCustomerName(message, flow.step === 'ask_name' && !wantsToStartOrder) || customerProfile?.name || null;
-      if (parsedName) {
+      if (parsedName && !hasBlockedNameTokens(parsedName)) {
         flow.name = parsedName;
       }
     }

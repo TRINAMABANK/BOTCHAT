@@ -95,49 +95,22 @@ export const App = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [unreadLeadsCount, setUnreadLeadsCount] = useState(0);
 
-  // Initialize Session
+  // Initialize Session: Mỗi lần khách hàng vào webapp là tình huống mới hoàn toàn
   useEffect(() => {
-    let currentConvId = localStorage.getItem('triai_conversation_id');
-    if (!currentConvId) {
-      currentConvId = `conv_${Date.now()}`;
-      localStorage.setItem('triai_conversation_id', currentConvId);
-    }
-    setConversationId(currentConvId);
-
-    // Smart welcoming opening (focused Column 1 until customer asks/picks a product field)
-    const saved = localStorage.getItem('triai_chat_history');
-    let parsedSaved = [];
+    const newConvId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    setConversationId(newConvId);
     try {
-      parsedSaved = saved ? JSON.parse(saved) : [];
-    } catch {
-      parsedSaved = [];
-    }
-    const isLegacyMockOnly =
-      parsedSaved.length > 0 &&
-      (parsedSaved.every((m) => ['msg_init_1', 'msg_init_2', 'msg_init_3'].includes(m.id)) ||
-        (parsedSaved.length === 1 && (parsedSaved[0].content || '').includes('Xin chào anh/chị')));
+      localStorage.removeItem('triai_conversation_id');
+      localStorage.removeItem('triai_chat_history');
+    } catch {}
 
-    const clientIsMobile =
-      typeof window !== 'undefined' &&
-      (window.innerWidth < 768 || /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
-
-    // Dọn dẹp bất kỳ sản phẩm nào bị lưu dở trong tin nhắn chào mừng ban đầu
-    if (parsedSaved.length > 0) {
-      parsedSaved = parsedSaved.map((m, idx) => {
-        if (idx === 0 && m.metadata?.products) {
-          return { ...m, metadata: { ...m.metadata, products: [] } };
-        }
-        return m;
-      });
-    }
-
-    if (parsedSaved.length === 0 || isLegacyMockOnly) {
-      const initialMessages = [createWelcomeMessage()];
-      setMessages(initialMessages);
-      localStorage.setItem('triai_chat_history', JSON.stringify(initialMessages));
-    } else {
-      setMessages(parsedSaved);
-    }
+    const initialMessages = [createWelcomeMessage()];
+    setMessages(initialMessages);
+    setBotState('idle');
+    setOrderStep(null);
+    setIsCatalogRevealed(false);
+    setActiveCatalogField(null);
+    setSelectedProduct(null);
 
     fetchSettings();
     fetchProducts();
@@ -184,12 +157,6 @@ export const App = () => {
     }
   };
 
-  // Persist Messages
-  useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem('triai_chat_history', JSON.stringify(messages));
-    }
-  }, [messages]);
 
   // Send Message to AI Sales Engine
   const handleSendMessage = async (text, overrideProduct = null, actionType = null) => {
@@ -448,10 +415,12 @@ export const App = () => {
           await fetch(`/api/chat/conversations/${conversationId}`, { method: 'DELETE' });
         } catch (e) {}
       }
-      const newConvId = `conv_${Date.now()}`;
+      const newConvId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       setConversationId(newConvId);
-      localStorage.setItem('triai_conversation_id', newConvId);
-      localStorage.removeItem('triai_chat_history');
+      try {
+        localStorage.removeItem('triai_conversation_id');
+        localStorage.removeItem('triai_chat_history');
+      } catch {}
 
       const initialWelcome = createWelcomeMessage();
       setMessages([initialWelcome]);
