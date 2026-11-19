@@ -843,7 +843,7 @@ export const OwnerDashboard = ({
         )}
 
         {/* 3. TAB NAVIGATION */}
-        <div className="flex items-center space-x-2 px-6 pt-3 bg-[#081735] border-b border-cyan-500/20 text-xs flex-shrink-0">
+        <div className="flex items-center space-x-2 px-4 sm:px-6 pt-3 bg-[#081735] border-b border-cyan-500/20 text-xs flex-shrink-0 overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-cyan-500/30">
           <button
             onClick={() => setActiveTab('leads')}
             className={`flex items-center space-x-2 px-5 py-3 rounded-t-2xl font-bold transition-all text-xs sm:text-sm ${

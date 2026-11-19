@@ -624,6 +624,27 @@ export const App = () => {
               <span className="hidden sm:inline">Hướng dẫn</span>
             </button>
 
+            {/* Catalog Toggle Button (Bật/tắt Cột 2 mọi lúc trên máy tính, laptop, tablet, điện thoại) */}
+            <button
+              onClick={() => {
+                const nextState = !isCatalogRevealed;
+                setIsCatalogRevealed(nextState);
+                if (nextState) {
+                  setMobileViewTab('catalog');
+                }
+              }}
+              className={`flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full border text-xs font-semibold shadow-md transition-all active:scale-95 cursor-pointer ${
+                isCatalogRevealed
+                  ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400 shadow-[0_0_12px_rgba(0,240,255,0.4)]'
+                  : 'bg-[#0C1B3E] hover:bg-[#102454] border-cyan-500/30 text-cyan-200'
+              }`}
+              title={isCatalogRevealed ? 'Đang mở Cột 2 - Nhấn để ẩn' : 'Mở Cột 2 xem danh mục & sản phẩm'}
+            >
+              <ShoppingCart size={14} className={isCatalogRevealed ? 'text-cyan-300' : 'text-cyan-400'} />
+              <span className="hidden sm:inline">Sản phẩm ({products.length})</span>
+              <span className="sm:hidden inline">SP ({products.length})</span>
+            </button>
+
             {/* CTA Button: Yêu cầu chủ nhân gọi lại (Thay thế nút Thông báo hệ thống) */}
             <button
               onClick={() => {

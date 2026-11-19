@@ -523,8 +523,8 @@ export const KnowledgeCenter = ({ orgId = 'org_default' }) => {
             <span className="text-xs text-slate-400">{documents.length} tài liệu</span>
           </div>
 
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-            <table className="w-full text-left text-xs text-slate-300">
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-x-auto shadow-xl scrollbar-thin scrollbar-thumb-slate-700">
+            <table className="w-full text-left text-xs text-slate-300 min-w-[600px]">
               <thead className="bg-slate-950/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
                 <tr>
                   <th className="px-4 py-3">Tiêu đề tài liệu</th>
