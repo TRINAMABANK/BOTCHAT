@@ -18,6 +18,21 @@ function removeVietnameseTones(str = '') {
     .replace(/Đ/g, 'd');
 }
 
+function hasWordMatch(text, word) {
+  if (!text || !word) return false;
+  const cleanWord = removeVietnameseTones(String(word)).trim().toLowerCase();
+  const cleanText = removeVietnameseTones(String(text)).trim().toLowerCase();
+  if (!cleanWord || !cleanText) return false;
+  const escaped = cleanWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|\\s|[.,;!?:()\\[\\]{}/<>-])${escaped}(?:$|\\s|[.,;!?:()\\[\\]{}/<>-])`, 'i').test(cleanText);
+}
+
+const RAG_STOP_WORDS = new Set([
+  'anh', 'chi', 'em', 'toi', 'minh', 'ban', 'can', 'muon', 'mua', 'ban',
+  'cho', 'xin', 'hoi', 'la', 'o', 'tai', 'va', 'voi', 'thi', 'co', 'duoc',
+  'khong', 'gi', 'nao', 'the', 'nhu', 'a', 'da', 'mot', 'cac', 'nhung', 've'
+]);
+
 export class RagService {
   /**
    * Hybrid Search over Knowledge Base with strict Scope & Approval isolation
@@ -74,7 +89,7 @@ export class RagService {
 
     // Hybrid Scoring (Keyword Matching + Title Priority + Vietnamese Normalization)
     const normQuery = removeVietnameseTones(query);
-    const queryTokens = normQuery.split(/\s+/).filter(t => t.length > 1);
+    const queryTokens = normQuery.split(/\s+/).filter(t => t.length > 1 && !RAG_STOP_WORDS.has(t));
 
     const scoredChunks = allChunks.map(chunk => {
       const normContent = removeVietnameseTones(chunk.content);
@@ -83,19 +98,21 @@ export class RagService {
       let score = 0;
 
       // Exact phrase match
-      if (normContent.includes(normQuery)) {
-        score += 5.0;
+      if (hasWordMatch(normContent, normQuery) || normContent.includes(normQuery)) {
+        score += 6.0;
       }
 
       // Title match gives strong boost
-      if (normTitle.includes(normQuery)) {
-        score += 4.0;
+      if (hasWordMatch(normTitle, normQuery) || normTitle.includes(normQuery)) {
+        score += 5.0;
       }
 
-      // Individual token matches
+      // Individual token matches using word boundaries
       queryTokens.forEach(token => {
-        if (normTitle.includes(token)) score += 1.5;
-        if (normContent.includes(token)) score += 0.8;
+        if (hasWordMatch(normTitle, token)) score += 2.0;
+        else if (normTitle.includes(token)) score += 0.5;
+
+        if (hasWordMatch(normContent, token)) score += 1.0;
       });
 
       return {
@@ -106,7 +123,7 @@ export class RagService {
 
     // Filter and Sort by Score
     return scoredChunks
-      .filter(c => c.score > 0.5)
+      .filter(c => c.score >= 1.5)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map(c => ({

@@ -191,19 +191,49 @@ export class CentralBrainService {
     const isExcelQuery = lower.includes('excel') || lower.includes('bang tinh') || lower.includes('bảng tính') || lower.includes('tổng cộng') || lower.includes('doanh thu');
     const isDocExplicitQuery = lower.includes('tai lieu') || lower.includes('tài liệu') || lower.includes('quy trinh') || lower.includes('chinh sach') || lower.includes('hướng dẫn') || lower.includes('quy che') || lower.includes('quy chế') || lower.includes('quyet dinh') || lower.includes('quyết định') || lower.includes('dieu chuyen') || lower.includes('điều chuyển') || lower.includes('nam a bank') || lower.includes('namabank') || lower.includes('thu tuc') || lower.includes('thủ tục') || lower.includes('data upload') || lower.includes('du lieu');
     const isWebSearch = lower.includes('tin tuc') || lower.includes('thoi tiet') || lower.includes('internet') || lower.includes('tim tren mang');
+    const isExplicitPurchase = (/\b(mua|ban|dat hang|dat mua|bao gia|gia ca|gia bao nhieu|bao nhieu tien|mua ngay|san pham|tu van mau)\b/i.test(message));
 
-    // 1. Always evaluate RAG Knowledge Base early so ingested documents are accessible
+    // 1. Direct Sales Routing: If customer explicitly asks to purchase/inquire product and NOT asking for documents
+    if (isExplicitPurchase && !isDocExplicitQuery && !isExcelQuery) {
+      toolsUsed.push('consult_sales_engine');
+      const salesResult = await SalesEngineAdapter.processMessage({
+        conversationId,
+        message,
+        selectedProduct,
+        actionType,
+        customerInfo,
+        clientDevice,
+        orgId
+      });
+
+      return {
+        success: true,
+        reply: salesResult.reply,
+        revealCatalog: salesResult.revealCatalog || false,
+        recommendedField: salesResult.recommendedField || null,
+        recommendedProduct: salesResult.recommendedProduct || null,
+        stage: salesResult.stage || 'IDLE',
+        requiresInput: salesResult.requiresInput || null,
+        suggestedActions: salesResult.suggestedActions || [],
+        orderInfo: salesResult.orderInfo || null,
+        leadCaptured: salesResult.leadCaptured || false,
+        citations: [],
+        toolsUsed
+      };
+    }
+
+    // 2. Evaluate RAG Knowledge Base early so ingested documents are accessible
     const ragChunks = await RagService.searchKnowledge({
       query: message,
       orgId,
       limit: 4
     });
 
-    const hasStrongRagMatch = ragChunks.length > 0 && (ragChunks[0].score >= 1.5 || isDocExplicitQuery);
+    const hasStrongRagMatch = ragChunks.length > 0 && (ragChunks[0].score >= 2.0 || isDocExplicitQuery);
 
     const isSales = (SalesEngineAdapter.isSalesInquiry(message) || Boolean(selectedProduct) || Boolean(actionType)) && !hasStrongRagMatch && !isDocExplicitQuery;
 
-    // 2. Sales Engine Priority (bảo toàn nghiệp vụ bán hàng & Cột 2 khi hỏi sản phẩm/đặt hàng)
+    // 3. Sales Engine Priority (bảo toàn nghiệp vụ bán hàng & Cột 2)
     if (isSales && !isExcelQuery && !isDocExplicitQuery && !isWebSearch) {
       toolsUsed.push('consult_sales_engine');
       const salesResult = await SalesEngineAdapter.processMessage({
