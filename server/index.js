@@ -5,7 +5,8 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import db, { initDatabase } from './db.js';
-import SalesEngine from './salesEngine.js';
+import SalesEngineAdapter from './adapters/salesEngineAdapter.js';
+const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 
 dotenv.config();

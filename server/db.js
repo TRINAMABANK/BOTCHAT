@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { runPhase2Migrations } from './migrations/schema_phase2.js';
 
 dotenv.config();
 
@@ -833,6 +834,13 @@ export async function initDatabase() {
       await db.run("INSERT INTO roles (id, name, description, created_at, updated_at) VALUES ('role_sales', 'Sales Manager', 'Quản lý Lead và chăm sóc khách hàng', ?, ?)", [now, now]);
     }
   } catch (err) {}
+
+  // 9. TRÍ AI ULTIMATE ROBOT - Phase 2 Schema Extensions
+  try {
+    await runPhase2Migrations(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Phase 2 migration error:', err);
+  }
 
   console.log('[DB READY] Database initialization and schema migration completed.');
 }
