@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import db, { initDatabase } from './db.js';
 import SalesEngineAdapter from './adapters/salesEngineAdapter.js';
+import CentralBrainService from './services/centralBrainService.js';
 const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 
@@ -434,26 +435,33 @@ app.post('/api/upload/image', (req, res) => {
 // -----------------------------------------------------------------------------
 app.post('/api/chat/message', async (req, res) => {
   try {
-    const { conversationId, message, selectedProduct, actionType, customerInfo, clientDevice } = req.body;
+    const { conversationId, message, selectedProduct, actionType, customerInfo, clientDevice, orgId } = req.body;
 
-    const result = await SalesEngine.processMessage({
+    const result = await CentralBrainService.processChat({
       conversationId,
       message,
       selectedProduct,
       actionType,
       customerInfo,
-      clientDevice
+      clientDevice,
+      orgId
     });
 
     res.json(result);
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[API CHAT ERROR] Falling back to SalesEngine:', err);
+    try {
+      const fallbackResult = await SalesEngine.processMessage(req.body);
+      return res.json(fallbackResult);
+    } catch (fbErr) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   }
 });
 
 // Server-Sent Events (SSE) Streaming endpoint for fluid typewriting / word streaming
 app.get('/api/chat/stream', async (req, res) => {
-  const { conversationId, message, productId, actionType } = req.query;
+  const { conversationId, message, productId, actionType, orgId } = req.query;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -466,11 +474,12 @@ app.get('/api/chat/stream', async (req, res) => {
       selectedProduct = await db.get('SELECT * FROM products WHERE id = ?', [productId]);
     }
 
-    const result = await SalesEngine.processMessage({
+    const result = await CentralBrainService.processChat({
       conversationId,
       message,
       selectedProduct,
-      actionType
+      actionType,
+      orgId
     });
 
     const fullReply = result.reply;
