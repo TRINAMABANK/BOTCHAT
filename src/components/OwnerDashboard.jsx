@@ -35,8 +35,10 @@ import {
   KeyRound,
   Lock,
   Edit,
-  Pencil
+  Pencil,
+  BookOpen
 } from 'lucide-react';
+import KnowledgeCenter from './admin/KnowledgeCenter';
 
 export const OwnerDashboard = ({
   isOpen = false,
@@ -877,6 +879,18 @@ export const OwnerDashboard = ({
             <Settings size={16} />
             <span>Cấu hình Robot & Kịch bản bán hàng</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('knowledge')}
+            className={`flex items-center space-x-2 px-5 py-3 rounded-t-2xl font-bold transition-all text-xs sm:text-sm ${
+              activeTab === 'knowledge'
+                ? 'bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 text-slate-950 shadow-[0_0_20px_rgba(0,240,255,0.5)]'
+                : 'text-cyan-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <BookOpen size={16} />
+            <span>Trung Tâm Tri Thức AI (14 Phân hệ)</span>
+          </button>
         </div>
 
         {/* 4. TAB CONTENT BODY */}
@@ -1680,6 +1694,11 @@ export const OwnerDashboard = ({
                 </button>
               </div>
             </form>
+          )}
+
+          {/* TAB 4: KNOWLEDGE CENTER (14 PHÂN HỆ) */}
+          {activeTab === 'knowledge' && (
+            <KnowledgeCenter orgId="org_default" />
           )}
         </div>
       </div>

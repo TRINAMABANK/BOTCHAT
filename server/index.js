@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import db, { initDatabase } from './db.js';
 import SalesEngineAdapter from './adapters/salesEngineAdapter.js';
 import CentralBrainService from './services/centralBrainService.js';
+import knowledgeRoutes from './routes/knowledgeRoutes.js';
 const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 
@@ -33,6 +34,9 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 app.use('/uploads', express.static(uploadsDir));
+
+// Mount TRÍ AI Ultimate Robot Knowledge Center APIs
+app.use('/api/knowledge', knowledgeRoutes);
 
 // Anti-tamper & Security headers
 app.use((req, res, next) => {
