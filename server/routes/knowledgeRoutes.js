@@ -11,11 +11,15 @@ import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import db from '../db.js';
 import { RagService } from '../services/ragService.js';
 import { ExcelParser } from '../services/parsers/excelParser.js';
 import { WebSearchService } from '../services/webSearchService.js';
 import { CentralBrainService } from '../services/centralBrainService.js';
+
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -148,23 +152,53 @@ router.post('/documents/upload', async (req, res) => {
 
     // 2. Text / PDF / DOC document
     let contentToIngest = rawText || '';
-    if (!contentToIngest && dataUrl) {
-      // In a real environment, pdf-parse / mammoth can be used. For text/base64:
+    let pageCount = 1;
+    let savedFilePath = null;
+
+    if (dataUrl) {
       const base64Data = dataUrl.replace(/^data:.*?;base64,/, '');
-      contentToIngest = Buffer.from(base64Data, 'base64').toString('utf-8');
+      const fileBuffer = Buffer.from(base64Data, 'base64');
+
+      // Save raw file to disk for persistence & future audits
+      const savedFileName = `${Date.now()}_${(fileName || `doc.${ext}`).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      savedFilePath = path.join(docsUploadDir, savedFileName);
+      fs.writeFileSync(savedFilePath, fileBuffer);
+
+      if (ext === 'pdf') {
+        try {
+          const pdfData = await pdfParse(fileBuffer);
+          contentToIngest = pdfData.text || '';
+          pageCount = pdfData.numpages || 1;
+        } catch (pdfErr) {
+          console.warn('[PDF PARSE PRIMARY FAILED]', pdfErr.message);
+          try {
+            const latinBuf = Buffer.from(fileBuffer.toString('binary'), 'binary');
+            const pdfData2 = await pdfParse(latinBuf);
+            contentToIngest = pdfData2.text || '';
+            pageCount = pdfData2.numpages || 1;
+          } catch (e2) {
+            console.error('[PDF PARSE FALLBACK FAILED]', e2.message);
+            contentToIngest = fileBuffer.toString('utf-8');
+          }
+        }
+      } else {
+        contentToIngest = fileBuffer.toString('utf-8');
+      }
     }
 
     if (!contentToIngest.trim()) {
-      return res.status(400).json({ success: false, error: 'Tài liệu không có nội dung văn bản hợp lệ.' });
+      return res.status(400).json({ success: false, error: 'Tài liệu không có nội dung văn bản hợp lệ hoặc không trích xuất được chữ.' });
     }
 
     const ingested = await RagService.ingestDocument({
       title: docTitle,
       fileType: ext,
+      filePath: savedFilePath,
       content: contentToIngest,
       orgId,
       scope,
-      approvalStatus
+      approvalStatus,
+      pageCount
     });
 
     res.json({

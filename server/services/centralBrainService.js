@@ -187,14 +187,24 @@ export class CentralBrainService {
     const citations = [];
     let intermediateContext = '';
 
-    const isSales = SalesEngineAdapter.isSalesInquiry(message) || Boolean(selectedProduct) || Boolean(actionType);
     const lower = message.toLowerCase();
     const isExcelQuery = lower.includes('excel') || lower.includes('bang tinh') || lower.includes('bảng tính') || lower.includes('tổng cộng') || lower.includes('doanh thu');
-    const isDocQuery = lower.includes('tai lieu') || lower.includes('tài liệu') || lower.includes('quy trinh') || lower.includes('chinh sach') || lower.includes('hướng dẫn');
+    const isDocExplicitQuery = lower.includes('tai lieu') || lower.includes('tài liệu') || lower.includes('quy trinh') || lower.includes('chinh sach') || lower.includes('hướng dẫn') || lower.includes('quy che') || lower.includes('quy chế') || lower.includes('quyet dinh') || lower.includes('quyết định') || lower.includes('dieu chuyen') || lower.includes('điều chuyển') || lower.includes('nam a bank') || lower.includes('namabank') || lower.includes('thu tuc') || lower.includes('thủ tục') || lower.includes('data upload') || lower.includes('du lieu');
     const isWebSearch = lower.includes('tin tuc') || lower.includes('thoi tiet') || lower.includes('internet') || lower.includes('tim tren mang');
 
-    // 1. Sales Engine Priority (bảo toàn nghiệp vụ bán hàng & Cột 2)
-    if (isSales && !isExcelQuery && !isDocQuery && !isWebSearch) {
+    // 1. Always evaluate RAG Knowledge Base early so ingested documents are accessible
+    const ragChunks = await RagService.searchKnowledge({
+      query: message,
+      orgId,
+      limit: 4
+    });
+
+    const hasStrongRagMatch = ragChunks.length > 0 && (ragChunks[0].score >= 1.5 || isDocExplicitQuery);
+
+    const isSales = (SalesEngineAdapter.isSalesInquiry(message) || Boolean(selectedProduct) || Boolean(actionType)) && !hasStrongRagMatch && !isDocExplicitQuery;
+
+    // 2. Sales Engine Priority (bảo toàn nghiệp vụ bán hàng & Cột 2 khi hỏi sản phẩm/đặt hàng)
+    if (isSales && !isExcelQuery && !isDocExplicitQuery && !isWebSearch) {
       toolsUsed.push('consult_sales_engine');
       const salesResult = await SalesEngineAdapter.processMessage({
         conversationId,
@@ -222,7 +232,7 @@ export class CentralBrainService {
       };
     }
 
-    // 2. Excel Query Tool
+    // 3. Excel Query Tool
     if (isExcelQuery) {
       toolsUsed.push('query_excel_data');
       const excelRes = await ExcelParser.queryData({
@@ -238,12 +248,7 @@ export class CentralBrainService {
       }
     }
 
-    // 3. Knowledge Base Search Tool (RAG)
-    const ragChunks = await RagService.searchKnowledge({
-      query: message,
-      orgId,
-      limit: 3
-    });
+    // 4. Knowledge Base Search Tool (RAG)
     if (ragChunks.length > 0) {
       toolsUsed.push('search_knowledge_base');
       intermediateContext += '\n[Kiến thức từ Kho Tài liệu]:\n' + ragChunks.map(c => `${c.citationLabel}\n${c.content}`).join('\n\n');

@@ -153,6 +153,7 @@ export class VoiceRecognizer {
       return false;
     }
 
+    this.retryCount = 0;
     return this._startRecognitionInstance();
   }
 
@@ -213,15 +214,15 @@ export class VoiceRecognizer {
         return;
       }
 
-      // 2. Nếu là lỗi network tạm thời ở lần đầu tiên (thường do socket cũ chưa giải phóng xong), thử tự động retry 1 lần sau 350ms
-      if (errCode === 'network' && this.retryCount === 0 && !this.userManuallyStopped) {
+      // 2. Nếu là lỗi network tạm thời (thường do socket trình duyệt chưa giải phóng xong hoặc kết nối Google Speech chập chờn), thử tự động retry tối đa 2 lần
+      if (errCode === 'network' && this.retryCount < 2 && !this.userManuallyStopped) {
         this.retryCount++;
         this._cleanupCurrentInstance();
         setTimeout(() => {
           if (!this.userManuallyStopped && !this.hasSentFinal) {
             this._startRecognitionInstance();
           }
-        }, 350);
+        }, 500);
         return;
       }
 
@@ -241,7 +242,7 @@ export class VoiceRecognizer {
           break;
         case 'network':
           friendlyMsg =
-            'Không thể kết nối đến máy chủ nhận diện giọng nói (do mạng chậm hoặc bị chặn bởi VPN/chặn quảng cáo). Bạn hãy bấm "Thử lại" hoặc dùng Google Chrome / Microsoft Edge nhé!';
+            'Dịch vụ giọng nói tạm thời gián đoạn kết nối. Bạn hãy thử bấm micro lại, hoặc gõ phím trực tiếp vào ô chat nhé (Khuyên dùng trình duyệt Google Chrome hoặc Microsoft Edge)!';
           break;
         case 'aborted':
           // User aborted, no need to alert

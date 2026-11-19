@@ -306,6 +306,20 @@ function extractCustomerName(rawMsg, allowBare = false) {
     .join(' ');
 }
 
+/**
+ * Safely check if a target text contains a word/phrase with strict word boundaries
+ * to prevent substring false positives (e.g., 'ultra' in Laptop falsely matching 'tra').
+ */
+function hasWordMatch(text, word) {
+  if (!text || !word) return false;
+  const cleanWord = removeVietnameseTones(String(word)).trim().toLowerCase();
+  const cleanText = removeVietnameseTones(String(text)).trim().toLowerCase();
+  if (!cleanWord || !cleanText) return false;
+  const escaped = cleanWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(?:^|\\s|[.,;!?:()\\[\\]{}/<>-])${escaped}(?:$|\\s|[.,;!?:()\\[\\]{}/<>-])`, 'i');
+  return regex.test(cleanText);
+}
+
 const STOP_WORDS = new Set([
   'cho', 'xin', 'hoi', 'muon', 'can', 'tim', 'mua', 'nhung', 'loai', 'mau',
   'nao', 'bao', 'nhieu', 'tien', 'gia', 'duoi', 'tren', 'tam', 'khoang', 'khong',
@@ -571,10 +585,16 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
         (/\b(may hut am|hut am|edison)\b/i.test(queryToCheck) && (normProdName.includes('hut am') || normField.includes('gia dung'))) ||
         (/\b(ban|ghe|ban ghe|sofa|noi that|giam doc)\b/i.test(queryToCheck) && (normField.includes('noi that') || normProdName.includes('ban') || normProdName.includes('ghe'))) ||
         (/\b(dem tien|may dem tien|xiudun|xinda|julong|hang tin|hangtin)\b/i.test(queryToCheck) && (normField.includes('dem tien') || normProdName.includes('dem tien'))) ||
+        (/\b(may in|muc in|may scan|hop muc|may photocopy)\b/i.test(queryToCheck) && (normField.includes('may in') || normField.includes('muc in') || normField.includes('may scan') || normProdName.includes('may in') || normProdName.includes('brother'))) ||
+        (/\b(ca phe|cafe|espresso|rang moc)\b/i.test(queryToCheck) && (normField.includes('ca phe') || normProdName.includes('ca phe'))) ||
+        (/\b(matcha|bot matcha)\b/i.test(queryToCheck) && (normField.includes('matcha') || normProdName.includes('matcha'))) ||
+        (/\b(nuoc hoa|my pham|tay te bao chet|cindy bloom|aroma flower)\b/i.test(queryToCheck) && (normField.includes('nuoc hoa') || normField.includes('my pham') || normProdName.includes('nuoc hoa') || normProdName.includes('te bao chet'))) ||
+        (/\b(cpu|chip|thinkcentre)\b/i.test(queryToCheck) && (normField.includes('cpu') || normProdName.includes('thinkcentre'))) ||
+        (/\b(tablet|may tinh bang|ipad)\b/i.test(queryToCheck) && (normField.includes('tablet') || normProdName.includes('tablet'))) ||
         (/\b(laptop|macbook|may tinh|man hinh|vivobook|ideapad|omnibook)\b/i.test(queryToCheck) && (normField.includes('cong nghe') || normField.includes('laptop') || normProdName.includes('laptop') || normProdName.includes('macbook')));
 
-      const hasCategoryMatch = cleanNormMsg.includes(normField) || (normCore && normCore.length >= 3 && normCore.includes(normField));
-      const hasProdNameMatch = normCore && normCore.length >= 3 && normProdName.includes(normCore);
+      const hasCategoryMatch = hasWordMatch(cleanNormMsg, normField) || (normCore && normCore.length >= 2 && hasWordMatch(normCore, normField));
+      const hasProdNameMatch = normCore && normCore.length >= 2 && hasWordMatch(normProdName, normCore);
 
       if (!isDomainKeywordOfThisProd && !hasCategoryMatch && !hasProdNameMatch) {
         return 0;
@@ -585,8 +605,8 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   // Exact phrase match
   if (cleanNormMsg.includes(normProdName)) return 100;
   if (normProdName.includes(cleanNormMsg.trim()) && cleanNormMsg.trim().length >= 6) return 96;
-  if (normCore && normCore.length >= 4 && normProdName.includes(normCore)) return 95;
-  if (normCore && normProdName.length >= 4 && normCore.includes(normProdName)) return 96;
+  if (normCore && normCore.length >= 4 && hasWordMatch(normProdName, normCore)) return 95;
+  if (normCore && normProdName.length >= 4 && hasWordMatch(normCore, normProdName)) return 96;
 
   // Meaningful tokens - loại bỏ cả các đơn vị đo lường đơn lẻ (inch, lit, hp, w) để không làm sai lệch tỉ lệ tương đồng
   const UNIT_ONLY_TOKENS = new Set(['inch', 'in', 'lit', 'l', 'hp', 'ngua', 'kg', 'g', 'gr', 'w', 'kw', 'v', 'hz', 'cm', 'mm', 'm']);
@@ -840,8 +860,9 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
 
   const hasExplicitDomainKeyword = [
     'tivi', 'tv', 'laptop', 'tu lanh', 'may lanh', 'dieu hoa', 'ghe', 'ban',
-    'dem tien', 'ket sat', 'may in', 'dien thoai', 'tra', 'may hut am', 'may bo tien'
-  ].some((kw) => cleanNormMsg.includes(kw));
+    'dem tien', 'ket sat', 'may in', 'dien thoai', 'tra', 'may hut am', 'may bo tien',
+    'ca phe', 'cafe', 'matcha', 'nuoc hoa', 'my pham', 'da chet', 'cpu', 'tablet'
+  ].some((kw) => hasWordMatch(cleanNormMsg, kw));
 
   const hasSpecificBrandOrModel = allProducts.some((p) => {
     const normP = removeVietnameseTones(p.name || '').toLowerCase();
@@ -959,10 +980,10 @@ export function findMatchingField(normMsg, allProducts) {
   const fields = [...new Set(allProducts.map((p) => p.field).filter(Boolean))];
   const cleanNorm = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
 
-  // 1. Direct normalized field name match
+  // 1. Direct normalized field name match using word boundaries
   for (const f of fields) {
-    const normF = removeVietnameseTones(f).toLowerCase();
-    if (cleanNorm.includes(normF)) {
+    const normF = removeVietnameseTones(f).trim().toLowerCase();
+    if (hasWordMatch(cleanNorm, normF) || cleanNorm.includes(normF)) {
       return f;
     }
   }
@@ -977,7 +998,13 @@ export function findMatchingField(normMsg, allProducts) {
     { regex: /\b(ban|ghe|ban ghe|giam doc|van phong|ban lam viec|ban hop|ghe xoay|ghe luoi|ghe gaming|sofa|tu ho so|noi that)\b/i, fieldKeywords: ['noi that'] },
     { regex: /\b(dem tien|may dem tien|xiudun|xinda|julong|lidix|hang tin|hangtin|ls-200f|bc-39f|bc-35|2189wv|2196wv)\b/i, fieldKeywords: ['dem tien'] },
     { regex: /\b(laptop|macbook|may tinh|may vi tinh|vivobook|ideapad|omnibook|legion|man hinh pc|man hinh lenovo)\b/i, fieldKeywords: ['laptop', 'cong nghe'] },
-    { regex: /\b(bo tien|dong chung tu|may in|may fax|may photocopy|thiet bi van phong)\b/i, fieldKeywords: ['thiet bi', 'van phong'] },
+    { regex: /\b(may in|muc in|may scan|hop muc|may photocopy|in an)\b/i, fieldKeywords: ['may in', 'muc in', 'may scan', 'in an', 'van phong'] },
+    { regex: /\b(ca phe|cafe|espresso|rang moc)\b/i, fieldKeywords: ['ca phe', 'cafe'] },
+    { regex: /\b(matcha|bot matcha)\b/i, fieldKeywords: ['matcha'] },
+    { regex: /\b(nuoc hoa|my pham|tay te bao chet|cindy bloom|aroma flower)\b/i, fieldKeywords: ['nuoc hoa', 'my pham', 'da chet'] },
+    { regex: /\b(cpu|chip|vi xu ly|thinkcentre)\b/i, fieldKeywords: ['cpu', 'thinkcentre'] },
+    { regex: /\b(tablet|may tinh bang|ipad)\b/i, fieldKeywords: ['tablet', 'may tinh bang'] },
+    { regex: /\b(bo tien|dong chung tu|thiet bi van phong)\b/i, fieldKeywords: ['thiet bi', 'van phong'] },
     { regex: /\b(ket sat|bofa|viet tiep)\b/i, fieldKeywords: ['ket sat'] }
   ];
 
@@ -990,11 +1017,11 @@ export function findMatchingField(normMsg, allProducts) {
     }
   }
 
-  // 3. Fallback: Check if any product name in DB matches query words and inherit its field
+  // 3. Fallback: Check if any product name in DB matches query words with strict word boundary
   for (const p of allProducts) {
     const pNormName = removeVietnameseTones(p.name || '').toLowerCase();
     const coreTarget = extractCoreProductQuery(normMsg) || cleanNorm;
-    if (coreTarget && coreTarget.length >= 3 && pNormName.includes(coreTarget)) {
+    if (coreTarget && coreTarget.length >= 2 && hasWordMatch(pNormName, coreTarget)) {
       return p.field;
     }
   }
