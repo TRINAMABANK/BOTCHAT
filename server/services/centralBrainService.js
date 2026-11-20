@@ -16,6 +16,7 @@ import { SalesEngineAdapter, SALES_ENGINE_TOOL_DEFINITION } from '../adapters/sa
 import { RagService } from './ragService.js';
 import { ExcelParser } from './parsers/excelParser.js';
 import { WebSearchService } from './webSearchService.js';
+import { QuotationService } from './quotationService.js';
 
 /**
  * Tool Specifications for Central Brain Function Calling
@@ -23,6 +24,42 @@ import { WebSearchService } from './webSearchService.js';
 export const CENTRAL_BRAIN_TOOLS = [
   // 1. Sales Engine Tool
   SALES_ENGINE_TOOL_DEFINITION,
+
+  // 1B. Supplier Catalog & Quotation Tools
+  {
+    type: 'function',
+    function: {
+      name: 'lookup_supplier_products',
+      description: 'Tra cứu sản phẩm, thông số kỹ thuật, hình ảnh và đơn giá tham khảo từ kho sản phẩm nhà cung cấp đã thu thập và kiểm duyệt.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Tên hoặc từ khóa sản phẩm cần tìm' },
+          category: { type: 'string', description: 'Danh mục sản phẩm (ví dụ: Laptop, Máy in, Linh kiện...)' },
+          brand: { type: 'string', description: 'Hãng sản xuất (Dell, HP, Canon...)' },
+          max_price: { type: 'number', description: 'Mức giá tối đa (VNĐ)' }
+        },
+        required: ['query']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_formal_quotation',
+      description: 'Thiết lập bảng báo giá sản phẩm chính thức với mã báo giá, chi tiết đơn giá, số lượng, thuế VAT 10% và ghi rõ nguồn giá tham khảo/xác nhận khi khách hàng yêu cầu báo giá.',
+      parameters: {
+        type: 'object',
+        properties: {
+          product_name: { type: 'string', description: 'Tên sản phẩm cần lập báo giá' },
+          quantity: { type: 'integer', description: 'Số lượng cần mua (mặc định 1 nếu khách chưa nói)' },
+          customer_name: { type: 'string', description: 'Tên khách hàng hoặc tên công ty' },
+          customer_phone: { type: 'string', description: 'Số điện thoại liên hệ' }
+        },
+        required: ['product_name']
+      }
+    }
+  },
 
   // 2. Knowledge Base Search Tool
   {
@@ -191,7 +228,82 @@ export class CentralBrainService {
     const isExcelQuery = lower.includes('excel') || lower.includes('bang tinh') || lower.includes('bảng tính') || lower.includes('tổng cộng') || lower.includes('doanh thu');
     const isDocExplicitQuery = lower.includes('tai lieu') || lower.includes('tài liệu') || lower.includes('quy trinh') || lower.includes('chinh sach') || lower.includes('hướng dẫn') || lower.includes('quy che') || lower.includes('quy chế') || lower.includes('quyet dinh') || lower.includes('quyết định') || lower.includes('dieu chuyen') || lower.includes('điều chuyển') || lower.includes('nam a bank') || lower.includes('namabank') || lower.includes('thu tuc') || lower.includes('thủ tục') || lower.includes('data upload') || lower.includes('du lieu');
     const isWebSearch = lower.includes('tin tuc') || lower.includes('thoi tiet') || lower.includes('internet') || lower.includes('tim tren mang');
-    const isExplicitPurchase = (/\b(mua|ban|dat hang|dat mua|bao gia|gia ca|gia bao nhieu|bao nhieu tien|mua ngay|san pham|tu van mau)\b/i.test(message));
+    const isQuotationRequest = /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(message);
+    const isExplicitPurchase = (/\b(mua|ban|dat hang|dat mua|gia ca|gia bao nhieu|bao nhieu tien|mua ngay|san pham|tu van mau)\b/i.test(message));
+
+    // 0. Formal Quotation Engine Routing (Section VI - Cơ Chế Báo Giá)
+    if (isQuotationRequest && !isDocExplicitQuery && !isExcelQuery) {
+      toolsUsed.push('generate_formal_quotation');
+      const qtyMatch = message.match(/\b(\d+)\s*(máy|cái|chiếc|bộ|sp|sản phẩm)?/i);
+      const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+
+      const cleanedQuery = message
+        .replace(/(cho tôi|cho e|cho em|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|\d+|máy|cái|chiếc|bộ)/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      let matchedProds = await QuotationService.searchSupplierCatalog({ query: cleanedQuery || 'máy', limit: 3 });
+
+      if (matchedProds.length === 0) {
+        const dbProds = await db.all(`
+          SELECT * FROM products 
+          WHERE is_active = 1 AND is_approved = 1 AND (name LIKE ? OR field LIKE ?)
+          ORDER BY price ASC
+          LIMIT 3
+        `, [`%${cleanedQuery || ''}%`, `%${cleanedQuery || ''}%`]);
+
+        matchedProds = dbProds.map(dp => ({
+          id: dp.id,
+          name: dp.name,
+          sku: dp.sku || `SKU-${dp.id}`,
+          brand: dp.group_name || 'Chính hãng',
+          category: dp.field,
+          salePrice: dp.price,
+          unit: 'cái',
+          priceConfirmationLevel: 'SUPPLIER_VERIFIED',
+          specs: {}
+        }));
+      }
+
+      if (matchedProds.length > 0) {
+        const primaryProd = matchedProds[0];
+        const quote = await QuotationService.createQuotation({
+          customerName: customerInfo?.name || 'Quý Khách Hàng',
+          customerPhone: customerInfo?.phone || '',
+          customerCompany: customerInfo?.company || '',
+          conversationId,
+          items: [{
+            productId: primaryProd.id,
+            productName: primaryProd.name,
+            sku: primaryProd.sku,
+            quantity: qty,
+            unit: primaryProd.unit || 'cái',
+            unitPrice: primaryProd.salePrice,
+            priceType: primaryProd.priceConfirmationLevel || 'REFERENCE_ONLY'
+          }],
+          vatPercent: 10
+        });
+
+        return {
+          success: true,
+          reply: `Dạ em xin gửi bảng báo giá chính thức cho **${primaryProd.name}** (Số lượng: ${qty} ${primaryProd.unit || 'cái'}) theo thông tin từ kho nhà cung cấp ạ:\n\n${quote.markdown}`,
+          revealCatalog: true,
+          recommendedField: primaryProd.category || null,
+          recommendedProduct: primaryProd,
+          stage: 'CONSULTING',
+          requiresInput: null,
+          suggestedActions: [
+            { id: 'confirm_order', label: 'Xác nhận đặt hàng theo báo giá' },
+            { id: 'adjust_qty', label: 'Thay đổi số lượng hoặc cấu hình' }
+          ],
+          citations: [{
+            source: 'quotation_engine',
+            label: `[Mã báo giá: ${quote.quoteCode}]`
+          }],
+          toolsUsed
+        };
+      }
+    }
 
     // 1. Direct Sales Routing: If customer explicitly asks to purchase/inquire product and NOT asking for documents
     if (isExplicitPurchase && !isDocExplicitQuery && !isExcelQuery) {
@@ -356,16 +468,24 @@ Nguyên tắc:
 
     const systemPrompt = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng của Quang Nhựt Trí.
 Bạn có quyền truy cập các công cụ:
-1. consult_sales_engine: Tư vấn sản phẩm, báo giá, tồn kho, kiểm tra danh mục và chốt đơn mua hàng.
-2. search_knowledge_base: Tra cứu kho tài liệu quy chuẩn, sổ tay tri thức chung (Global) hoặc nội bộ doanh nghiệp.
-3. query_excel_data: Tính toán và truy vấn số liệu chính xác trên các bảng tính Excel/CSV.
-4. search_web_internet: Tra cứu thông tin trên Internet.
-Hãy chủ động gọi đúng công cụ khi cần thiết.`;
+1. consult_sales_engine: Tư vấn sản phẩm tiêu biểu, tồn kho, kiểm tra danh mục và chốt đơn mua hàng.
+2. lookup_supplier_products: Tra cứu sản phẩm, thông số kỹ thuật và đơn giá từ kho nhà cung cấp đã thu thập và kiểm duyệt.
+3. generate_formal_quotation: Khởi tạo bảng báo giá chính thức kèm mã báo giá, bảng tính chi tiết, VAT 10% và ghi rõ nguồn giá khi khách hàng hỏi hoặc xin báo giá.
+4. search_knowledge_base: Tra cứu kho tài liệu quy chuẩn, sổ tay tri thức chung (Global) hoặc nội bộ doanh nghiệp.
+5. query_excel_data: Tính toán và truy vấn số liệu chính xác trên các bảng tính Excel/CSV.
+6. search_web_internet: Tra cứu thông tin trên Internet.
+Hãy chủ động gọi đúng công cụ khi cần thiết. Khi khách hàng hỏi xin báo giá hoặc mua hàng số lượng cụ thể, BẮT BUỘC gọi generate_formal_quotation để lập bảng báo giá chuẩn.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: message }
     ];
+
+    const isQuotation = /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(message);
+    let toolChoice = 'auto';
+    if (isQuotation) {
+      toolChoice = { type: 'function', function: { name: 'generate_formal_quotation' } };
+    }
 
     // Initial tool calling request
     const res = await fetch(`${baseUrl}/chat/completions`, {
@@ -378,7 +498,7 @@ Hãy chủ động gọi đúng công cụ khi cần thiết.`;
         model,
         messages,
         tools: CENTRAL_BRAIN_TOOLS,
-        tool_choice: 'auto',
+        tool_choice: toolChoice,
         temperature: 0.5
       })
     });
@@ -420,6 +540,78 @@ Hãy chủ động gọi đúng công cụ khi cần thiết.`;
           });
           kResults.forEach(c => citations.push(c));
           toolResultStr = JSON.stringify(kResults);
+        } else if (fnName === 'lookup_supplier_products') {
+          const sResults = await QuotationService.searchSupplierCatalog({
+            query: args.query,
+            category: args.category,
+            brand: args.brand,
+            maxPrice: args.max_price
+          });
+          toolResultStr = JSON.stringify(sResults);
+          if (sResults.length > 0) {
+            uiDirectives.revealCatalog = true;
+            uiDirectives.recommendedProduct = sResults[0];
+            uiDirectives.recommendedField = sResults[0].category;
+          }
+        } else if (fnName === 'generate_formal_quotation') {
+          let matchedProds = await QuotationService.searchSupplierCatalog({ query: args.product_name, limit: 1 });
+          let unitPrice = 0;
+          let prodId = null;
+          let sku = '';
+          let unit = 'cái';
+          let priceType = 'REFERENCE_ONLY';
+
+          if (matchedProds.length > 0) {
+            const p = matchedProds[0];
+            unitPrice = p.salePrice;
+            prodId = p.id;
+            sku = p.sku;
+            unit = p.unit;
+            priceType = p.priceConfirmationLevel || 'REFERENCE_ONLY';
+            uiDirectives.revealCatalog = true;
+            uiDirectives.recommendedProduct = p;
+            uiDirectives.recommendedField = p.category;
+          } else {
+            const dbP = await db.get('SELECT * FROM products WHERE is_active = 1 AND is_approved = 1 AND name LIKE ?', [`%${args.product_name}%`]);
+            if (dbP) {
+              unitPrice = dbP.price;
+              prodId = dbP.id;
+              sku = dbP.sku;
+              priceType = 'SUPPLIER_VERIFIED';
+              uiDirectives.revealCatalog = true;
+              uiDirectives.recommendedProduct = dbP;
+              uiDirectives.recommendedField = dbP.field;
+            }
+          }
+
+          const qRes = await QuotationService.createQuotation({
+            customerName: args.customer_name || customerInfo?.name || 'Quý Khách Hàng',
+            customerPhone: args.customer_phone || customerInfo?.phone || '',
+            conversationId,
+            items: [{
+              productId: prodId,
+              productName: args.product_name,
+              sku,
+              quantity: args.quantity || 1,
+              unit,
+              unitPrice,
+              priceType
+            }],
+            vatPercent: 10
+          });
+
+          citations.push({
+            source: 'quotation_engine',
+            label: `[Mã báo giá: ${qRes.quoteCode}]`
+          });
+          toolResultStr = JSON.stringify({
+            quoteCode: qRes.quoteCode,
+            totalAmount: qRes.subtotal,
+            vatAmount: qRes.vatAmount,
+            finalAmount: qRes.finalAmount,
+            validUntil: qRes.validUntil,
+            markdownTable: qRes.markdown
+          });
         } else if (fnName === 'query_excel_data') {
           const xResults = await ExcelParser.queryData(args);
           toolResultStr = JSON.stringify(xResults);

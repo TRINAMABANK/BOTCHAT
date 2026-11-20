@@ -39,6 +39,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import KnowledgeCenter from './admin/KnowledgeCenter';
+import SupplierWebsiteCenter from './admin/SupplierWebsiteCenter';
 
 export const OwnerDashboard = ({
   isOpen = false,
@@ -891,6 +892,18 @@ export const OwnerDashboard = ({
             <BookOpen size={16} />
             <span>Trung Tâm Tri Thức AI (14 Phân hệ)</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('supplier_websites')}
+            className={`flex items-center space-x-2 px-5 py-3 rounded-t-2xl font-bold transition-all text-xs sm:text-sm ${
+              activeTab === 'supplier_websites'
+                ? 'bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400 text-slate-950 shadow-[0_0_20px_rgba(0,240,255,0.5)]'
+                : 'text-cyan-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Globe size={16} />
+            <span>Kho Website Nhà Cung Cấp & Báo Giá</span>
+          </button>
         </div>
 
         {/* 4. TAB CONTENT BODY */}
@@ -1699,6 +1712,11 @@ export const OwnerDashboard = ({
           {/* TAB 4: KNOWLEDGE CENTER (14 PHÂN HỆ) */}
           {activeTab === 'knowledge' && (
             <KnowledgeCenter orgId="org_default" />
+          )}
+
+          {/* TAB 5: KHO WEBSITE NHÀ CUNG CẤP & BÁO GIÁ (12 PHÂN HỆ) */}
+          {activeTab === 'supplier_websites' && (
+            <SupplierWebsiteCenter />
           )}
         </div>
       </div>

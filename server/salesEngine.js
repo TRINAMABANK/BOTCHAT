@@ -1517,11 +1517,21 @@ export class SalesEngine {
     const now = new Date().toISOString();
     let convId = conversationId;
 
-    // 1. Load live settings & full approved product catalog from DB
-    const [settingsList, allProducts] = await Promise.all([
+    // 1. Load live settings & full approved product catalog from DB (including approved supplier catalog)
+    const [settingsList, rawProducts, rawCrawledProducts] = await Promise.all([
       db.all('SELECT key, value FROM bot_settings'),
-      db.all('SELECT * FROM products WHERE is_active = 1 AND is_approved = 1 ORDER BY field ASC, price ASC')
+      db.all('SELECT * FROM products WHERE is_active = 1 AND is_approved = 1 ORDER BY field ASC, price ASC'),
+      db.all(`
+        SELECT id, name, category as field, brand as group_name, sale_price as price,
+               specs_json as specs, description, image_url, sku,
+               1 as is_active, 1 as is_approved, price_confirmation_level
+        FROM crawled_products 
+        WHERE approval_status = 'APPROVED'
+        ORDER BY sale_price ASC
+      `).catch(() => [])
     ]);
+
+    const allProducts = [...rawProducts, ...rawCrawledProducts];
 
     const settings = settingsList.reduce((acc, curr) => {
       acc[curr.key] = curr.value;

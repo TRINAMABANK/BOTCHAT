@@ -4,6 +4,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { runPhase2Migrations } from './migrations/schema_phase2.js';
+import { runCrawlerMigrations } from './migrations/schema_phase_crawler.js';
 
 dotenv.config();
 
@@ -840,6 +841,13 @@ export async function initDatabase() {
     await runPhase2Migrations(db);
   } catch (err) {
     console.error('[MIGRATION ERROR] Phase 2 migration error:', err);
+  }
+
+  // 10. TRÍ AI ULTIMATE ROBOT - Website-to-Quotation Schema Extensions
+  try {
+    await runCrawlerMigrations(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Crawler migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');
