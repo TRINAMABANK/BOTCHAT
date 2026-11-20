@@ -85,7 +85,7 @@ export const CENTRAL_BRAIN_TOOLS = [
     type: 'function',
     function: {
       name: 'search_knowledge_base',
-      description: 'Tra cứu tài liệu, quy trình, chính sách, sổ tay kiến thức trong kho tri thức chung (Global) hoặc kho tri thức riêng của doanh nghiệp.',
+      description: 'CHỈ DÙNG khi người dùng hỏi rõ về tài liệu quy chuẩn, quy trình, chính sách, quy chế hoặc văn bản pháp quy nội bộ. TUYỆT ĐỐI KHÔNG dùng khi tư vấn bán hàng, hỏi mua sản phẩm hoặc hỏi giá.',
       parameters: {
         type: 'object',
         properties: {
@@ -245,7 +245,7 @@ export class CentralBrainService {
 
     const lower = message.toLowerCase();
     const isExcelQuery = lower.includes('excel') || lower.includes('bang tinh') || lower.includes('bảng tính') || lower.includes('tổng cộng') || lower.includes('doanh thu');
-    const isDocExplicitQuery = lower.includes('tai lieu') || lower.includes('tài liệu') || lower.includes('quy trinh') || lower.includes('chinh sach') || lower.includes('hướng dẫn') || lower.includes('quy che') || lower.includes('quy chế') || lower.includes('quyet dinh') || lower.includes('quyết định') || lower.includes('dieu chuyen') || lower.includes('điều chuyển') || lower.includes('nam a bank') || lower.includes('namabank') || lower.includes('thu tuc') || lower.includes('thủ tục') || lower.includes('data upload') || lower.includes('du lieu');
+    const isDocExplicitQuery = /(tài liệu|tai lieu|quy trình|quy trinh|chính sách|chinh sach|hướng dẫn|huong dan|quy chế|quy che|quyết định|quyet dinh|điều chuyển|dieu chuyen|nam a bank|namabank|thủ tục|thu tuc|công văn|cong van|văn bản|van ban|nội bộ|noi bo|sổ tay|so tay|quy định|quy dinh|hồ sơ|ho so)/i.test(message);
     const isWebSearch = lower.includes('tin tuc') || lower.includes('thoi tiet') || lower.includes('internet') || lower.includes('tim tren mang') || lower.includes('tra cuu mang');
     const isQuotationRequest = /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(message);
     const isExplicitPurchase = (/\b(mua|ban|dat hang|dat mua|gia ca|gia bao nhieu|bao nhieu tien|mua ngay|san pham|tu van mau)\b/i.test(message));
@@ -339,76 +339,66 @@ export class CentralBrainService {
       }
     }
 
-    // 1. Direct Sales Routing: If customer explicitly asks to purchase/inquire product and NOT asking for documents
-    if (isExplicitPurchase && !isDocExplicitQuery && !isExcelQuery) {
-      toolsUsed.push('consult_sales_engine');
-      const salesResult = await SalesEngineAdapter.processMessage({
-        conversationId,
-        message,
-        selectedProduct,
-        actionType,
-        customerInfo,
-        clientDevice,
-        orgId
+    // 1. Explicit Internal Corporate Document Query (RAG KNOWLEDGE BASE)
+    // TUYỆT ĐỐI CHỈ KHI NGƯỜI DÙNG HỎI RÕ VỀ TÀI LIỆU, QUY TRÌNH, QUY CHẾ, VĂN BẢN NỘI BỘ
+    if (isDocExplicitQuery) {
+      toolsUsed.push('search_knowledge_base');
+      const ragChunks = await RagService.searchKnowledge({
+        query: message,
+        orgId,
+        limit: 4
       });
+
+      if (ragChunks.length > 0) {
+        intermediateContext += '\n[Kiến thức từ Kho Tài liệu]:\n' + ragChunks.map(c => `${c.citationLabel}\n${c.content}`).join('\n\n');
+        ragChunks.forEach(c => {
+          citations.push({
+            source: 'knowledge_doc',
+            documentId: c.documentId,
+            docTitle: c.docTitle,
+            pageNumber: c.pageNumber,
+            sheetName: c.sheetName,
+            label: c.citationLabel
+          });
+        });
+      }
+
+      const docInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng hỗ trợ tra cứu tài liệu quy chuẩn và quy trình nội bộ.
+Nguyên tắc:
+- Dựa vào nội dung tài liệu trích dẫn để giải đáp chính xác, khách quan.
+- Dẫn kèm nguồn trích dẫn theo nhãn [Nguồn: ...].
+- Nếu tài liệu không có thông tin về câu hỏi của người dùng, trả lời trung thực rằng tài liệu hiện có chưa có quy định về nội dung này.
+- Tuyệt đối không đề cập đến việc bán hàng hay sản phẩm thương mại khi đang trả lời về văn bản nội bộ.`;
+
+      const prompt = `${docInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
+
+      let replyText = '';
+      try {
+        replyText = await callGemini(prompt);
+      } catch (e) {
+        replyText = intermediateContext 
+          ? `Dạ, tôi đã tra cứu được quy định liên quan đến "${message}" trong kho tài liệu nội bộ:\n\n${ragChunks.slice(0, 2).map(c => c.content).join('\n\n')}`
+          : `Dạ hiện tại trong kho tài liệu nội bộ chưa có thông tin quy định cụ thể về "${message}" ạ.`;
+      }
+
+      const filteredCitations = citations.filter(c => !c.url?.includes('duckduckgo.com') && !c.label?.toLowerCase().includes('duckduckgo'));
+      if (filteredCitations.length > 0) {
+        await RagService.logCitations(conversationId, randomUUID(), filteredCitations);
+      }
 
       return {
         success: true,
-        reply: sanitizeAiResponse(salesResult.reply),
-        revealCatalog: salesResult.revealCatalog || false,
-        recommendedField: salesResult.recommendedField || null,
-        recommendedProduct: salesResult.recommendedProduct || null,
-        stage: salesResult.stage || 'IDLE',
-        requiresInput: salesResult.requiresInput || null,
-        suggestedActions: salesResult.suggestedActions || [],
-        orderInfo: salesResult.orderInfo || null,
-        leadCaptured: salesResult.leadCaptured || false,
-        citations: [],
+        reply: sanitizeAiResponse(replyText),
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'KNOWLEDGE_CONSULTATION',
+        citations: filteredCitations,
         toolsUsed
       };
     }
 
-    // 2. Evaluate RAG Knowledge Base early so ingested documents are accessible
-    const ragChunks = await RagService.searchKnowledge({
-      query: message,
-      orgId,
-      limit: 4
-    });
-
-    const hasStrongRagMatch = ragChunks.length > 0 && (ragChunks[0].score >= 2.0 || isDocExplicitQuery);
-
-    const isSales = (SalesEngineAdapter.isSalesInquiry(message) || Boolean(selectedProduct) || Boolean(actionType)) && !hasStrongRagMatch && !isDocExplicitQuery;
-
-    // 3. Sales Engine Priority (bảo toàn nghiệp vụ bán hàng & Cột 2)
-    if (isSales && !isExcelQuery && !isDocExplicitQuery && !isWebSearch) {
-      toolsUsed.push('consult_sales_engine');
-      const salesResult = await SalesEngineAdapter.processMessage({
-        conversationId,
-        message,
-        selectedProduct,
-        actionType,
-        customerInfo,
-        clientDevice,
-        orgId
-      });
-
-      return {
-        success: true,
-        reply: sanitizeAiResponse(salesResult.reply),
-        revealCatalog: salesResult.revealCatalog || false,
-        recommendedField: salesResult.recommendedField || null,
-        recommendedProduct: salesResult.recommendedProduct || null,
-        stage: salesResult.stage || 'IDLE',
-        requiresInput: salesResult.requiresInput || null,
-        suggestedActions: salesResult.suggestedActions || [],
-        orderInfo: salesResult.orderInfo || null,
-        leadCaptured: salesResult.leadCaptured || false,
-        citations: [],
-        toolsUsed
-      };
-    }
-
-    // 3. Excel Query Tool
+    // 2. Excel Query Tool
     if (isExcelQuery) {
       toolsUsed.push('query_excel_data');
       const excelRes = await ExcelParser.queryData({
@@ -422,25 +412,35 @@ export class CentralBrainService {
           label: `[Bảng tính: ${excelRes.sheetName}]`
         });
       }
+
+      const excelInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng hỗ trợ tính toán và phân tích bảng tính Excel.
+Nguyên tắc:
+- Dựa trên dữ liệu bảng tính trích xuất để trả lời chính xác, mạch lạc.
+- Dẫn kèm nguồn trích dẫn theo nhãn [Bảng tính: ...].
+- Tuyệt đối không bịa đặt số liệu tài chính.`;
+
+      const prompt = `${excelInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
+
+      let replyText = '';
+      try {
+        replyText = await callGemini(prompt);
+      } catch (e) {
+        replyText = `Dạ, kết quả tra cứu bảng tính cho câu hỏi "${message}":\n\n${JSON.stringify(excelRes.dataPreview?.slice(0, 5) || {})}`;
+      }
+
+      return {
+        success: true,
+        reply: sanitizeAiResponse(replyText),
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'EXCEL_QUERY',
+        citations,
+        toolsUsed
+      };
     }
 
-    // 4. Knowledge Base Search Tool (RAG)
-    if (ragChunks.length > 0) {
-      toolsUsed.push('search_knowledge_base');
-      intermediateContext += '\n[Kiến thức từ Kho Tài liệu]:\n' + ragChunks.map(c => `${c.citationLabel}\n${c.content}`).join('\n\n');
-      ragChunks.forEach(c => {
-        citations.push({
-          source: 'knowledge_doc',
-          documentId: c.documentId,
-          docTitle: c.docTitle,
-          pageNumber: c.pageNumber,
-          sheetName: c.sheetName,
-          label: c.citationLabel
-        });
-      });
-    }
-
-    // 4. Web Search ONLY if user explicitly requested external internet lookups
+    // 3. Web Search ONLY if user explicitly requested external internet lookups
     if (isWebSearch) {
       const webRes = await WebSearchService.search(message, 3);
       const cleanResults = (webRes.results || []).filter(r => r.url && !r.url.includes('duckduckgo.com'));
@@ -456,43 +456,60 @@ export class CentralBrainService {
           });
         });
       }
-    }
 
-    // 5. Synthesize unified response with Gemini
-    const systemInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng.
+      const webInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng tra cứu thông tin Internet.
 Nguyên tắc:
 - Trả lời bằng tiếng Việt lịch sự, thông minh, chuyên nghiệp, súc tích.
 - Khi có dữ liệu trích dẫn được cung cấp, hãy tổng hợp câu trả lời chính xác và dẫn kèm nguồn theo nhãn [Nguồn: ...].
-- Nếu câu hỏi chào hỏi/sức khỏe, hãy đáp lịch sự và sẵn sàng hỗ trợ.
-- Tuyệt đối không dẫn nguồn duckduckgo hoặc các đường link tìm kiếm rác.
-- Tuyệt đối không bịa đặt số liệu tài chính hoặc bảng giá.`;
+- Tuyệt đối không dẫn nguồn duckduckgo hoặc các đường link tìm kiếm rác.`;
 
-    const prompt = `${systemInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
+      const prompt = `${webInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
-    let replyText = '';
-    try {
-      replyText = await callGemini(prompt);
-    } catch (e) {
-      replyText = `Dạ, tôi là TRÍ AI ULTIMATE ROBOT. Tôi đã ghi nhận câu hỏi của bạn về "${message}". ${intermediateContext ? 'Tôi đã tra cứu được các thông tin liên quan và sẵn sàng hỗ trợ bạn chi tiết.' : 'Bạn cần tôi hỗ trợ cụ thể thêm điều gì ạ?'}`;
+      let replyText = '';
+      try {
+        replyText = await callGemini(prompt);
+      } catch (e) {
+        replyText = `Dạ, tôi đã tra cứu internet về "${message}" nhưng chưa tìm thấy kết quả phù hợp.`;
+      }
+
+      const filteredCitations = citations.filter(c => !c.url?.includes('duckduckgo.com') && !c.label?.toLowerCase().includes('duckduckgo'));
+      return {
+        success: true,
+        reply: sanitizeAiResponse(replyText),
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'WEB_SEARCH',
+        citations: filteredCitations,
+        toolsUsed
+      };
     }
 
-    // Clean any DuckDuckGo URLs or unwanted citation patterns
-    const cleanedReply = sanitizeAiResponse(replyText);
-    const filteredCitations = citations.filter(c => !c.url?.includes('duckduckgo.com') && !c.label?.toLowerCase().includes('duckduckgo'));
-
-    // Log citations
-    if (filteredCitations.length > 0) {
-      await RagService.logCitations(conversationId, randomUUID(), filteredCitations);
-    }
+    // 4. BÁN HÀNG & TƯ VẤN SẢN PHẨM & CHAT SHOP (CORE DEFAULT CHO TOÀN BỘ CÂU HỎI CÒN LẠI)
+    // TUYỆT ĐỐI KHÔNG LÔI KÉO TÀI LIỆU NỘI BỘ, QUY CHẾ VÀO BÁN HÀNG!
+    toolsUsed.push('consult_sales_engine');
+    const salesResult = await SalesEngineAdapter.processMessage({
+      conversationId,
+      message,
+      selectedProduct,
+      actionType,
+      customerInfo,
+      clientDevice,
+      orgId
+    });
 
     return {
       success: true,
-      reply: cleanedReply,
-      revealCatalog: false,
-      recommendedField: null,
-      recommendedProduct: null,
-      stage: 'KNOWLEDGE_CONSULTATION',
-      citations: filteredCitations,
+      reply: sanitizeAiResponse(salesResult.reply),
+      revealCatalog: salesResult.revealCatalog || false,
+      recommendedField: salesResult.recommendedField || null,
+      recommendedProduct: salesResult.recommendedProduct || null,
+      stage: salesResult.stage || 'IDLE',
+      requiresInput: salesResult.requiresInput || null,
+      suggestedActions: salesResult.suggestedActions || [],
+      orderInfo: salesResult.orderInfo || null,
+      leadCaptured: salesResult.leadCaptured || false,
+      citations: [],
       toolsUsed
     };
   }
@@ -506,15 +523,16 @@ Nguyên tắc:
     const baseUrl = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
     const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
+    const isDocExplicitQuery = /(tài liệu|tai lieu|quy trình|quy trinh|chính sách|chinh sach|hướng dẫn|huong dan|quy chế|quy che|quyết định|quyet dinh|điều chuyển|dieu chuyen|nam a bank|namabank|thủ tục|thu tuc|công văn|cong van|văn bản|van ban|nội bộ|noi bo|sổ tay|so tay|quy định|quy dinh|hồ sơ|ho so)/i.test(message);
+
     const systemPrompt = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng.
 Bạn có quyền truy cập các công cụ:
-1. consult_sales_engine: Tư vấn sản phẩm tiêu biểu, tồn kho, kiểm tra danh mục và chốt đơn mua hàng.
+1. consult_sales_engine: Tư vấn sản phẩm, tồn kho, kiểm tra danh mục và chốt đơn mua hàng.
 2. lookup_supplier_products: Tra cứu sản phẩm, thông số kỹ thuật và đơn giá từ kho nhà cung cấp đã thu thập và kiểm duyệt.
 3. generate_formal_quotation: Khởi tạo bảng báo giá chính thức kèm mã báo giá, bảng tính chi tiết, VAT 10% và ghi rõ nguồn giá khi khách hàng hỏi hoặc xin báo giá.
-4. search_knowledge_base: Tra cứu kho tài liệu quy chuẩn, sổ tay tri thức chung (Global) hoặc nội bộ doanh nghiệp.
-5. query_excel_data: Tính toán và truy vấn số liệu chính xác trên các bảng tính Excel/CSV.
-6. search_web_internet: Tra cứu thông tin trên Internet.
-Hãy chủ động gọi đúng công cụ khi cần thiết. Khi khách hàng hỏi xin báo giá hoặc mua hàng số lượng cụ thể, BẮT BUỘC gọi generate_formal_quotation để lập bảng báo giá chuẩn.`;
+${isDocExplicitQuery ? '4. search_knowledge_base: Tra cứu kho tài liệu quy chuẩn, sổ tay quy trình, chính sách nội bộ (quy chế, văn bản pháp quy).\n' : ''}5. query_excel_data: Tính toán và truy vấn số liệu chính xác trên các bảng tính Excel/CSV.
+6. search_web_internet: Tra cứu thông tin trên Internet khi được yêu cầu.
+QUY TẮC BẮT BUỘC: Khi khách hàng tìm hiểu, hỏi mua sản phẩm, hỏi giá, báo giá hoặc trò chuyện mua sắm, BÁN HÀNG LÀ ƯU TIÊN DUY NHẤT. TUYỆT ĐỐI KHÔNG lôi kéo nội dung tài liệu nội bộ (như quy chế ngân hàng, văn bản công văn) vào câu trả lời bán hàng!`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -527,6 +545,10 @@ Hãy chủ động gọi đúng công cụ khi cần thiết. Khi khách hàng h
       toolChoice = { type: 'function', function: { name: 'generate_formal_quotation' } };
     }
 
+    const availableTools = isDocExplicitQuery
+      ? CENTRAL_BRAIN_TOOLS
+      : CENTRAL_BRAIN_TOOLS.filter(t => t.function?.name !== 'search_knowledge_base');
+
     // Initial tool calling request
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
@@ -537,7 +559,7 @@ Hãy chủ động gọi đúng công cụ khi cần thiết. Khi khách hàng h
       body: JSON.stringify({
         model,
         messages,
-        tools: CENTRAL_BRAIN_TOOLS,
+        tools: availableTools,
         tool_choice: toolChoice,
         temperature: 0.5
       })

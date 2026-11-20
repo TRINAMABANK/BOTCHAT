@@ -176,7 +176,10 @@ export class SalesEngineAdapter {
     const keywords = [
       'mua', 'gia', 'ban', 'san pham', 'hang', 'order', 'dat hang',
       'laptop', 'tra', 'tivi', 'may dem tien', 'ghe', 'ban lam viec',
-      'khuyen mai', 'ton kho', 'bao nhieu', 'co san', 'giao hang'
+      'khuyen mai', 'ton kho', 'bao nhieu', 'co san', 'giao hang',
+      'may in', 'may scan', 'muc in', 'man hinh', 'cpu', 'tablet',
+      'may tinh', 'dien thoai', 'nuoc hoa', 'ca phe', 'cafe', 'matcha',
+      'my pham', 'thiet bi', 'tu van', 'danh muc', 'co gi', 'canon', 'dell', 'samsung'
     ];
     return keywords.some(k => normalized.includes(k));
   }
