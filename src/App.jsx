@@ -29,7 +29,7 @@ const createWelcomeMessage = () => ({
   id: `msg_welcome_${Date.now()}`,
   senderType: 'assistant',
   content:
-    'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng của Quang Nhựt Trí.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm thuộc lĩnh vực nào ạ? Bạn cứ nhắn câu hỏi hoặc sản phẩm cần tìm, tôi sẽ mở bộ sản phẩm ở Cột 2 hỗ trợ bạn ngay!',
+    'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm thuộc lĩnh vực nào ạ? Bạn cứ nhắn câu hỏi hoặc sản phẩm cần tìm, tôi sẽ mở bộ sản phẩm ở Cột 2 hỗ trợ bạn ngay!',
   createdAt: new Date().toISOString()
 });
 
@@ -598,7 +598,7 @@ export const App = () => {
                 </span>
               </h1>
               <p className="hidden sm:block text-[11px] md:text-xs text-cyan-200/90 font-medium truncate">
-                Trợ lý bán hàng thông minh của Quang Nhựt Trí • Tư vấn - Báo giá
+                Trợ lý bán hàng thông minh • Tư vấn - Báo giá
               </p>
             </div>
           </div>

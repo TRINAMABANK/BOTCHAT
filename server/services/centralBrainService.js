@@ -29,6 +29,8 @@ export function sanitizeAiResponse(text = '') {
     .replace(/\(https?:\/\/(?:www\.)?duckduckgo\.com[^\s)]*\)/gi, '')
     .replace(/https?:\/\/(?:www\.)?duckduckgo\.com\S*/gi, '')
     .replace(/\[Nguồn:\s*\]/gi, '')
+    .replace(/—\s*Thư ký AI Toàn năng của Quang Nhựt Trí\b/gi, '— Thư ký AI Toàn năng')
+    .replace(/\s*của Quang Nhựt Trí[\.]?/gi, '')
     .trim();
 }
 
@@ -250,7 +252,7 @@ export class CentralBrainService {
     if (isGreeting && !isQuotationRequest && !isExplicitPurchase && !isDocExplicitQuery && !isExcelQuery) {
       return {
         success: true,
-        reply: 'Dạ, em chào anh/chị ạ! Em là **TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng của Quang Nhựt Trí**.\n\nHôm nay em có thể hỗ trợ anh/chị tra cứu tài liệu, tư vấn sản phẩm, kiểm tra tồn kho hay lập bảng báo giá nào không ạ?',
+        reply: 'Dạ, em chào anh/chị ạ! Em là **TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng**.\n\nHôm nay em có thể hỗ trợ anh/chị tra cứu tài liệu, tư vấn sản phẩm, kiểm tra tồn kho hay lập bảng báo giá nào không ạ?',
         revealCatalog: false,
         recommendedField: null,
         recommendedProduct: null,
@@ -454,7 +456,7 @@ export class CentralBrainService {
     }
 
     // 5. Synthesize unified response with Gemini
-    const systemInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng của Quang Nhựt Trí.
+    const systemInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng.
 Nguyên tắc:
 - Trả lời bằng tiếng Việt lịch sự, thông minh, chuyên nghiệp, súc tích.
 - Khi có dữ liệu trích dẫn được cung cấp, hãy tổng hợp câu trả lời chính xác và dẫn kèm nguồn theo nhãn [Nguồn: ...].
@@ -501,7 +503,7 @@ Nguyên tắc:
     const baseUrl = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
     const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
-    const systemPrompt = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng của Quang Nhựt Trí.
+    const systemPrompt = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng.
 Bạn có quyền truy cập các công cụ:
 1. consult_sales_engine: Tư vấn sản phẩm tiêu biểu, tồn kho, kiểm tra danh mục và chốt đơn mua hàng.
 2. lookup_supplier_products: Tra cứu sản phẩm, thông số kỹ thuật và đơn giá từ kho nhà cung cấp đã thu thập và kiểm duyệt.
