@@ -272,11 +272,19 @@ export class CentralBrainService {
       const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
 
       const cleanedQuery = message
-        .replace(/(cho tôi|cho e|cho em|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|\d+|máy|cái|chiếc|bộ)/gi, ' ')
+        .replace(/(cho tôi|cho em|cho e|tôi|mình|minh|em|anh|chị|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|\d+|máy|cái|chiếc|bộ)/gi, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
       let matchedProds = await QuotationService.searchSupplierCatalog({ query: cleanedQuery || 'máy', limit: 3 });
+
+      if (matchedProds.length === 0) {
+        const words = cleanedQuery.split(/\s+/).filter(w => w.length > 2);
+        for (const w of words) {
+          matchedProds = await QuotationService.searchSupplierCatalog({ query: w, limit: 3 });
+          if (matchedProds.length > 0) break;
+        }
+      }
 
       if (matchedProds.length === 0) {
         const dbProds = await db.all(`
