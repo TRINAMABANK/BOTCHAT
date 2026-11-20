@@ -19,6 +19,20 @@ import { WebSearchService } from './webSearchService.js';
 import { QuotationService } from './quotationService.js';
 
 /**
+ * Clean unwanted search engine links and placeholder citation artifacts
+ */
+export function sanitizeAiResponse(text = '') {
+  if (!text) return '';
+  return text
+    .replace(/\[Nguồn:\s*https?:\/\/(?:www\.)?duckduckgo\.com[^\s\]]*\]/gi, '')
+    .replace(/\[Nguồn:\s*.*duckduckgo.*\]/gi, '')
+    .replace(/\(https?:\/\/(?:www\.)?duckduckgo\.com[^\s)]*\)/gi, '')
+    .replace(/https?:\/\/(?:www\.)?duckduckgo\.com\S*/gi, '')
+    .replace(/\[Nguồn:\s*\]/gi, '')
+    .trim();
+}
+
+/**
  * Tool Specifications for Central Brain Function Calling
  */
 export const CENTRAL_BRAIN_TOOLS = [
@@ -227,11 +241,26 @@ export class CentralBrainService {
     const lower = message.toLowerCase();
     const isExcelQuery = lower.includes('excel') || lower.includes('bang tinh') || lower.includes('bảng tính') || lower.includes('tổng cộng') || lower.includes('doanh thu');
     const isDocExplicitQuery = lower.includes('tai lieu') || lower.includes('tài liệu') || lower.includes('quy trinh') || lower.includes('chinh sach') || lower.includes('hướng dẫn') || lower.includes('quy che') || lower.includes('quy chế') || lower.includes('quyet dinh') || lower.includes('quyết định') || lower.includes('dieu chuyen') || lower.includes('điều chuyển') || lower.includes('nam a bank') || lower.includes('namabank') || lower.includes('thu tuc') || lower.includes('thủ tục') || lower.includes('data upload') || lower.includes('du lieu');
-    const isWebSearch = lower.includes('tin tuc') || lower.includes('thoi tiet') || lower.includes('internet') || lower.includes('tim tren mang');
+    const isWebSearch = lower.includes('tin tuc') || lower.includes('thoi tiet') || lower.includes('internet') || lower.includes('tim tren mang') || lower.includes('tra cuu mang');
     const isQuotationRequest = /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(message);
     const isExplicitPurchase = (/\b(mua|ban|dat hang|dat mua|gia ca|gia bao nhieu|bao nhieu tien|mua ngay|san pham|tu van mau)\b/i.test(message));
 
-    // 0. Formal Quotation Engine Routing (Section VI - Cơ Chế Báo Giá)
+    // 0A. Greeting & Conversational Routing (Polite Personal Secretary)
+    const isGreeting = /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim());
+    if (isGreeting && !isQuotationRequest && !isExplicitPurchase && !isDocExplicitQuery && !isExcelQuery) {
+      return {
+        success: true,
+        reply: 'Dạ, em chào anh/chị ạ! Em là **TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng của Quang Nhựt Trí**.\n\nHôm nay em có thể hỗ trợ anh/chị tra cứu tài liệu, tư vấn sản phẩm, kiểm tra tồn kho hay lập bảng báo giá nào không ạ?',
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'GREETING',
+        citations: [],
+        toolsUsed: ['greeting_handler']
+      };
+    }
+
+    // 0B. Formal Quotation Engine Routing (Section VI - Cơ Chế Báo Giá)
     if (isQuotationRequest && !isDocExplicitQuery && !isExcelQuery) {
       toolsUsed.push('generate_formal_quotation');
       const qtyMatch = message.match(/\b(\d+)\s*(máy|cái|chiếc|bộ|sp|sản phẩm)?/i);
@@ -406,13 +435,14 @@ export class CentralBrainService {
       });
     }
 
-    // 4. Web Search if needed
-    if (isWebSearch || (!isSales && ragChunks.length === 0 && !isExcelQuery)) {
+    // 4. Web Search ONLY if user explicitly requested external internet lookups
+    if (isWebSearch) {
       const webRes = await WebSearchService.search(message, 3);
-      if (webRes.results?.length > 0) {
+      const cleanResults = (webRes.results || []).filter(r => r.url && !r.url.includes('duckduckgo.com'));
+      if (cleanResults.length > 0) {
         toolsUsed.push('search_web_internet');
-        intermediateContext += '\n[Tra cứu Internet]:\n' + webRes.results.map(r => `- ${r.title}: ${r.snippet} (${r.url})`).join('\n');
-        webRes.results.forEach(r => {
+        intermediateContext += '\n[Tra cứu Internet]:\n' + cleanResults.map(r => `- ${r.title}: ${r.snippet} (${r.url})`).join('\n');
+        cleanResults.forEach(r => {
           citations.push({
             source: 'web_search',
             title: r.title,
@@ -429,6 +459,7 @@ Nguyên tắc:
 - Trả lời bằng tiếng Việt lịch sự, thông minh, chuyên nghiệp, súc tích.
 - Khi có dữ liệu trích dẫn được cung cấp, hãy tổng hợp câu trả lời chính xác và dẫn kèm nguồn theo nhãn [Nguồn: ...].
 - Nếu câu hỏi chào hỏi/sức khỏe, hãy đáp lịch sự và sẵn sàng hỗ trợ.
+- Tuyệt đối không dẫn nguồn duckduckgo hoặc các đường link tìm kiếm rác.
 - Tuyệt đối không bịa đặt số liệu tài chính hoặc bảng giá.`;
 
     const prompt = `${systemInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
@@ -440,19 +471,23 @@ Nguyên tắc:
       replyText = `Dạ, tôi là TRÍ AI ULTIMATE ROBOT. Tôi đã ghi nhận câu hỏi của bạn về "${message}". ${intermediateContext ? 'Tôi đã tra cứu được các thông tin liên quan và sẵn sàng hỗ trợ bạn chi tiết.' : 'Bạn cần tôi hỗ trợ cụ thể thêm điều gì ạ?'}`;
     }
 
+    // Clean any DuckDuckGo URLs or unwanted citation patterns
+    const cleanedReply = sanitizeAiResponse(replyText);
+    const filteredCitations = citations.filter(c => !c.url?.includes('duckduckgo.com') && !c.label?.toLowerCase().includes('duckduckgo'));
+
     // Log citations
-    if (citations.length > 0) {
-      await RagService.logCitations(conversationId, randomUUID(), citations);
+    if (filteredCitations.length > 0) {
+      await RagService.logCitations(conversationId, randomUUID(), filteredCitations);
     }
 
     return {
       success: true,
-      reply: replyText,
+      reply: cleanedReply,
       revealCatalog: false,
       recommendedField: null,
       recommendedProduct: null,
       stage: 'KNOWLEDGE_CONSULTATION',
-      citations,
+      citations: filteredCitations,
       toolsUsed
     };
   }
@@ -645,11 +680,13 @@ Hãy chủ động gọi đúng công cụ khi cần thiết. Khi khách hàng h
       });
 
       const followUpData = await followUpRes.json();
-      const finalReply = followUpData.choices?.[0]?.message?.content || responseMsg.content;
+      const rawFinalReply = followUpData.choices?.[0]?.message?.content || responseMsg.content;
+      const cleanedReply = sanitizeAiResponse(rawFinalReply);
+      const filteredCitations = citations.filter(c => !c.url?.includes('duckduckgo.com') && !c.label?.toLowerCase().includes('duckduckgo'));
 
       return {
         success: true,
-        reply: finalReply,
+        reply: cleanedReply,
         revealCatalog: uiDirectives.revealCatalog || false,
         recommendedField: uiDirectives.recommendedField || null,
         recommendedProduct: uiDirectives.recommendedProduct || null,
@@ -658,7 +695,7 @@ Hãy chủ động gọi đúng công cụ khi cần thiết. Khi khách hàng h
         suggestedActions: uiDirectives.suggestedActions || [],
         orderInfo: uiDirectives.orderInfo || null,
         leadCaptured: uiDirectives.leadCaptured || false,
-        citations,
+        citations: filteredCitations,
         toolsUsed
       };
     }
@@ -666,7 +703,7 @@ Hãy chủ động gọi đúng công cụ khi cần thiết. Khi khách hàng h
     // Direct answer with no tools needed
     return {
       success: true,
-      reply: responseMsg.content,
+      reply: sanitizeAiResponse(responseMsg.content),
       revealCatalog: false,
       recommendedField: null,
       recommendedProduct: null,

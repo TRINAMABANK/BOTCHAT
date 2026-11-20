@@ -38,7 +38,7 @@ export class WebSearchService {
         if (data.AbstractText) {
           results.push({
             title: data.Heading || cleanQuery,
-            url: data.AbstractURL || 'https://duckduckgo.com',
+            url: data.AbstractURL || '',
             snippet: data.AbstractText
           });
         }
@@ -115,17 +115,11 @@ export class WebSearchService {
       console.warn('[WEB SEARCH] Lite search error:', err.message);
     }
 
-    // Graceful fallback if external network is unavailable
+    // Return empty results if no valid web search results found
     return {
       query: cleanQuery,
-      source: 'offline_notice',
-      results: [
-        {
-          title: `Tra cứu thông tin: ${cleanQuery}`,
-          url: 'https://duckduckgo.com/?q=' + encodeURIComponent(cleanQuery),
-          snippet: `Đã ghi nhận yêu cầu tra cứu "${cleanQuery}". Dữ liệu được trích xuất từ các nguồn tri thức tích hợp của hệ thống.`
-        }
-      ]
+      source: 'empty',
+      results: []
     };
   }
 }
