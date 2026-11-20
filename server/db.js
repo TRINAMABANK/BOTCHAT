@@ -220,9 +220,9 @@ export async function initDatabase() {
     { key: 'owner_name', value: 'Quang Nhựt Trí', description: 'Tên chủ nhân shop' },
     { key: 'robot_model', value: 'cyber_valkyrie', description: 'Mô hình robot 3D (cyber_valkyrie, tron_humanoid, quantum_sphere, nano_sentinel)' },
     { key: 'avatar_url', value: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80', description: 'Ảnh đại diện Robot' },
-    { key: 'greeting', value: 'Xin chào bạn! Tôi là TRÍ AI Sales Robot - trợ lý bán hàng của Quang Nhựt Trí. Xin lỗi, bạn vui lòng cho tôi biết thông tin để thuận tiện xưng hô nhé!', description: 'Lời chào mặc định khi mở chat' },
+    { key: 'greeting', value: 'Xin chào bạn! Tôi là TRÍ AI Sales Robot - trợ lý bán hàng thông minh. Xin lỗi, bạn vui lòng cho tôi biết thông tin để thuận tiện xưng hô nhé!', description: 'Lời chào mặc định khi mở chat' },
     { key: 'ai_tone', value: 'Chuyên nghiệp, thân thiện, lịch thiệp', description: 'Giọng điệu AI khi giao tiếp' },
-    { key: 'phone_invitation_prompt', value: 'Tôi có thể ghi nhận yêu cầu để Quang Nhựt Trí trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.', description: 'Lời mời để lại số điện thoại chuẩn kịch bản' },
+    { key: 'phone_invitation_prompt', value: 'Tôi có thể ghi nhận yêu cầu để shop trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.', description: 'Lời mời để lại số điện thoại chuẩn kịch bản' },
     { key: 'lead_notification_email', value: 'triqnnamabank@gmail.com', description: 'Email nhận thông báo Lead mới' },
     { key: 'hotline', value: '0982441446', description: 'Số hotline hỗ trợ' },
     { key: 'show_hotline', value: '1', description: 'Bật/tắt công khai số hotline trên giao diện (1: Bật, 0: Tắt)' },
@@ -237,7 +237,7 @@ export async function initDatabase() {
         'INSERT INTO bot_settings (key, value, description, updated_at) VALUES (?, ?, ?, ?)',
         [s.key, s.value, s.description, new Date().toISOString()]
       );
-    } else if ((s.key === 'greeting' || s.key === 'phone_invitation_prompt') && (/anh\/chị/i.test(existing.value || '') || /chủ nhân/i.test(existing.value || ''))) {
+    } else if ((s.key === 'greeting' || s.key === 'phone_invitation_prompt') && (/anh\/chị/i.test(existing.value || '') || /chủ nhân/i.test(existing.value || '') || /Quang Nhựt Trí/i.test(existing.value || ''))) {
       await db.run(
         'UPDATE bot_settings SET value = ?, updated_at = ? WHERE key = ?',
         [s.value, new Date().toISOString(), s.key]

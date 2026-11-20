@@ -29,8 +29,11 @@ export function sanitizeAiResponse(text = '') {
     .replace(/\(https?:\/\/(?:www\.)?duckduckgo\.com[^\s)]*\)/gi, '')
     .replace(/https?:\/\/(?:www\.)?duckduckgo\.com\S*/gi, '')
     .replace(/\[Nguồn:\s*\]/gi, '')
+    .replace(/(\*\*[^*]+?)\s*của Quang Nhựt Trí\*\*/gi, '$1**')
     .replace(/—\s*Thư ký AI Toàn năng của Quang Nhựt Trí\b/gi, '— Thư ký AI Toàn năng')
-    .replace(/\s*của Quang Nhựt Trí[\.]?/gi, '')
+    .replace(/trợ lý bán hàng của Quang Nhựt Trí/gi, 'trợ lý bán hàng thông minh')
+    .replace(/trợ lý bán hàng thông minh của Quang Nhựt Trí/gi, 'trợ lý bán hàng thông minh')
+    .replace(/\s*của\s*(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?[\.]?/gi, '')
     .trim();
 }
 
@@ -351,7 +354,7 @@ export class CentralBrainService {
 
       return {
         success: true,
-        reply: salesResult.reply,
+        reply: sanitizeAiResponse(salesResult.reply),
         revealCatalog: salesResult.revealCatalog || false,
         recommendedField: salesResult.recommendedField || null,
         recommendedProduct: salesResult.recommendedProduct || null,
@@ -391,7 +394,7 @@ export class CentralBrainService {
 
       return {
         success: true,
-        reply: salesResult.reply,
+        reply: sanitizeAiResponse(salesResult.reply),
         revealCatalog: salesResult.revealCatalog || false,
         recommendedField: salesResult.recommendedField || null,
         recommendedProduct: salesResult.recommendedProduct || null,

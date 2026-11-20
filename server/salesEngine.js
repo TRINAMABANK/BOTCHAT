@@ -1473,23 +1473,25 @@ function applyCustomerAddressing(text, profile) {
 }
 
 /**
- * Chuẩn hoá tham chiếu đại diện shop: bỏ cụm từ "chủ nhân (Quang Nhựt Trí)" hoặc "chủ nhân", chỉ thể hiện "Quang Nhựt Trí".
+ * Chuẩn hoá tham chiếu đại diện shop: loại bỏ cụm "của Quang Nhựt Trí", thay "chủ nhân" bằng "shop".
  */
 function sanitizeOwnerReferences(text, ownerName = 'Quang Nhựt Trí') {
   if (!text) return text;
-  const name = ownerName || 'Quang Nhựt Trí';
   return text
-    .replace(/chủ nhân\s*\([^)]+\)/gi, name)
-    .replace(/chủ nhân\s*(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?/gi, name)
-    .replace(/của chủ nhân/gi, `của ${name}`)
-    .replace(/để chủ nhân/gi, `để ${name}`)
-    .replace(/đến chủ nhân/gi, `đến ${name}`)
-    .replace(/gửi chủ nhân/gi, `gửi ${name}`)
-    .replace(/Chủ nhân sẽ/g, `${name} sẽ`)
-    .replace(/chủ nhân sẽ/g, `${name} sẽ`)
-    .replace(/chủ nhân luôn/gi, `${name} luôn`)
-    .replace(/chủ nhân trực tiếp/gi, `${name} trực tiếp`)
-    .replace(/chủ nhân/gi, name);
+    .replace(/—\s*Thư ký AI Toàn năng của Quang Nhựt Trí\b/gi, '— Thư ký AI Toàn năng')
+    .replace(/\s*của\s*(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?[\.]?/gi, '')
+    .replace(/trợ lý bán hàng của Quang Nhựt Trí/gi, 'trợ lý bán hàng thông minh')
+    .replace(/chủ nhân\s*\([^)]+\)/gi, 'shop')
+    .replace(/chủ nhân\s*(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?/gi, 'shop')
+    .replace(/của chủ nhân/gi, 'của shop')
+    .replace(/để chủ nhân/gi, 'để shop')
+    .replace(/đến chủ nhân/gi, 'đến shop')
+    .replace(/gửi chủ nhân/gi, 'gửi shop')
+    .replace(/Chủ nhân sẽ/g, 'Shop sẽ')
+    .replace(/chủ nhân sẽ/g, 'shop sẽ')
+    .replace(/chủ nhân luôn/gi, 'shop luôn')
+    .replace(/chủ nhân trực tiếp/gi, 'shop trực tiếp')
+    .replace(/chủ nhân/gi, 'shop');
 }
 
 /**
@@ -1541,7 +1543,7 @@ export class SalesEngine {
     const botName = settings.bot_name || 'TRÍ AI SALES ROBOT';
     const ownerName = settings.owner_name || 'Quang Nhựt Trí';
     const rawPhonePrompt = settings.phone_invitation_prompt ||
-      `Tôi có thể ghi nhận yêu cầu để ${ownerName} trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.`;
+      'Tôi có thể ghi nhận yêu cầu để shop trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.';
     const phonePrompt = sanitizeOwnerReferences(rawPhonePrompt, ownerName);
     const tone = settings.ai_tone || 'Chuyên nghiệp & Thân thiện';
     const hotline = settings.hotline || '0982441446';
@@ -1844,7 +1846,7 @@ export class SalesEngine {
         }
       } else if (isMissing) {
         const capRef = capitalizeFirst(customerRef);
-        replyText = `Dạ hiện tại bên em chưa có sẵn sản phẩm **${missingProductQuery}** trong danh mục ạ.\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
+        replyText = `Dạ hiện tại bên em chưa có sẵn sản phẩm **${missingProductQuery}** trong danh mục ạ.\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để shop trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
       }
     }
 
@@ -1930,7 +1932,7 @@ CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG SẢN PHẨ
 - BẮT BUỘC THEO ĐÚNG CHỈ THỊ:
   1. Thông báo rõ ràng: Hiện tại bên em chưa có sẵn sản phẩm "${missingName}" trong danh mục.
   2. THAM KHẢO CỘT 2: Báo cho khách biết toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở Cột 2, mời khách có thể tham khảo trực tiếp các mẫu khác ở Cột 2.
-  3. ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu "${missingName}" cho khách sớm nhất.
+  3. ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để shop trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu "${missingName}" cho khách sớm nhất.
   4. TUYỆT ĐỐI KHÔNG tự nhận là có hàng, KHÔNG tự bịa ra sản phẩm, và TUYỆT ĐỐI KHÔNG nhắc đến các sản phẩm cũ không liên quan (ví dụ: khách hỏi trà thì không được nói về laptop)!
 `;
         }
@@ -1944,7 +1946,7 @@ CHỈ THỊ ĐẶC BIỆT - DUY TRÌ ĐÚNG DANH MỤC HIỆN TẠI ("${conversa
         }
 
         const systemPrompt = `
-Bạn là ${botName}, trợ lý bán hàng xuất sắc của ${ownerName}.
+Bạn là ${botName}, trợ lý bán hàng thông minh.
 BẠN ĐƯỢC TRANG BỊ TRÍ TUỆ NHÂN TẠO GOOGLE GEMINI THÔNG MINH, NHIỆM VỤ TƯ VẤN BÁN HÀNG VÀ CHỐT KHÁCH THEO ĐÚNG CÁC TÌNH HUỐNG SAU:
 
 ${dynamicMatchDirective}
@@ -1984,7 +1986,7 @@ QUY TẮC CỐT LÕI - KỊCH BẢN BÁN HÀNG PHẢI DỰA TRÊN CHÍNH TÊN S�
 3. TÌNH HUỐNG 3 - TRƯỜNG HỢP KHÔNG CÓ TRONG DATA HOẶC THÔNG SỐ KHÔNG CÓ:
    - Thông báo rõ ràng: Hiện tại bên em chưa có sẵn mẫu/thông số này trong danh mục.
    - THAM KHẢO MẪU KHÁC Ở CỘT 2: Báo cho khách biết các mẫu sản phẩm cùng danh mục hiện có đã được mở sẵn ở Cột 2, mời khách có thể tham khảo trực tiếp các mẫu khác ở Cột 2.
-   - ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá sớm nhất.
+   - ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để shop trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá sớm nhất.
    - TUYỆT ĐỐI KHÔNG tự nhận là có hàng khi không có, KHÔNG tự bịa ra sản phẩm!
 
 YÊU CẦU PHONG CÁCH BẮT BUỘC:
@@ -2002,8 +2004,8 @@ QUY TẮC BẮT BUỘC KHÁC:
 1. Chỉ dùng giá và thông số có thật trong DANH MỤC ĐƯỢC PHÊ DUYỆT bên dưới. Tuyệt đối KHÔNG tự bịa giá.
 2. Khi khách hỏi SĐT: trả lời đúng tinh thần "${phonePrompt}".
 3. Khi khách muốn mua/báo giá: hỗ trợ ghi nhận từng bước (số lượng -> tên -> SĐT -> ghi chú).
-4. Nếu khách vừa gửi SĐT (${extractedPhone || 'không'}): cảm ơn và xác nhận đã ghi nhận để ${ownerName} liên hệ sớm nhất.
-${showHotline ? `Hotline công khai của ${ownerName}: ${hotline}` : ''}
+4. Nếu khách vừa gửi SĐT (${extractedPhone || 'không'}): cảm ơn và xác nhận đã ghi nhận để shop liên hệ sớm nhất.
+${showHotline ? `Hotline: ${hotline}` : ''}
 
 DANH MỤC SẢN PHẨM ĐƯỢC QUẢN TRỊ PHÊ DUYỆT:
 ${catalogSummary}
@@ -2115,7 +2117,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       } else {
         col2Guide = `\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tự do tham khảo các mẫu khác ở Cột 2 nhé.`;
       }
-      replyText = `Dạ hiện tại bên em chưa có sẵn mẫu **${missingProductQuery}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
+      replyText = `Dạ hiện tại bên em chưa có sẵn mẫu **${missingProductQuery}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để shop trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
     }
 
     if (!replyText) {
