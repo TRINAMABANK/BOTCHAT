@@ -13,6 +13,9 @@ import centralBrainRoutes from './routes/centralBrainRoutes.js';
 import learningRoutes from './routes/learningRoutes.js';
 const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
+import { requireAdmin, optionalAuth } from './middleware/authMiddleware.js';
+import AuthService from './services/authService.js';
+import { isSafePublicUrl } from './utils/ssrfProtection.js';
 
 dotenv.config();
 
@@ -22,9 +25,36 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Security Middleware
+// Security Middleware - Hardened CORS with Whitelist
+const defaultAllowedOrigins = [
+  'https://quangnhuttri.com',
+  'https://www.quangnhuttri.com'
+];
+if (process.env.NODE_ENV !== 'production') {
+  defaultAllowedOrigins.push(
+    'http://localhost:5000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5000',
+    'http://127.0.0.1:5173'
+  );
+}
+const configuredOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
+  : [];
+const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...configuredOrigins])];
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow non-browser requests (mobile apps, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    if (process.env.NODE_ENV === 'production') {
+      return callback(new Error('CORS Policy: Origin này không được phép truy cập.'));
+    }
+    return callback(null, true);
+  },
   credentials: true
 }));
 
@@ -99,6 +129,9 @@ app.get('/api/settings', async (req, res) => {
         hasGeminiDbKey = Boolean(r.value && r.value.trim().length > 8 && !r.value.includes('your_'));
         return; // Never expose raw API keys to the frontend
       }
+      if (r.key === 'admin_password' || r.key === 'auth_jwt_secret') {
+        return; // Never expose admin password hash or auth secret
+      }
       settings[r.key] = r.value;
     });
 
@@ -119,7 +152,7 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-app.put('/api/settings', async (req, res) => {
+app.put('/api/settings', requireAdmin, async (req, res) => {
   try {
     const updates = req.body;
     const now = new Date().toISOString();
@@ -147,7 +180,7 @@ app.put('/api/settings', async (req, res) => {
 });
 
 // Test Google Gemini Connection
-app.post('/api/settings/test-gemini', async (req, res) => {
+app.post('/api/settings/test-gemini', requireAdmin, async (req, res) => {
   try {
     let { apiKey, model } = req.body;
     if (!apiKey || apiKey.includes('••••')) {
@@ -217,8 +250,8 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// Crawl and Analyze Product Webpage URL using Google Gemini LLM
-app.post('/api/products/analyze-url', async (req, res) => {
+// Crawl and Analyze Product Webpage URL using Google Gemini LLM (Protected with SSRF Guard)
+app.post('/api/products/analyze-url', requireAdmin, async (req, res) => {
   try {
     const { url } = req.body;
     if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url.trim())) {
@@ -228,7 +261,16 @@ app.post('/api/products/analyze-url', async (req, res) => {
       });
     }
 
-    const targetUrl = url.trim();
+    // SSRF Protection Guard
+    const ssrfCheck = await isSafePublicUrl(url);
+    if (!ssrfCheck.safe) {
+      return res.status(400).json({
+        success: false,
+        error: `Đường dẫn website không được phép truy cập (SSRF Protection): ${ssrfCheck.reason}`
+      });
+    }
+
+    const targetUrl = ssrfCheck.cleanUrl;
 
     // Fetch API key from DB or env
     const geminiSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'gemini_api_key'");
@@ -287,7 +329,7 @@ app.post('/api/products/analyze-url', async (req, res) => {
   }
 });
 
-app.post('/api/products', async (req, res) => {
+app.post('/api/products', requireAdmin, async (req, res) => {
   try {
     const { field, group_name, name, price, specs_json, description, image_url, is_approved } = req.body;
     if (!name || !field || !group_name || price === undefined) {
@@ -322,7 +364,7 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/products/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { field, group_name, name, price, specs_json, description, image_url, is_approved, is_active } = req.body;
@@ -366,7 +408,7 @@ function sanitizeIdList(ids) {
   return [...new Set(ids.filter((id) => typeof id === 'string' && id.trim().length > 0).map((id) => id.trim()))];
 }
 
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.run('DELETE FROM products WHERE id = ?', [id]);
@@ -379,7 +421,7 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
-app.post('/api/products/bulk-delete', async (req, res) => {
+app.post('/api/products/bulk-delete', requireAdmin, async (req, res) => {
   try {
     const { ids, deleteAll } = req.body || {};
     let result;
@@ -407,7 +449,7 @@ app.post('/api/products/bulk-delete', async (req, res) => {
 // -----------------------------------------------------------------------------
 // 3B. LOCAL IMAGE UPLOAD FROM COMPUTER
 // -----------------------------------------------------------------------------
-app.post('/api/upload/image', (req, res) => {
+app.post('/api/upload/image', requireAdmin, (req, res) => {
   try {
     const { fileName, dataUrl } = req.body;
     if (!dataUrl || typeof dataUrl !== 'string') {
@@ -547,7 +589,7 @@ app.get('/api/chat/conversations/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/chat/conversations/:id', async (req, res) => {
+app.delete('/api/chat/conversations/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await db.run('DELETE FROM messages WHERE conversation_id = ?', [id]);
@@ -626,7 +668,7 @@ app.post('/api/leads', async (req, res) => {
   }
 });
 
-app.get('/api/crm/leads', async (req, res) => {
+app.get('/api/crm/leads', requireAdmin, async (req, res) => {
   try {
     const { status, search } = req.query;
     let sql = 'SELECT * FROM leads WHERE 1=1';
@@ -651,7 +693,7 @@ app.get('/api/crm/leads', async (req, res) => {
   }
 });
 
-app.put('/api/crm/leads/:id/status', async (req, res) => {
+app.put('/api/crm/leads/:id/status', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { lead_status, notes } = req.body;
@@ -668,7 +710,7 @@ app.put('/api/crm/leads/:id/status', async (req, res) => {
   }
 });
 
-app.delete('/api/crm/leads/:id', async (req, res) => {
+app.delete('/api/crm/leads/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     await db.run('DELETE FROM lead_activities WHERE lead_id = ?', [id]);
@@ -682,7 +724,7 @@ app.delete('/api/crm/leads/:id', async (req, res) => {
   }
 });
 
-app.post('/api/crm/leads/bulk-delete', async (req, res) => {
+app.post('/api/crm/leads/bulk-delete', requireAdmin, async (req, res) => {
   try {
     const { ids, deleteAll } = req.body || {};
     let result;
@@ -709,7 +751,7 @@ app.post('/api/crm/leads/bulk-delete', async (req, res) => {
   }
 });
 
-app.get('/api/crm/stats', async (req, res) => {
+app.get('/api/crm/stats', requireAdmin, async (req, res) => {
   try {
     const totalRow = await db.get('SELECT COUNT(*) as count FROM leads');
     const newRow = await db.get("SELECT COUNT(*) as count FROM leads WHERE lead_status = 'NEW – WAITING FOR OWNER CONTACT'");
@@ -742,7 +784,7 @@ app.get('/api/crm/stats', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
-// 5B. OWNER AUTHENTICATION & ACCESS CONTROL
+// 5B. OWNER AUTHENTICATION & ACCESS CONTROL (PBKDF2 & HMAC-SHA256)
 // -----------------------------------------------------------------------------
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -755,39 +797,74 @@ app.post('/api/auth/login', async (req, res) => {
     const passSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'admin_password'");
 
     const expectedUser = (userSetting?.value || 'Admin').trim();
-    const expectedPass = (passSetting?.value || '0982441446').trim();
+    const storedPass = passSetting?.value ? String(passSetting.value).trim() : null;
+
+    if (!storedPass) {
+      return res.status(500).json({ success: false, error: 'Tài khoản quản trị chưa được thiết lập mật khẩu trong cơ sở dữ liệu.' });
+    }
 
     const inputUser = String(username).trim();
-    const inputPass = String(password).trim();
-
-    if (inputUser.toLowerCase() === expectedUser.toLowerCase() && inputPass === expectedPass) {
-      const token = Buffer.from(`admin:${expectedUser}:${Date.now()}:${expectedPass}`).toString('base64');
-      return res.json({
-        success: true,
-        token,
-        user: { username: expectedUser }
+    if (inputUser.toLowerCase() !== expectedUser.toLowerCase()) {
+      return res.status(401).json({
+        success: false,
+        error: 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại!'
       });
     }
 
-    return res.status(401).json({
-      success: false,
-      error: 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại!'
+    const { isValid, needsRehash } = AuthService.verifyPassword(password, storedPass);
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại!'
+      });
+    }
+
+    // Automatically migrate legacy plaintext password to PBKDF2 hash upon successful login
+    if (needsRehash) {
+      const secureHash = AuthService.hashPassword(password);
+      const now = new Date().toISOString();
+      await db.run(
+        "UPDATE bot_settings SET value = ?, updated_at = ? WHERE key = 'admin_password'",
+        [secureHash, now]
+      );
+      console.log('[SECURITY] Admin password successfully upgraded to PBKDF2-SHA512 hash.');
+    }
+
+    // Issue cryptographically signed HMAC-SHA256 token
+    const token = await AuthService.generateToken({
+      username: expectedUser,
+      orgId: 'org_default',
+      role: 'admin'
+    });
+
+    return res.json({
+      success: true,
+      token,
+      user: { username: expectedUser }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-app.post('/api/auth/change-password', async (req, res) => {
+app.post('/api/auth/change-password', requireAdmin, async (req, res) => {
   try {
     const { currentPassword, newUsername, newPassword } = req.body || {};
-    const passSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'admin_password'");
-    const expectedPass = (passSetting?.value || '0982441446').trim();
 
-    if (currentPassword !== undefined && String(currentPassword || '').trim() !== '') {
-      if (String(currentPassword).trim() !== expectedPass) {
-        return res.status(400).json({ success: false, error: 'Mật khẩu hiện tại không chính xác.' });
-      }
+    if (!currentPassword || !String(currentPassword).trim()) {
+      return res.status(400).json({ success: false, error: 'Vui lòng nhập Mật khẩu hiện tại để xác thực.' });
+    }
+
+    const passSetting = await db.get("SELECT value FROM bot_settings WHERE key = 'admin_password'");
+    const storedPass = passSetting?.value ? String(passSetting.value).trim() : null;
+
+    const { isValid } = AuthService.verifyPassword(currentPassword, storedPass);
+    if (!isValid) {
+      return res.status(400).json({ success: false, error: 'Mật khẩu hiện tại không chính xác.' });
+    }
+
+    if (newPassword && String(newPassword).trim().length < 6) {
+      return res.status(400).json({ success: false, error: 'Mật khẩu mới phải có tối thiểu 6 ký tự.' });
     }
 
     const now = new Date().toISOString();
@@ -798,9 +875,10 @@ app.post('/api/auth/change-password', async (req, res) => {
       );
     }
     if (newPassword && String(newPassword).trim()) {
+      const hashedNewPassword = AuthService.hashPassword(String(newPassword).trim());
       await db.run(
-        "INSERT OR REPLACE INTO bot_settings (key, value, description, updated_at) VALUES ('admin_password', ?, 'Mật khẩu tài khoản Quản trị', ?)",
-        [String(newPassword).trim(), now]
+        "INSERT OR REPLACE INTO bot_settings (key, value, description, updated_at) VALUES ('admin_password', ?, 'Mật khẩu tài khoản Quản trị (PBKDF2)', ?)",
+        [hashedNewPassword, now]
       );
     }
 
@@ -846,6 +924,8 @@ async function start() {
   }
 }
 
-start();
+if (process.env.NODE_ENV !== 'test') {
+  start();
+}
 
 export default app;

@@ -17,6 +17,7 @@ import { RagService } from '../services/ragService.js';
 import { ExcelParser } from '../services/parsers/excelParser.js';
 import { WebSearchService } from '../services/webSearchService.js';
 import { CentralBrainService } from '../services/centralBrainService.js';
+import { requireAdmin } from '../middleware/authMiddleware.js';
 
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
@@ -31,12 +32,15 @@ if (!fs.existsSync(docsUploadDir)) {
 
 const router = express.Router();
 
+// Enforce Admin Authentication on all Knowledge Center endpoints
+router.use(requireAdmin);
+
 // -----------------------------------------------------------------------------
 // 1. STATS & OVERVIEW DASHBOARD
 // -----------------------------------------------------------------------------
 router.get('/stats', async (req, res) => {
   try {
-    const orgId = req.query.orgId || 'org_default';
+    const orgId = req.orgId || req.query.orgId || 'org_default';
 
     const [docCount] = await db.all('SELECT count(*) as count FROM knowledge_documents WHERE org_id = ? OR scope = "global"', [orgId]);
     const [chunkCount] = await db.all('SELECT count(*) as count FROM knowledge_chunks WHERE org_id = ? OR scope = "global"', [orgId]);
@@ -112,8 +116,11 @@ router.post('/documents/upload', async (req, res) => {
       rawText,
       scope = 'global',
       orgId = 'org_default',
-      approvalStatus = 'APPROVED'
+      approvalStatus = 'PENDING_REVIEW'
     } = req.body;
+
+    // Enforce Tenant Isolation: authenticated admin orgId overrides unverified client input
+    const effectiveOrgId = req.orgId || orgId || 'org_default';
 
     const docTitle = title || fileName || 'Tài liệu không tên';
     const ext = fileName ? path.extname(fileName).toLowerCase().replace('.', '') : 'txt';
@@ -137,7 +144,7 @@ router.post('/documents/upload', async (req, res) => {
 
       const parsedExcel = await ExcelParser.parseAndPersist(buffer, {
         title: docTitle,
-        orgId
+        orgId: effectiveOrgId
       });
 
       return res.json({
@@ -195,7 +202,7 @@ router.post('/documents/upload', async (req, res) => {
       fileType: ext,
       filePath: savedFilePath,
       content: contentToIngest,
-      orgId,
+      orgId: effectiveOrgId,
       scope,
       approvalStatus,
       pageCount
@@ -343,7 +350,7 @@ router.post('/sources/crawl', async (req, res) => {
 // -----------------------------------------------------------------------------
 router.get('/pricing/lists', async (req, res) => {
   try {
-    const orgId = req.query.orgId || 'org_default';
+    const orgId = req.orgId || req.query.orgId || 'org_default';
     const priceLists = await db.all('SELECT * FROM price_lists WHERE org_id = ? ORDER BY created_at DESC', [orgId]);
     res.json({ success: true, priceLists });
   } catch (err) {
@@ -379,7 +386,7 @@ router.post('/pricing/lists', async (req, res) => {
 
 router.get('/promotions', async (req, res) => {
   try {
-    const orgId = req.query.orgId || 'org_default';
+    const orgId = req.orgId || req.query.orgId || 'org_default';
     const promotions = await db.all('SELECT * FROM promotions WHERE org_id = ? ORDER BY created_at DESC', [orgId]);
     res.json({ success: true, promotions });
   } catch (err) {

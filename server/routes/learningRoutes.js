@@ -9,8 +9,12 @@ import * as xlsx from 'xlsx';
 import LearningCaptureEngine from '../services/intelligence/learningCaptureEngine.js';
 import LearningIngestionEngine from '../services/intelligence/learningIngestionEngine.js';
 import LearningTestEngine from '../services/intelligence/learningTestEngine.js';
+import { requireAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+// Enforce Admin Authentication on all Learning Center endpoints
+router.use(requireAdmin);
 
 // 1. GET Dashboard KPI Stats
 router.get('/stats', async (req, res) => {

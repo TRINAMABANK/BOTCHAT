@@ -16,8 +16,12 @@ import db from '../db.js';
 import { IntentEngine } from '../services/intelligence/intentEngine.js';
 import { ReasoningEngine } from '../services/intelligence/reasoningEngine.js';
 import { CentralBrainService } from '../services/centralBrainService.js';
+import { requireAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+// Enforce Admin Authentication on all Central Brain Management endpoints
+router.use(requireAdmin);
 
 // 1. Central Brain Status & Telemetry Summary
 router.get('/status', async (req, res) => {

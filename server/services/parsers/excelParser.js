@@ -62,7 +62,7 @@ export class ExcelParser {
     if (!existingDoc) {
       await db.run(`
         INSERT INTO knowledge_documents (id, title, file_type, file_path, file_size, source_type, status, extracted_text, version, org_id, scope, approval_status, created_at, updated_at)
-        VALUES (?, ?, 'xlsx', NULL, 0, 'excel_engine', 'ready', 'Structured Excel Data', 1, ?, 'global', 'APPROVED', ?, ?)
+        VALUES (?, ?, 'xlsx', NULL, 0, 'excel_engine', 'ready', 'Structured Excel Data', 1, ?, 'global', 'PENDING_REVIEW', ?, ?)
       `, [docId, options.title || 'Bảng tính Excel', orgId, now, now]);
     }
 

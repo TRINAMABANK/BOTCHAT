@@ -8,8 +8,13 @@ import express from 'express';
 import { db } from '../db.js';
 import UniversalCrawler from '../services/crawler/universalCrawler.js';
 import crypto from 'crypto';
+import { requireAdmin } from '../middleware/authMiddleware.js';
+import { isSafePublicUrl } from '../utils/ssrfProtection.js';
 
 const router = express.Router();
+
+// Enforce Admin Authentication on all Supplier Website Center endpoints
+router.use(requireAdmin);
 
 // =============================================================================
 // 1. STATS & DASHBOARD SUMMARY (Screen 12)
@@ -142,12 +147,12 @@ router.post('/websites', async (req, res) => {
       return res.status(400).json({ success: false, error: 'URL website là bắt buộc' });
     }
 
-    // Validate URL format
-    let cleanUrl = url.trim();
-    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
-      cleanUrl = 'https://' + cleanUrl;
+    // Validate URL format and SSRF safety
+    const ssrfCheck = await isSafePublicUrl(url);
+    if (!ssrfCheck.safe) {
+      return res.status(400).json({ success: false, error: `URL không hợp lệ: ${ssrfCheck.reason}` });
     }
-    new URL(cleanUrl); // Validate valid URL
+    const cleanUrl = ssrfCheck.cleanUrl;
 
     const now = new Date().toISOString();
     const id = `web_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -204,6 +209,16 @@ router.post('/websites/:id/crawl', async (req, res) => {
   try {
     const { maxUrls = 40, depth = 2 } = req.body;
     const websiteId = req.params.id;
+
+    // Check website existence and SSRF safety
+    const website = await db.get('SELECT * FROM supplier_websites WHERE id = ?', [websiteId]);
+    if (!website) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy website nhà cung cấp' });
+    }
+    const ssrfCheck = await isSafePublicUrl(website.url);
+    if (!ssrfCheck.safe) {
+      return res.status(400).json({ success: false, error: `Website không an toàn để thu thập: ${ssrfCheck.reason}` });
+    }
 
     const result = await UniversalCrawler.startCrawl({
       websiteId,

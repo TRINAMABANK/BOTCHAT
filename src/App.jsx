@@ -191,9 +191,11 @@ export const App = () => {
     }
   };
 
-  // Fetch Stats
+  // Fetch Stats (Only for logged-in Admin)
   const fetchStats = async () => {
     try {
+      const token = sessionStorage.getItem('triai_admin_token');
+      if (!token) return;
       const res = await fetch('/api/crm/stats');
       const data = await res.json();
       if (data.success && data.stats) {
