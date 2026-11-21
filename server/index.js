@@ -10,6 +10,7 @@ import CentralBrainService from './services/centralBrainService.js';
 import knowledgeRoutes from './routes/knowledgeRoutes.js';
 import supplierWebsiteRoutes from './routes/supplierWebsiteRoutes.js';
 import centralBrainRoutes from './routes/centralBrainRoutes.js';
+import learningRoutes from './routes/learningRoutes.js';
 const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 
@@ -45,6 +46,9 @@ app.use('/api/supplier-websites', supplierWebsiteRoutes);
 
 // Mount TRÍ AI Smart Intelligence 2.0 Central Brain APIs
 app.use('/api/central-brain', centralBrainRoutes);
+
+// Mount TRÍ AN Learning Center APIs
+app.use('/api/learning-center', learningRoutes);
 
 // Anti-tamper & Security headers
 app.use((req, res, next) => {

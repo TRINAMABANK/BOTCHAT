@@ -26,6 +26,8 @@ import { VerificationEngine } from './intelligence/verificationEngine.js';
 import { LiveWebsiteRetrieval } from './intelligence/liveWebsiteRetrieval.js';
 import { ResponseEngine } from './intelligence/responseEngine.js';
 import { ToolOrchestrator } from './intelligence/toolOrchestrator.js';
+import { LearningCaptureEngine } from './intelligence/learningCaptureEngine.js';
+import { LearningIngestionEngine } from './intelligence/learningIngestionEngine.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -220,6 +222,23 @@ export class CentralBrainService {
         replyText: 'Dạ, tôi đã xóa toàn bộ thông tin ghi nhớ cá nhân của bạn trong hệ thống theo yêu cầu để đảm bảo quyền riêng tư tuyệt đối.',
         stage: 'MEMORY_UPDATED',
         toolsUsed: ['memory_engine']
+      });
+    }
+
+    // 2B. TRÍ AN LEARNING CENTER: Priority 1 Curated Approved Knowledge Lookup
+    const approvedCurated = await LearningIngestionEngine.lookupApprovedKnowledge(trimmedMsg);
+    if (approvedCurated && approvedCurated.standard_answer) {
+      return ResponseEngine.formatResponse({
+        replyText: `Dạ, về câu hỏi của bạn:\n\n${approvedCurated.standard_answer}\n\nThông tin chi tiết và các sản phẩm liên quan đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm nhé ạ!`,
+        revealCatalog: true,
+        recommendedField: approvedCurated.related_topic || null,
+        recommendedProduct: approvedCurated.related_product_id ? { id: approvedCurated.related_product_id, name: approvedCurated.related_product_name } : null,
+        stage: 'LEARNING_CENTER_RESOLVED',
+        citations: [{
+          source: 'learning_center',
+          label: `[Tri thức đã duyệt: ${approvedCurated.standard_question || 'Chuẩn Admin'}]`
+        }],
+        toolsUsed: ['learning_center_approved']
       });
     }
 
@@ -536,7 +555,7 @@ Nguyên tắc:
       orgId
     });
 
-    return ResponseEngine.formatResponse({
+    const finalRes = ResponseEngine.formatResponse({
       replyText: salesResult.reply,
       revealCatalog: salesResult.revealCatalog || false,
       recommendedField: salesResult.recommendedField || null,
@@ -549,6 +568,22 @@ Nguyên tắc:
       citations: [],
       toolsUsed
     });
+
+    // Asynchronously log gap to TRÍ AN Learning Center if quality gap detected
+    const cleanTurnMsg = (message || '').trim();
+    LearningCaptureEngine.inspectAndLogTurn({
+      conversationId,
+      message: cleanTurnMsg,
+      aiResponse: finalRes.reply || '',
+      intentResult,
+      productMatch: salesResult.productMatch || null,
+      disambiguation: null,
+      stage: finalRes.stage,
+      toolsUsed,
+      customerInfo
+    }).catch(err => console.error('[LEARNING CAPTURE HOOK ERROR]:', err.message));
+
+    return finalRes;
   }
 
   /**

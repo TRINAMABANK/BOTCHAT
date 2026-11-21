@@ -4,7 +4,7 @@ import { IntentEngine } from '../server/services/intelligence/intentEngine.js';
 import { ReasoningEngine } from '../server/services/intelligence/reasoningEngine.js';
 import { VerificationEngine } from '../server/services/intelligence/verificationEngine.js';
 import SalesEngine, { evaluateProductMatch } from '../server/salesEngine.js';
-import { getDb } from '../server/db.js';
+import db, { getDb } from '../server/db.js';
 
 console.log('================================================================');
 console.log('🚀 TEST SUITE: TRÍ AN LEVEL 2.0 – BỘ NÃO AI VÀ KHẢ NĂNG SUY LUẬN');
@@ -86,6 +86,7 @@ async function runTests() {
 
   // 4. Kịch bản nòng cốt: Khách hỏi "Điện thoại Panasonic KX-TSC11 có hàng không?"
   await asyncTest('Core Scenario: Khách hỏi "Điện thoại Panasonic KX-TSC11 có hàng không?"', async () => {
+    await db.run('DELETE FROM learning_knowledge_entries WHERE standard_question LIKE ?', ['%KX-TSC11%']);
     const res = await CentralBrainService.processChat({
       message: 'Điện thoại Panasonic KX-TSC11 có hàng không?',
       history: []

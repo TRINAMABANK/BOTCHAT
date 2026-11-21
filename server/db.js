@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { runPhase2Migrations } from './migrations/schema_phase2.js';
 import { runCrawlerMigrations } from './migrations/schema_phase_crawler.js';
 import { runIntelligence2Migration } from './migrations/schema_phase_intelligence2.js';
+import { runLearningCenterMigration } from './migrations/schema_phase_learning_center.js';
 
 dotenv.config();
 
@@ -856,6 +857,13 @@ export async function initDatabase() {
     await runIntelligence2Migration(db);
   } catch (err) {
     console.error('[MIGRATION ERROR] Intelligence 2.0 migration error:', err);
+  }
+
+  // 12. TRÍ AN LEARNING CENTER - Learning & Ingestion Schema Extensions
+  try {
+    await runLearningCenterMigration(getDb());
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Learning Center migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');

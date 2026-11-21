@@ -41,6 +41,7 @@ import {
 import KnowledgeCenter from './admin/KnowledgeCenter';
 import SupplierWebsiteCenter from './admin/SupplierWebsiteCenter';
 import CentralBrainManagement from './admin/CentralBrainManagement';
+import TriAnLearningCenter from './admin/TriAnLearningCenter';
 
 export const OwnerDashboard = ({
   isOpen = false,
@@ -917,6 +918,18 @@ export const OwnerDashboard = ({
             <Cpu size={16} />
             <span>Central Brain 2.0 (Bộ Não AI)</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('learning_center')}
+            className={`flex items-center space-x-2 px-5 py-3 rounded-t-2xl font-bold transition-all text-xs sm:text-sm ${
+              activeTab === 'learning_center'
+                ? 'bg-gradient-to-r from-amber-400 via-orange-300 to-rose-400 text-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.5)]'
+                : 'text-amber-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Sparkles size={16} />
+            <span>TRÍ AN – Trung Tâm Học Hỏi</span>
+          </button>
         </div>
 
         {/* 4. TAB CONTENT BODY */}
@@ -1735,6 +1748,11 @@ export const OwnerDashboard = ({
           {/* TAB 6: CENTRAL BRAIN MANAGEMENT 2.0 */}
           {activeTab === 'brain_management' && (
             <CentralBrainManagement orgId="org_default" />
+          )}
+
+          {/* TAB 7: TRÍ AN LEARNING CENTER */}
+          {activeTab === 'learning_center' && (
+            <TriAnLearningCenter />
           )}
         </div>
       </div>
