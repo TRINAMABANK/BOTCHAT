@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { runPhase2Migrations } from './migrations/schema_phase2.js';
 import { runCrawlerMigrations } from './migrations/schema_phase_crawler.js';
+import { runIntelligence2Migration } from './migrations/schema_phase_intelligence2.js';
 
 dotenv.config();
 
@@ -848,6 +849,13 @@ export async function initDatabase() {
     await runCrawlerMigrations(db);
   } catch (err) {
     console.error('[MIGRATION ERROR] Crawler migration error:', err);
+  }
+
+  // 11. TRÍ AI SMART INTELLIGENCE 2.0 - Memory & Tool Telemetry Schema Extensions
+  try {
+    await runIntelligence2Migration(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Intelligence 2.0 migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');

@@ -39,9 +39,9 @@ async function callOpenAI(messages, config = {}) {
 /**
  * Normalize Vietnamese text for robust accent-insensitive intent matching.
  */
-function removeVietnameseTones(str) {
-  if (!str) return '';
-  return str
+export function removeVietnameseTones(str) {
+  if (!str && str !== 0) return '';
+  return String(str)
     .toLowerCase()
     .replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, 'a')
     .replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, 'e')
@@ -108,7 +108,15 @@ function buildProductSalesPitch(product) {
  * Detect prompt injection or unauthorized price/secret tampering attempts.
  */
 function detectSecurityViolation(normMsg) {
+  if (!normMsg) return false;
+  const raw = String(normMsg).toLowerCase();
   const blockedPatterns = [
+    '<script',
+    'script>',
+    'alert(',
+    'onerror=',
+    'onload=',
+    'javascript:',
     'api key',
     'openai_api_key',
     'system prompt',
@@ -121,7 +129,7 @@ function detectSecurityViolation(normMsg) {
     'chinh gia ve 0',
     'giam xuong 1000'
   ];
-  return blockedPatterns.some((p) => normMsg.includes(p));
+  return blockedPatterns.some((p) => raw.includes(p));
 }
 
 /**
@@ -323,7 +331,7 @@ function hasWordMatch(text, word) {
 const STOP_WORDS = new Set([
   'cho', 'xin', 'hoi', 'muon', 'can', 'tim', 'mua', 'nhung', 'loai', 'mau',
   'nao', 'bao', 'nhieu', 'tien', 'gia', 'duoi', 'tren', 'tam', 'khoang', 'khong',
-  'duoc', 'nhan', 'chu', 'dien', 'thoai', 'sdt', 'so', 'san', 'pham', 'tu', 'van',
+  'duoc', 'nhan', 'chu', 'sdt', 'so', 'san', 'pham', 'tu', 'van',
   'so', 'sanh', 'giup', 'voi', 'nha', 'nhe', 'anh', 'chi', 'ben', 'shop', 'may', 'cai', 'chiec',
   'tri', 'quang', 'nhut', 'toi', 'minh', 'em', 'la', 'ten', 'chao', 'alo', 'hi', 'oi', 'day', 'a', 'da',
   'gi', 'kinh', 'doanh', 'the', 'vay', 'co', 'cac',
@@ -521,7 +529,7 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   if (!cleanNormMsg || !product) return 0;
   const normProdName = removeVietnameseTones(product.name || '').replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ');
   const normField = removeVietnameseTones(product.field || '');
-  const normSlug = removeVietnameseTones(product.slug || product.id || '');
+  const normSlug = removeVietnameseTones(String(product.slug || product.id || ''));
   const normCore = coreQuery ? removeVietnameseTones(coreQuery).replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').trim() : '';
 
   // 0. Foreign brands or products outside catalog => 0% similarity
@@ -625,15 +633,21 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   // Brand detection
   const brands = [
     'xinda', 'hang tin', 'hangtin', 'edison', 'julong', 'like sys', 'likesys', 'lda', 'xiudun', 'ds', 'ht', 'canon', 'dell', 'bofa',
-    'apple', 'macbook', 'asus', 'lenovo', 'hp', 'samsung', 'daikin', 'sharp', 'lg', 'ama', 'ideapad', 'vivobook', 'omnibook', 'legion'
+    'apple', 'macbook', 'asus', 'lenovo', 'hp', 'samsung', 'daikin', 'sharp', 'lg', 'ama', 'ideapad', 'vivobook', 'omnibook', 'legion',
+    'panasonic', 'sony', 'toshiba', 'hitachi', 'electrolux', 'acer', 'brother', 'epson', 'philips'
   ];
+  let queryBrand = null;
   let brandMatch = false;
   for (const b of brands) {
-    if ((cleanNormMsg.includes(b) || normCore.includes(b)) && normProdName.includes(b)) {
-      brandMatch = true;
+    if (cleanNormMsg.includes(b) || normCore.includes(b)) {
+      queryBrand = b;
+      if (normProdName.includes(b)) {
+        brandMatch = true;
+      }
       break;
     }
   }
+  const brandMismatch = Boolean(queryBrand && !brandMatch);
 
   const hasCategory = cleanNormMsg.includes(normField) || normCore.includes(normField) || (normField.includes('dem tien') && cleanNormMsg.includes('dem tien'));
 
@@ -691,31 +705,36 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
 
   // Tivi / TV
   if ((coreTarget.includes('tivi') || coreTarget.includes('tv')) && (normProdName.includes('tv') || normProdName.includes('tivi') || normField.includes('tivi'))) {
-    if (brandMatch || normProdName.includes('samsung') || normProdName.includes('sony') || normProdName.includes('lg')) return 95;
+    if (brandMatch) return 95;
+    if (brandMismatch) return 75;
     return 92;
   }
 
   // Tủ lạnh
   if (coreTarget.includes('tu lanh') && normProdName.includes('tu lanh')) {
     if (brandMatch) return 95;
+    if (brandMismatch) return 75;
     return 92;
   }
 
   // Máy lạnh / điều hòa
   if ((coreTarget.includes('may lanh') || coreTarget.includes('dieu hoa')) && (normProdName.includes('may lanh') || normProdName.includes('dieu hoa'))) {
     if (brandMatch) return 95;
+    if (brandMismatch) return 75;
     return 92;
   }
 
   // Laptop / Macbook / máy tính
   if ((coreTarget.includes('laptop') || coreTarget.includes('macbook') || coreTarget.includes('may tinh')) && (normProdName.includes('laptop') || normProdName.includes('macbook') || normProdName.includes('ideapad') || normProdName.includes('vivobook') || normProdName.includes('omnibook'))) {
     if (brandMatch) return 95;
+    if (brandMismatch) return 75;
     return 92;
   }
 
   // Màn hình
   if (coreTarget.includes('man hinh') && normProdName.includes('man hinh')) {
     if (brandMatch) return 95;
+    if (brandMismatch) return 75;
     return 92;
   }
 
@@ -732,6 +751,7 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   // Máy đếm tiền
   if ((coreTarget.includes('dem tien') || coreTarget.includes('may dem')) && (normProdName.includes('dem tien') || normField.includes('dem tien'))) {
     if (brandMatch) return 95;
+    if (brandMismatch) return 75;
     return 92;
   }
 
@@ -739,15 +759,18 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   if (brandMatch && hasCategory) {
     return 86;
   }
-  if (brandMatch && matchCount >= 1) {
+  if (brandMatch && matchCount >= 2 && matchRatio >= 0.5) {
     return 83;
   }
   if (hasCategory && matchCount >= 2) {
     return 80;
   }
   const isOnlyNumberAndUnit = queryTokens.length === 2 && (/^\d+$/.test(queryTokens[0]) || /^\d+$/.test(queryTokens[1]));
-  if (matchRatio >= 0.5 && queryTokens.length >= 2 && !isOnlyNumberAndUnit) {
+  if (matchRatio >= 0.6 && queryTokens.length >= 2 && !isOnlyNumberAndUnit) {
     return 82;
+  }
+  if (brandMatch) {
+    return 65; // Same brand but different category / low token overlap -> related product (Tier 3)
   }
 
   // Specific product type overlap (e.g. "máy bó tiền thếp", "máy đóng chứng từ", "máy hút ẩm")
@@ -935,14 +958,15 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
     tier = 3;
   }
 
-  const missingProductQuery = (tier === 3)
-    ? detectMissingProductInquiry(message, normMessage, rankedProducts, matchedField, allProducts, coreQuery, contextField)
+  const missingProductQuery = (tier === 3 || tier === 2)
+    ? detectMissingProductInquiry(message, normMessage, tier === 1 ? rankedProducts : [], matchedField, allProducts, coreQuery, contextField)
     : null;
 
   return {
     tier,
     similarity: bestSimilarity,
     topProduct: bestSimilarity >= 80 ? topMatch.product : null,
+    relatedProduct: (scored[0]?.similarity >= 50 && scored[0]?.product) ? scored[0].product : null,
     rankedProducts,
     matchedField: matchedField || (bestSimilarity >= 80 && topMatch ? topMatch.product.field : null),
     missingProductQuery
@@ -1205,9 +1229,9 @@ function cleanInquiredProductName(str) {
  */
 function formatMissingProductName(rawName, contextField) {
   if (!rawName) return 'sản phẩm này';
-  let s = cleanInquiredProductName(rawName);
+  let s = cleanInquiredProductName(rawName).replace(/<[^>]*>?/gm, '').trim();
   s = s
-    .replace(/^(?:anh|chị|chi|em|tôi|toi|mình|minh|bạn|ban|shop)?\s*(?:muốn\s+mua|muon\s+mua|cần\s+mua|can\s+mua|hỏi\s+mua|hoi\s+mua|mua|cần|can|muốn|muon|tìm|tim|hỏi\s+về|hoi\s+ve|hỏi|hoi|xem|lấy|lay)\s+/i, '')
+    .replace(/^(?:anh|chị|chi|em|tôi|toi|mình|minh|bạn|ban|shop)?\s*(?:có\s+bán|co\s+ban|bán\s+cho|ban\s+cho|bán|ban|muốn\s+mua|muon\s+mua|cần\s+mua|can\s+mua|hỏi\s+mua|hoi\s+mua|mua|cần|can|muốn|muon|tìm|tim|hỏi\s+về|hoi\s+ve|hỏi|hoi|xem|lấy|lay)\s+/i, '')
     .replace(/\s+(?:thì\s+có\s+không|thi\s+co\s+khong|thì\s+có|thi\s+co|có\s+không|co\s+khong|có\s+chưa|co\s+chua|có\s+bán\s+không|co\s+ban\s+khong|không|khong|có|co|ạ|a|nhé|nhe|hả|ha)\b.*$/i, '')
     .replace(/^(?:thì\s+có|thi\s+co|có|co|hỏi|hoi|lấy|lay)\s+/i, '')
     .replace(/\s+(?:thì\s+có|thi\s+co|có|co|không|khong)$/i, '')
@@ -1252,8 +1276,10 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
   // If matched a live product (similarity >= 80%) in DB, it's NOT missing!
   if (matchedProducts && matchedProducts.length > 0) return null;
 
-  // Filter out non-product questions, general queries, budget queries, or comparison questions
+  // Filter out non-product questions, general queries, budget queries, phone submissions, or comparison questions
   if (
+    Boolean(extractPhoneNumber(message)) ||
+    /^\+?\d[\d\s.-]{8,}\d$/.test(message.trim()) ||
     isHealthInquiry(normMessage) ||
     isCustomerNameDeclaration(message, normMessage) ||
     detectSecurityViolation(normMessage) ||
@@ -1293,9 +1319,9 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
 
   const clean = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
 
-  // Pattern 1: Inquiring availability ("có bán X không", "có X không", "shop có X không", "bên bạn có X không")
+  // Pattern 1: Inquiring availability ("có bán X không", "có X không", "shop có X không", "bên bạn có X không", "em bán X không")
   const p1 = clean.match(
-    /(?:co\s+ban|co\s+mau|co\s+dong|co\s+loai|ban\s+co\s+ban|shop\s+co\s+ban|shop\s+co|ben\s+ban\s+co|ben\s+em\s+co|ben\s+shop\s+co|co)\s+(.+?)(?:\s+thi\s+co\s+khong|\s+co\s+khong|\s+khong|\s+a\s*\?|\s*\?|$)/i
+    /(?:em\s+co\s+ban|em\s+ban|shop\s+co\s+ban|shop\s+ban|ben\s+em\s+co\s+ban|ben\s+em\s+ban|ben\s+shop\s+co\s+ban|ben\s+shop\s+ban|ben\s+ban\s+co\s+ban|ben\s+ban\s+ban|co\s+ban|co\s+mau|co\s+dong|co\s+loai|ban\s+co\s+ban|shop\s+co|ben\s+ban\s+co|ben\s+em\s+co|ben\s+shop\s+co|co)\s+(.+?)(?:\s+thi\s+co\s+khong|\s+co\s+khong|\s+khong|\s+a\s*\?|\s*\?|$)/i
   );
   if (p1 && p1[1]) {
     const candidate = p1[1].trim();
@@ -1352,6 +1378,14 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
   ];
   if (productDeviceKeywords.some((k) => clean.includes(k))) {
     return formatMissingProductName(clean, contextField);
+  }
+
+  if (coreQuery && typeof coreQuery === 'string' && coreQuery.trim().length >= 2) {
+    const normCore = removeVietnameseTones(coreQuery).toLowerCase();
+    const ignored = ['gi', 'nhung gi', 'san pham gi', 'mat hang gi', 'the', 'khong', 'chut', 'thoi gian'];
+    if (!ignored.includes(normCore)) {
+      return formatMissingProductName(coreQuery, contextField);
+    }
   }
 
   return null;
@@ -1478,11 +1512,12 @@ function applyCustomerAddressing(text, profile) {
 function sanitizeOwnerReferences(text, ownerName = 'Quang Nhựt Trí') {
   if (!text) return text;
   return text
-    .replace(/—\s*Thư ký AI Toàn năng của Quang Nhựt Trí\b/gi, '— Thư ký AI Toàn năng')
-    .replace(/\s*của\s*(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?[\.]?/gi, '')
-    .replace(/trợ lý bán hàng của Quang Nhựt Trí/gi, 'trợ lý bán hàng thông minh')
+    .replace(/(\*\*[^*]+?)\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?Quang Nhựt Trí\*\*/gi, '$1**')
+    .replace(/—\s*Thư ký AI Toàn năng của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí\b/gi, '— Thư ký AI Toàn năng')
+    .replace(/trợ lý bán hàng (?:thông minh )?của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí/gi, 'trợ lý bán hàng thông minh')
+    .replace(/\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?[\.]?/gi, '')
     .replace(/chủ nhân\s*\([^)]+\)/gi, 'shop')
-    .replace(/chủ nhân\s*(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?/gi, 'shop')
+    .replace(/chủ nhân\s*(?:anh\s+|chị\s+|ông\s+)?(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?/gi, 'shop')
     .replace(/của chủ nhân/gi, 'của shop')
     .replace(/để chủ nhân/gi, 'để shop')
     .replace(/đến chủ nhân/gi, 'đến shop')
@@ -1685,6 +1720,7 @@ export class SalesEngine {
     const matchedFromText = productMatch.rankedProducts;
     const matchedField = productMatch.matchedField;
     const missingProductQuery = productMatch.missingProductQuery;
+    const coreQuery = extractCoreProductQuery(message);
     if (missingProductQuery) {
       customerProfile.pendingMissingProduct = missingProductQuery;
     }
@@ -1827,9 +1863,21 @@ export class SalesEngine {
     // 7. Generate Smart Response (Guided Order Flow -> Google Gemini LLM / OpenAI -> Smart Catalog AI Brain)
     let replyText = orderFlowReply || '';
 
+    // Handle customer phone submission immediately
+    if (!replyText && (extractedPhone || leadCreated)) {
+      const pending = customerProfile.pendingMissingProduct;
+      if (pending) {
+        replyText = `Dạ cảm ơn ${customerRef}! Em đã ghi nhận số điện thoại **${extractedPhone}** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng **${pending}** và báo giá sớm nhất nhé ạ!`;
+        customerProfile.pendingMissingProduct = null;
+      } else {
+        const targetName = activeProduct?.name || conversationActiveProduct?.name || 'sản phẩm';
+        replyText = `Dạ cảm ơn ${customerRef}! Em đã ghi nhận số điện thoại **${extractedPhone}** để nhân viên bên em liên hệ tư vấn chi tiết về **${targetName}** cho ${customerRef} sớm nhất nhé ạ!`;
+      }
+    }
+
     const isHealth = isHealthInquiry(normMessage);
     const isName = isCustomerNameDeclaration(message, normMessage);
-    const isMissing = Boolean(missingProductQuery);
+    const isMissing = Boolean(missingProductQuery) && !extractedPhone;
 
     // Xử lý các tình huống có quy tắc chuẩn xác từ khách hàng (hỏi thăm sức khoẻ, chào hỏi, xưng tên, hỏi hàng chưa có)
     if (!replyText) {
@@ -1846,7 +1894,24 @@ export class SalesEngine {
         }
       } else if (isMissing) {
         const capRef = capitalizeFirst(customerRef);
-        replyText = `Dạ hiện tại bên em chưa có sẵn sản phẩm **${missingProductQuery}** trong danh mục ạ.\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để shop trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
+        const topSimilar = productMatch?.topProduct || productMatch?.relatedProduct || (productMatch?.rankedProducts && productMatch.rankedProducts[0]) || null;
+        let step3Alternative = '';
+        if (topSimilar) {
+          step3Alternative = `Đồng thời, hiện tại bên em đang có sản phẩm tương tự / liên quan có thể phù hợp với nhu cầu của mình là **${topSimilar.name}** (Giá niêm yết: **${formatPrice(topSimilar)}**). Thông tin chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm nhé ạ!`;
+        } else {
+          const activeScopeField = conversationContextField || matchedField || null;
+          const sameCategoryProducts = activeScopeField && activeScopeField !== 'Tất cả'
+            ? allProducts.filter((p) => p.field === activeScopeField)
+            : [];
+          if (sameCategoryProducts.length > 0) {
+            const uniqueNames = [...new Set(sameCategoryProducts.map((p) => p.name))].slice(0, 2);
+            const sampleProds = uniqueNames.map((n) => `**${n}**`).join(', ');
+            step3Alternative = `Đồng thời, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có của shop (như ${sampleProds}) đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
+          } else {
+            step3Alternative = `Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
+          }
+        }
+        replyText = `Dạ hiện tại sản phẩm **${missingProductQuery}** chưa tìm thấy trong dữ liệu của shop ạ.\n\n${capRef} vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\n${step3Alternative}`;
       }
     }
 
@@ -1913,27 +1978,34 @@ CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG 1 (Độ kh
 `;
         } else if (productMatch.tier === 2 && productMatch.topProduct) {
           const top = productMatch.topProduct;
+          const missingName = productMatch.missingProductQuery || (coreQuery ? formatMissingProductName(coreQuery, conversationContextField) : null);
           dynamicMatchDirective = `
 CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG 2 (Độ khớp ${productMatch.similarity}% từ 80% đến dưới 90%):
-- Khách đang hỏi mẫu/tính năng gần giống. Sản phẩm tương tự phù hợp nhất có sẵn trong kho là: "${top.name}".
-- Báo giá niêm yết: ${formatPrice(top)}.
-- BẮT BUỘC KỊCH BẢN BÁN HÀNG DỰA TRÊN CHÍNH TÊN SẢN PHẨM "${top.name}":
-  1. Trả lời ngay với khách: "Dạ hiện bên em đang có sản phẩm tương tự rất phù hợp là **${top.name}**..."
-  2. Kịch bản tư vấn tập trung 100% vào chính TÊN SẢN PHẨM "${top.name}", nêu các thông số và tính năng nổi trội của chính sản phẩm này. TUYỆT ĐỐI KHÔNG nói chung chung theo NHÓM SẢN PHẨM.
-  3. Báo giá niêm yết: ${formatPrice(top)}.
-  4. Hướng dẫn khách xem chi tiết và ảnh chụp thực tế ở Cột 2.
-  5. ${customerBudget ? 'Khách ĐÃ NÊU ngân sách, KHÔNG hỏi lại số tiền!' : 'BẮT BUỘC hỏi số tiền khách dự tính mua: "Bạn dự tính mua trong khoảng bao nhiêu tiền để tôi tư vấn mẫu sát nhất với nhu cầu nhé?"'}
+- Khách đang hỏi sản phẩm: "${missingName || 'sản phẩm khách hỏi'}" (sản phẩm này hiện CHƯA TÌM THẤY trong dữ liệu của shop).
+- Sản phẩm tương tự / liên quan có sẵn trong kho: "${top.name}" (Giá niêm yết: ${formatPrice(top)}).
+- BẮT BUỘC TRẢ LỜI THEO ĐÚNG 3 BƯỚC TUẦN TỰ (TUYỆT ĐỐI KHÔNG ĐẢO THỨ TỰ):
+  1. BƯỚC 1 - NÓI RÕ SẢN PHẨM NÀY CHƯA TÌM THẤY TRONG DỮ LIỆU CỦA SHOP:
+     "Dạ, hiện tại sản phẩm **${missingName || 'mẫu bạn đang hỏi'}** chưa tìm thấy trong dữ liệu của shop ạ."
+  2. BƯỚC 2 - XIN SỐ ĐIỆN THOẠI ĐỂ NHÂN VIÊN GỌI LẠI HỖ TRỢ / KIỂM TRA KHO:
+     "Bạn vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ."
+  3. BƯỚC 3 - ĐỒNG THỜI MỚI GIỚI THIỆU QUA SẢN PHẨM TƯƠNG TỰ HAY LIÊN QUAN:
+     "Đồng thời, hiện tại bên em đang có sản phẩm tương tự / liên quan có thể phù hợp với nhu cầu của mình là **${top.name}** (Giá niêm yết: **${formatPrice(top)}**). Thông tin chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm nhé ạ!"
+  4. TUYỆT ĐỐI KHÔNG nhận là có hàng ${missingName || 'sản phẩm khách hỏi'}, KHÔNG tự bịa giá hay thông số của sản phẩm không có!
 `;
         } else if (productMatch.tier === 3 && (productMatch.missingProductQuery || isProductInquiry)) {
-          const missingName = productMatch.missingProductQuery || 'mẫu sản phẩm này';
+          const missingName = productMatch.missingProductQuery || (coreQuery ? formatMissingProductName(coreQuery, conversationContextField) : 'mẫu sản phẩm này');
+          const topSimilar = productMatch.topProduct || productMatch.relatedProduct || (productMatch.rankedProducts && productMatch.rankedProducts[0]) || null;
           dynamicMatchDirective = `
 CHỈ THỊ ƯU TIÊN CAO NHẤT CHO TIN NHẮN NÀY - TÌNH HUỐNG SẢN PHẨM KHÔNG CÓ TRONG DANH MỤC:
-- Khách đang hỏi sản phẩm/thông số không có sẵn trong danh mục của shop: "${missingName}".
-- BẮT BUỘC THEO ĐÚNG CHỈ THỊ:
-  1. Thông báo rõ ràng: Hiện tại bên em chưa có sẵn sản phẩm "${missingName}" trong danh mục.
-  2. THAM KHẢO CỘT 2: Báo cho khách biết toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở Cột 2, mời khách có thể tham khảo trực tiếp các mẫu khác ở Cột 2.
-  3. ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để shop trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu "${missingName}" cho khách sớm nhất.
-  4. TUYỆT ĐỐI KHÔNG tự nhận là có hàng, KHÔNG tự bịa ra sản phẩm, và TUYỆT ĐỐI KHÔNG nhắc đến các sản phẩm cũ không liên quan (ví dụ: khách hỏi trà thì không được nói về laptop)!
+- Khách đang hỏi sản phẩm: "${missingName}".
+- BẮT BUỘC TRẢ LỜI THEO ĐÚNG 3 BƯỚC TUẦN TỰ (TUYỆT ĐỐI KHÔNG ĐẢO THỨ TỰ):
+  1. BƯỚC 1 - NÓI RÕ SẢN PHẨM NÀY CHƯA TÌM THẤY TRONG DỮ LIỆU CỦA SHOP:
+     "Dạ, hiện tại sản phẩm **${missingName}** chưa tìm thấy trong dữ liệu của shop ạ."
+  2. BƯỚC 2 - XIN SỐ ĐIỆN THOẠI ĐỂ NHÂN VIÊN GỌI LẠI HỖ TRỢ / KIỂM TRA KHO:
+     "Bạn vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ."
+  3. BƯỚC 3 - ĐỒNG THỜI MỚI GIỚI THIỆU QUA SẢN PHẨM TƯƠNG TỰ/LIÊN QUAN HOẶC MỜI XEM CỘT 2:
+     ${topSimilar ? `"Đồng thời, hiện tại bên em đang có sản phẩm tương tự / liên quan có thể bạn quan tâm là **${topSimilar.name}** (Giá niêm yết: **${formatPrice(topSimilar)}**). Thông tin chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm nhé ạ!"` : `"Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ."`}
+  4. TUYỆT ĐỐI KHÔNG tự nhận là có hàng, KHÔNG tự bịa ra sản phẩm, và TUYỆT ĐỐI KHÔNG nhắc đến các sản phẩm cũ không liên quan!
 `;
         }
 
@@ -1977,16 +2049,17 @@ QUY TẮC CỐT LÕI - KỊCH BẢN BÁN HÀNG PHẢI DỰA TRÊN CHÍNH TÊN S�
    - Hướng dẫn khách xem thông số và hình ảnh thực tế ở Cột 2 (hệ thống đã tự động mở sẵn Cột 2).
    - LUÔN LUÔN HỎI SỐ TIỀN KHÁCH DỰ TÍNH MUA nếu khách chưa nói ngân sách (ví dụ: "Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn cấu hình và ưu đãi phù hợp nhất nhé?"). Nếu khách đã nói ngân sách thì không hỏi lại.
 
-2. TÌNH HUỐNG 2 - SẢN PHẨM GIỐNG TỪ 80% ĐẾN DƯỚI 90% (Khách hỏi mẫu/dòng/tính năng gần giống hoặc cùng phân khúc):
-   - Báo ngay với khách: "Dạ hiện bên em đang có sản phẩm tương tự rất phù hợp là [Tên sản phẩm tương tự]..."
-   - Kịch bản tư vấn dựa trên TÊN SẢN PHẨM tương tự, tính năng nổi bật + BÁO GIÁ NIÊM YẾT.
-   - Hướng dẫn xem chi tiết trực quan ở Cột 2.
-   - LUÔN LUÔN HỎI SỐ TIỀN KHÁCH DỰ TÍNH MUA: "Bạn dự tính mua trong khoảng bao nhiêu tiền để tôi tư vấn mẫu sát nhất với nhu cầu nhé?".
+2. TÌNH HUỐNG 2 - SẢN PHẨM GIỐNG TỪ 80% ĐẾN DƯỚI 90% (Khách hỏi mẫu/dòng chưa có trong dữ liệu, có sản phẩm tương tự trong kho):
+   - BẮT BUỘC THEO ĐÚNG 3 BƯỚC TUẦN TỰ (TUYỆT ĐỐI KHÔNG ĐẢO THỨ TỰ):
+     + Bước 1: Nói rõ sản phẩm khách hỏi chưa tìm thấy trong dữ liệu của shop.
+     + Bước 2: Xin số điện thoại để nhân viên gọi lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất.
+     + Bước 3: Đồng thời mới giới thiệu qua sản phẩm tương tự/liên quan có sẵn trong kho kèm giá niêm yết và hướng dẫn xem chi tiết ở Cột 2.
 
-3. TÌNH HUỐNG 3 - TRƯỜNG HỢP KHÔNG CÓ TRONG DATA HOẶC THÔNG SỐ KHÔNG CÓ:
-   - Thông báo rõ ràng: Hiện tại bên em chưa có sẵn mẫu/thông số này trong danh mục.
-   - THAM KHẢO MẪU KHÁC Ở CỘT 2: Báo cho khách biết các mẫu sản phẩm cùng danh mục hiện có đã được mở sẵn ở Cột 2, mời khách có thể tham khảo trực tiếp các mẫu khác ở Cột 2.
-   - ĐỂ LẠI THÔNG TIN: Mời khách để lại Số điện thoại để shop trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá sớm nhất.
+3. TÌNH HUỐNG 3 - TRƯỜNG HỢP SẢN PHẨM KHÔNG CÓ TRONG DỮ LIỆU CỦA SHOP:
+   - BẮT BUỘC THEO ĐÚNG 3 BƯỚC TUẦN TỰ (TUYỆT ĐỐI KHÔNG ĐẢO THỨ TỰ):
+     + Bước 1: Nói rõ sản phẩm khách hỏi chưa tìm thấy trong dữ liệu của shop.
+     + Bước 2: Xin số điện thoại để nhân viên gọi lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất.
+     + Bước 3: Đồng thời mới giới thiệu qua sản phẩm tương tự/liên quan (nếu có) hoặc hướng dẫn tham khảo toàn bộ danh mục sản phẩm hiện có đã được mở sẵn ở Cột 2.
    - TUYỆT ĐỐI KHÔNG tự nhận là có hàng khi không có, KHÔNG tự bịa ra sản phẩm!
 
 YÊU CẦU PHONG CÁCH BẮT BUỘC:
@@ -2102,22 +2175,27 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       replyText = `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHiện **${customerRef}** đang cần tìm sản phẩm thuộc lĩnh vực nào để tôi tư vấn ngay ạ?`;
     }
 
-    // Inquiring product not available in database (Tier 3: S < 80%)
+    // Inquiring product not available in database (Tier 2 similar or Tier 3 missing)
     if (!replyText && !extractedPhone && missingProductQuery) {
       const capRef = capitalizeFirst(customerRef);
-      const activeScopeField = conversationContextField || matchedField || activeHistoryField || null;
-      const sameCategoryProducts = activeScopeField && activeScopeField !== 'Tất cả'
-        ? allProducts.filter((p) => p.field === activeScopeField)
-        : [];
-      let col2Guide = '';
-      if (sameCategoryProducts.length > 0) {
-        const uniqueNames = [...new Set(sameCategoryProducts.map((p) => p.name))].slice(0, 2);
-        const sampleProds = uniqueNames.map((n) => `**${n}**`).join(', ');
-        col2Guide = `\n\nTuy nhiên, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có (như ${sampleProds}) đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
+      const topSimilar = productMatch?.topProduct || productMatch?.relatedProduct || (productMatch?.rankedProducts && productMatch.rankedProducts[0]) || null;
+      let step3Alternative = '';
+      if (topSimilar) {
+        step3Alternative = `Đồng thời, hiện tại bên em đang có sản phẩm tương tự / liên quan có thể phù hợp với nhu cầu của mình là **${topSimilar.name}** (Giá niêm yết: **${formatPrice(topSimilar)}**). Thông tin chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm nhé ạ!`;
       } else {
-        col2Guide = `\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tự do tham khảo các mẫu khác ở Cột 2 nhé.`;
+        const activeScopeField = conversationContextField || matchedField || activeHistoryField || null;
+        const sameCategoryProducts = activeScopeField && activeScopeField !== 'Tất cả'
+          ? allProducts.filter((p) => p.field === activeScopeField)
+          : [];
+        if (sameCategoryProducts.length > 0) {
+          const uniqueNames = [...new Set(sameCategoryProducts.map((p) => p.name))].slice(0, 2);
+          const sampleProds = uniqueNames.map((n) => `**${n}**`).join(', ');
+          step3Alternative = `Đồng thời, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có của shop (như ${sampleProds}) đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
+        } else {
+          step3Alternative = `Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
+        }
       }
-      replyText = `Dạ hiện tại bên em chưa có sẵn mẫu **${missingProductQuery}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để shop trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingProductQuery} cho ${customerRef} sớm nhất nhé!`;
+      replyText = `Dạ hiện tại sản phẩm **${missingProductQuery}** chưa tìm thấy trong dữ liệu của shop ạ.\n\n${capRef} vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\n${step3Alternative}`;
     }
 
     if (!replyText) {
@@ -2136,6 +2214,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         detectedQty,
         extractedPhone,
         leadCreated,
+      leadCaptured: Boolean(leadCreated),
         history,
         ownerName,
         phonePrompt,
@@ -2303,6 +2382,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         replyText,
         JSON.stringify({
           leadCreated,
+      leadCaptured: Boolean(leadCreated),
           activeProduct: targetSavedProduct,
           activeField: targetSavedField,
           recommendedField,
@@ -2330,18 +2410,32 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       specs: parseSpecs(p)
     }));
 
+    const isMissingOrCollectingPhone = Boolean(missingProductQuery) && !extractedPhone;
+    if (isMissingOrCollectingPhone) {
+      customerProfile.pendingMissingProduct = missingProductQuery;
+    }
+
     return {
       success: true,
       conversationId: convId,
       messageId: assistantMsgId,
       reply: replyText,
       leadCreated,
+      leadCaptured: Boolean(leadCreated),
       orderFlow: nextOrderFlow,
       revealCatalog: Boolean(revealCatalog),
       recommendedField,
-      recommendedProduct,
+      recommendedProduct: recommendedProduct || productMatch?.topProduct || productMatch?.relatedProduct || null,
       products: enrichedProducts,
-      botState: leadCreated ? 'success' : 'speaking'
+      botState: leadCreated ? 'success' : 'speaking',
+      stage: isMissingOrCollectingPhone ? 'COLLECTING_PHONE' : (leadCreated ? 'LEAD_CAPTURED' : 'IDLE'),
+      requiresInput: isMissingOrCollectingPhone ? 'PHONE' : null,
+      suggestedActions: isMissingOrCollectingPhone
+        ? [
+            { id: 'leave_phone', label: 'Để lại số điện thoại' },
+            { id: 'view_catalog', label: 'Xem sản phẩm Cột 2' }
+          ]
+        : []
     };
   }
 
@@ -2539,6 +2633,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     return {
       orderFlow: flow,
       leadCreated,
+      leadCaptured: Boolean(leadCreated),
       reply: `Dạ, cảm ơn **${savedRef}**! Tôi đã lưu thông tin đặt hàng vào hệ thống:\n• **Sản phẩm:** ${flow.productName} (SL: **${flow.quantity}**${subtotalText})\n• **Số điện thoại:** **${flow.phone}**\n\n👉 Bạn có muốn nhắn thêm **địa chỉ nhận hàng hoặc ghi chú** gửi **${ownerName}** không ạ? *(Hoặc nhắn "Xong" nếu đã đủ thông tin)*`
     };
   }
@@ -2779,7 +2874,11 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       const salesPitch = buildProductSalesPitch(top);
 
       if (tier === 2) {
-        // TÌNH HUỐNG 2: Giống từ 80% đến dưới 90% -> Báo có sản phẩm tương tự + kịch bản bán hàng theo tên sản phẩm + báo giá + mở Cột 2 + hỏi số tiền
+        // TÌNH HUỐNG 2: Giống từ 80% đến dưới 90%
+        const missingName = productMatch?.missingProductQuery || (coreQuery ? formatMissingProductName(coreQuery, conversationContextField) : null);
+        if (missingName) {
+          return `${politeAskBanner}Dạ hiện tại sản phẩm **${missingName}** chưa tìm thấy trong dữ liệu của shop ạ.\n\n${capRef} vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\nĐồng thời, hiện tại bên em đang có sản phẩm tương tự rất phù hợp là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n\n${salesPitch}\n\nThông số chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm nhé ạ!`;
+        }
         const budgetAsk = hasBudgetInQuery
           ? ` ${capRef} muốn tôi tư vấn thêm hay hỗ trợ đặt mua ngay ạ?`
           : ` Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn mẫu sát nhất với nhu cầu của bạn nhé?`;
@@ -2845,22 +2944,27 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       }
     }
 
-    // TÌNH HUỐNG 3: Không giống gì hết / không có trong data (< 80%)
+    // TÌNH HUỐNG 3: Không có trong data (< 80%)
     const missingCandidate = productMatch?.missingProductQuery || detectMissingProductInquiry(message, normMessage, [], null, allProducts, '', conversationContextField);
     if (missingCandidate) {
-      const activeScopeField = conversationContextField || matchedField || null;
-      const sameCategoryProducts = activeScopeField && activeScopeField !== 'Tất cả'
-        ? allProducts.filter((p) => p.field === activeScopeField)
-        : [];
-      let col2Guide = '';
-      if (sameCategoryProducts.length > 0) {
-        const uniqueNames = [...new Set(sameCategoryProducts.map((p) => p.name))].slice(0, 2);
-        const sampleProds = uniqueNames.map((n) => `**${n}**`).join(', ');
-        col2Guide = `\n\nTuy nhiên, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có (như ${sampleProds}) đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
+      const topSimilar = productMatch?.topProduct || productMatch?.relatedProduct || (productMatch?.rankedProducts && productMatch.rankedProducts[0]) || null;
+      let relatedIntro = '';
+      if (topSimilar) {
+        relatedIntro = `Đồng thời, hiện tại bên em đang có sản phẩm tương tự / liên quan có thể phù hợp với nhu cầu của mình là **${topSimilar.name}** (Giá niêm yết: **${formatPrice(topSimilar)}**). Thông tin chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm nhé ạ!`;
       } else {
-        col2Guide = `\n\nToàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tự do tham khảo các mẫu khác ở Cột 2 nhé.`;
+        const activeScopeField = conversationContextField || matchedField || null;
+        const sameCategoryProducts = activeScopeField && activeScopeField !== 'Tất cả'
+          ? allProducts.filter((p) => p.field === activeScopeField)
+          : [];
+        if (sameCategoryProducts.length > 0) {
+          const uniqueNames = [...new Set(sameCategoryProducts.map((p) => p.name))].slice(0, 2);
+          const sampleProds = uniqueNames.map((n) => `**${n}**`).join(', ');
+          relatedIntro = `Đồng thời, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có của shop (như ${sampleProds}) đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
+        } else {
+          relatedIntro = `Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
+        }
       }
-      return `${politeAskBanner}Dạ hiện tại bên em chưa có sẵn mẫu **${missingCandidate}** trong danh mục ạ.${col2Guide}\n\nHoặc ${capRef} vui lòng để lại **Số điện thoại** để ${ownerName} trực tiếp kiểm tra nguồn hàng kho và liên hệ hỗ trợ báo giá mẫu ${missingCandidate} cho ${customerRef} sớm nhất nhé!`;
+      return `${politeAskBanner}Dạ hiện tại sản phẩm **${missingCandidate}** chưa tìm thấy trong dữ liệu của shop ạ.\n\n${capRef} vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\n${relatedIntro}`;
     }
 
     // 10. Button-triggered detail / price inquiry for Selected Product

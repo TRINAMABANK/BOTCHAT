@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import KnowledgeCenter from './admin/KnowledgeCenter';
 import SupplierWebsiteCenter from './admin/SupplierWebsiteCenter';
+import CentralBrainManagement from './admin/CentralBrainManagement';
 
 export const OwnerDashboard = ({
   isOpen = false,
@@ -904,6 +905,18 @@ export const OwnerDashboard = ({
             <Globe size={16} />
             <span>Kho Website Nhà Cung Cấp & Báo Giá</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('brain_management')}
+            className={`flex items-center space-x-2 px-5 py-3 rounded-t-2xl font-bold transition-all text-xs sm:text-sm ${
+              activeTab === 'brain_management'
+                ? 'bg-gradient-to-r from-purple-400 via-fuchsia-300 to-pink-400 text-slate-950 shadow-[0_0_20px_rgba(217,70,239,0.5)]'
+                : 'text-cyan-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Cpu size={16} />
+            <span>Central Brain 2.0 (Bộ Não AI)</span>
+          </button>
         </div>
 
         {/* 4. TAB CONTENT BODY */}
@@ -1717,6 +1730,11 @@ export const OwnerDashboard = ({
           {/* TAB 5: KHO WEBSITE NHÀ CUNG CẤP & BÁO GIÁ (12 PHÂN HỆ) */}
           {activeTab === 'supplier_websites' && (
             <SupplierWebsiteCenter />
+          )}
+
+          {/* TAB 6: CENTRAL BRAIN MANAGEMENT 2.0 */}
+          {activeTab === 'brain_management' && (
+            <CentralBrainManagement orgId="org_default" />
           )}
         </div>
       </div>

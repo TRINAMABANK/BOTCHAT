@@ -140,7 +140,8 @@ export async function callGemini(promptOrContents, options = {}) {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyPayload)
+        body: JSON.stringify(bodyPayload),
+        signal: AbortSignal.timeout(5000)
       });
 
       if (!res.ok) {

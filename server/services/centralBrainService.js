@@ -18,6 +18,15 @@ import { ExcelParser } from './parsers/excelParser.js';
 import { WebSearchService } from './webSearchService.js';
 import { QuotationService } from './quotationService.js';
 
+// TRÍ AI Smart Intelligence 2.0 Engines
+import { IntentEngine } from './intelligence/intentEngine.js';
+import { ReasoningEngine } from './intelligence/reasoningEngine.js';
+import { MemoryEngine } from './intelligence/memoryEngine.js';
+import { VerificationEngine } from './intelligence/verificationEngine.js';
+import { LiveWebsiteRetrieval } from './intelligence/liveWebsiteRetrieval.js';
+import { ResponseEngine } from './intelligence/responseEngine.js';
+import { ToolOrchestrator } from './intelligence/toolOrchestrator.js';
+
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
  */
@@ -29,11 +38,10 @@ export function sanitizeAiResponse(text = '') {
     .replace(/\(https?:\/\/(?:www\.)?duckduckgo\.com[^\s)]*\)/gi, '')
     .replace(/https?:\/\/(?:www\.)?duckduckgo\.com\S*/gi, '')
     .replace(/\[Nguồn:\s*\]/gi, '')
-    .replace(/(\*\*[^*]+?)\s*của Quang Nhựt Trí\*\*/gi, '$1**')
-    .replace(/—\s*Thư ký AI Toàn năng của Quang Nhựt Trí\b/gi, '— Thư ký AI Toàn năng')
-    .replace(/trợ lý bán hàng của Quang Nhựt Trí/gi, 'trợ lý bán hàng thông minh')
-    .replace(/trợ lý bán hàng thông minh của Quang Nhựt Trí/gi, 'trợ lý bán hàng thông minh')
-    .replace(/\s*của\s*(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?[\.]?/gi, '')
+    .replace(/(\*\*[^*]+?)\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?Quang Nhựt Trí\*\*/gi, '$1**')
+    .replace(/—\s*Thư ký AI Toàn năng của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí\b/gi, '— Thư ký AI Toàn năng')
+    .replace(/trợ lý bán hàng (?:thông minh )?của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí/gi, 'trợ lý bán hàng thông minh')
+    .replace(/\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?[\.]?/gi, '')
     .trim();
 }
 
@@ -76,6 +84,20 @@ export const CENTRAL_BRAIN_TOOLS = [
           customer_phone: { type: 'string', description: 'Số điện thoại liên hệ' }
         },
         required: ['product_name']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'live_website_retrieval',
+      description: 'Truy xuất trực tiếp trang sản phẩm từ website nhà cung cấp đã đăng ký khi cần kiểm tra thông tin, giá bán và đường dẫn sản phẩm thực tế theo thời gian thực.',
+      parameters: {
+        type: 'object',
+        properties: {
+          product_query: { type: 'string', description: 'Tên hoặc từ khóa sản phẩm cần tìm' }
+        },
+        required: ['product_query']
       }
     }
   },
@@ -171,7 +193,8 @@ export class CentralBrainService {
       actionType = null,
       customerInfo = null,
       clientDevice = null,
-      orgId = 'org_default'
+      orgId = 'org_default',
+      userId = customerInfo?.phone || customerInfo?.id || 'usr_anonymous'
     } = params;
 
     const trimmedMsg = (message || '').trim();
@@ -184,16 +207,58 @@ export class CentralBrainService {
       };
     }
 
-    const toolsUsed = [];
-    let uiDirectives = {
-      revealCatalog: false,
-      recommendedField: null,
-      recommendedProduct: null,
-      stage: 'IDLE',
-      orderInfo: null,
-      leadCaptured: false
+    // 1. INTENT ENGINE: Natural language analysis, slang normalization, entity & intent extraction
+    const intentResult = IntentEngine.analyzeIntent(trimmedMsg, params);
+
+    // Resolve user ID with priority on explicit phone entity
+    const effectiveUserId = intentResult.slots?.phone || customerInfo?.phone || customerInfo?.id || userId;
+
+    // 2. MEMORY ENGINE: Check for memory commands or customer preference facts
+    if (intentResult.primaryIntent === 'MEMORY_COMMAND') {
+      await MemoryEngine.forgetCustomer(effectiveUserId, orgId);
+      return ResponseEngine.formatResponse({
+        replyText: 'Dạ, tôi đã xóa toàn bộ thông tin ghi nhớ cá nhân của bạn trong hệ thống theo yêu cầu để đảm bảo quyền riêng tư tuyệt đối.',
+        stage: 'MEMORY_UPDATED',
+        toolsUsed: ['memory_engine']
+      });
+    }
+
+    // Remember customer phone or budget if stated
+    if (intentResult.slots?.phone) {
+      await MemoryEngine.rememberCustomerFact({
+        userId: effectiveUserId,
+        orgId,
+        memoryType: 'PROFILE',
+        key: 'phone',
+        value: intentResult.slots.phone
+      });
+    }
+    if (intentResult.slots?.budget) {
+      await MemoryEngine.rememberCustomerFact({
+        userId: effectiveUserId,
+        orgId,
+        memoryType: 'BUDGET',
+        key: 'target_budget',
+        value: String(intentResult.slots.budget)
+      });
+    }
+
+    // 3. REASONING ENGINE: Assess complexity & data sufficiency
+    const plan = ReasoningEngine.planExecution(intentResult, params);
+    if (!plan.dataSufficient && plan.clarificationQuestion) {
+      return ResponseEngine.formatClarification(plan.clarificationQuestion);
+    }
+
+    // Context enriched with Intent & Plan
+    const enrichedContext = {
+      ...params,
+      message: trimmedMsg,
+      conversationId,
+      intentResult,
+      plan,
+      userId,
+      orgId
     };
-    const accumulatedCitations = [];
 
     // Check if OpenAI Key is configured
     const openAiApiKey = process.env.OPENAI_API_KEY;
@@ -204,15 +269,7 @@ export class CentralBrainService {
       // PATH A: Native OpenAI Tool Calling (Central Brain)
       // -----------------------------------------------------------------------
       try {
-        const brainResult = await this.runOpenAiCentralBrain({
-          message: trimmedMsg,
-          conversationId,
-          selectedProduct,
-          actionType,
-          customerInfo,
-          clientDevice,
-          orgId
-        });
+        const brainResult = await this.runOpenAiCentralBrain(enrichedContext);
         return brainResult;
       } catch (err) {
         console.warn('[CENTRAL BRAIN] OpenAI call failed, falling back to Smart Orchestrator:', err.message);
@@ -222,113 +279,86 @@ export class CentralBrainService {
     // -------------------------------------------------------------------------
     // PATH B: Smart Tool Orchestrator with Gemini / Fallback Engine
     // -------------------------------------------------------------------------
-    return await this.runSmartOrchestratorFallback({
-      message: trimmedMsg,
-      conversationId,
-      selectedProduct,
-      actionType,
-      customerInfo,
-      clientDevice,
-      orgId
-    });
+    return await this.runSmartOrchestratorFallback(enrichedContext);
   }
 
   /**
    * Smart Orchestrator Fallback Engine
    */
   static async runSmartOrchestratorFallback(context) {
-    const { message, conversationId, selectedProduct, actionType, customerInfo, clientDevice, orgId } = context;
+    const { message, conversationId, selectedProduct, actionType, customerInfo, clientDevice, orgId, intentResult, plan } = context;
     const toolsUsed = [];
     let uiDirectives = {};
     const citations = [];
     let intermediateContext = '';
 
     const lower = message.toLowerCase();
-    const isExcelQuery = lower.includes('excel') || lower.includes('bang tinh') || lower.includes('bảng tính') || lower.includes('tổng cộng') || lower.includes('doanh thu');
-    const isDocExplicitQuery = /(tài liệu|tai lieu|quy trình|quy trinh|chính sách|chinh sach|hướng dẫn|huong dan|quy chế|quy che|quyết định|quyet dinh|điều chuyển|dieu chuyen|nam a bank|namabank|thủ tục|thu tuc|công văn|cong van|văn bản|van ban|nội bộ|noi bo|sổ tay|so tay|quy định|quy dinh|hồ sơ|ho so)/i.test(message);
-    const isWebSearch = lower.includes('tin tuc') || lower.includes('thoi tiet') || lower.includes('internet') || lower.includes('tim tren mang') || lower.includes('tra cuu mang');
-    const isQuotationRequest = /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(message);
-    const isExplicitPurchase = (/\b(mua|ban|dat hang|dat mua|gia ca|gia bao nhieu|bao nhieu tien|mua ngay|san pham|tu van mau)\b/i.test(message));
+    const primaryIntent = intentResult?.primaryIntent || 'PRODUCT_CONSULTATION';
+    const slots = intentResult?.slots || {};
+
+    const isExcelQuery = primaryIntent === 'EXCEL_CALCULATION' || lower.includes('excel') || lower.includes('bang tinh') || lower.includes('bảng tính') || lower.includes('tổng cộng') || lower.includes('doanh thu');
+    const isDocExplicitQuery = primaryIntent === 'INTERNAL_DOCUMENT_RAG' || ((/(tài liệu|tai lieu|quy trình|quy trinh|quy chế|quy che|quyết định|quyet dinh|điều chuyển|dieu chuyen|nam a bank|namabank|thủ tục|thu tuc|công văn|cong van|văn bản|van ban|nội bộ|noi bo|sổ tay|so tay|quy định|quy dinh|hồ sơ|ho so)/i.test(message) || (/(chính sách|chinh sach)/i.test(message) && !/(bảo hành|bao hanh|đổi trả|doi tra|giao hàng|giao hang|mua hàng|mua hang)/i.test(message))) && !/(mua|bán|giá|báo giá)/i.test(message));
+    const isWebSearch = primaryIntent === 'INTERNET_SEARCH' || lower.includes('tin tuc') || lower.includes('thoi tiet') || lower.includes('internet') || lower.includes('tim tren mang') || lower.includes('tra cuu mang');
+    const isQuotationRequest = primaryIntent === 'FORMAL_QUOTATION' || /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(message);
+    const isLiveWebSearch = primaryIntent === 'LIVE_WEBSITE_SEARCH' || lower.includes('website') || lower.includes('web nha cung cap');
 
     // 0A. Greeting & Conversational Routing (Polite Personal Secretary)
-    const isGreeting = /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim());
-    if (isGreeting && !isQuotationRequest && !isExplicitPurchase && !isDocExplicitQuery && !isExcelQuery) {
-      return {
-        success: true,
-        reply: 'Dạ, em chào anh/chị ạ! Em là **TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng**.\n\nHôm nay em có thể hỗ trợ anh/chị tra cứu tài liệu, tư vấn sản phẩm, kiểm tra tồn kho hay lập bảng báo giá nào không ạ?',
-        revealCatalog: false,
-        recommendedField: null,
-        recommendedProduct: null,
+    const isGreeting = primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim());
+    if (isGreeting && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery && !isLiveWebSearch) {
+      return ResponseEngine.formatResponse({
+        replyText: 'Dạ, em chào bạn ạ! Em là **TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng**.\n\nHôm nay em có thể hỗ trợ bạn tra cứu tài liệu quy chuẩn, tư vấn sản phẩm, kiểm tra tồn kho hay lập bảng báo giá nào không ạ?',
         stage: 'GREETING',
-        citations: [],
         toolsUsed: ['greeting_handler']
-      };
+      });
     }
 
-    // 0B. Formal Quotation Engine Routing (Section VI - Cơ Chế Báo Giá)
+    // 0B. Live Website Retrieval
+    if (isLiveWebSearch && !isDocExplicitQuery && !isExcelQuery) {
+      toolsUsed.push('live_website_retrieval');
+      const liveRes = await ToolOrchestrator.executeLiveWebSearch(slots.productName || message, { orgId });
+      if (liveRes.status === 'SUCCESS' && liveRes.result?.product) {
+        const prod = liveRes.result.product;
+        const liveCitation = prod.productUrl ? [{
+          source: 'live_website',
+          url: prod.productUrl,
+          label: `[Website: ${prod.name}]`
+        }] : [];
+
+        return ResponseEngine.formatResponse({
+          replyText: `Dạ, tôi đã tra cứu trực tiếp từ website nhà cung cấp:\n\n**${prod.name}**\n- Giá tham khảo: **${Number(prod.salePrice || prod.price || 0).toLocaleString('vi-VN')} đ**\n- Hãng sản xuất: ${prod.brand || 'Chính hãng'}\n${prod.productUrl ? `- Link sản phẩm xác thực: ${prod.productUrl}` : ''}\n\nBạn có muốn tôi hỗ trợ lập bảng báo giá chính thức cho sản phẩm này không ạ?`,
+          revealCatalog: true,
+          recommendedField: prod.category || null,
+          recommendedProduct: prod,
+          stage: 'CONSULTING',
+          citations: liveCitation,
+          toolsUsed,
+          confidenceTag: 'LIVE_WEBSITE_EXTRACTED'
+        });
+      }
+    }
+
+    // 0C. Formal Quotation Engine Routing (Section VI - Cơ Chế Báo Giá)
     if (isQuotationRequest && !isDocExplicitQuery && !isExcelQuery) {
       toolsUsed.push('generate_formal_quotation');
       const qtyMatch = message.match(/\b(\d+)\s*(máy|cái|chiếc|bộ|sp|sản phẩm)?/i);
-      const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+      const qty = slots.quantity || (qtyMatch ? parseInt(qtyMatch[1]) : 1);
 
-      const cleanedQuery = message
+      const cleanedQuery = (slots.productName || message)
         .replace(/(cho tôi|cho em|cho e|tôi|mình|minh|em|anh|chị|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|\d+|máy|cái|chiếc|bộ)/gi, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
-      let matchedProds = await QuotationService.searchSupplierCatalog({ query: cleanedQuery || 'máy', limit: 3 });
+      const quoteExec = await ToolOrchestrator.executeQuotation({
+        productName: cleanedQuery || 'máy',
+        quantity: qty,
+        customerInfo,
+        conversationId
+      });
 
-      if (matchedProds.length === 0) {
-        const words = cleanedQuery.split(/\s+/).filter(w => w.length > 2);
-        for (const w of words) {
-          matchedProds = await QuotationService.searchSupplierCatalog({ query: w, limit: 3 });
-          if (matchedProds.length > 0) break;
-        }
-      }
-
-      if (matchedProds.length === 0) {
-        const dbProds = await db.all(`
-          SELECT * FROM products 
-          WHERE is_active = 1 AND is_approved = 1 AND (name LIKE ? OR field LIKE ?)
-          ORDER BY price ASC
-          LIMIT 3
-        `, [`%${cleanedQuery || ''}%`, `%${cleanedQuery || ''}%`]);
-
-        matchedProds = dbProds.map(dp => ({
-          id: dp.id,
-          name: dp.name,
-          sku: dp.sku || `SKU-${dp.id}`,
-          brand: dp.group_name || 'Chính hãng',
-          category: dp.field,
-          salePrice: dp.price,
-          unit: 'cái',
-          priceConfirmationLevel: 'SUPPLIER_VERIFIED',
-          specs: {}
-        }));
-      }
-
-      if (matchedProds.length > 0) {
-        const primaryProd = matchedProds[0];
-        const quote = await QuotationService.createQuotation({
-          customerName: customerInfo?.name || 'Quý Khách Hàng',
-          customerPhone: customerInfo?.phone || '',
-          customerCompany: customerInfo?.company || '',
-          conversationId,
-          items: [{
-            productId: primaryProd.id,
-            productName: primaryProd.name,
-            sku: primaryProd.sku,
-            quantity: qty,
-            unit: primaryProd.unit || 'cái',
-            unitPrice: primaryProd.salePrice,
-            priceType: primaryProd.priceConfirmationLevel || 'REFERENCE_ONLY'
-          }],
-          vatPercent: 10
-        });
-
-        return {
-          success: true,
-          reply: `Dạ em xin gửi bảng báo giá chính thức cho **${primaryProd.name}** (Số lượng: ${qty} ${primaryProd.unit || 'cái'}) theo thông tin từ kho nhà cung cấp ạ:\n\n${quote.markdown}`,
+      if (quoteExec.status === 'SUCCESS' && quoteExec.result?.quote) {
+        const { product: primaryProd, quote } = quoteExec.result;
+        return ResponseEngine.formatResponse({
+          replyText: `Dạ em xin gửi bảng báo giá chính thức cho **${primaryProd.name}** (Số lượng: ${qty} ${primaryProd.unit || 'cái'}) theo thông tin từ kho nhà cung cấp ạ:\n\n${quote.markdown}`,
           revealCatalog: true,
           recommendedField: primaryProd.category || null,
           recommendedProduct: primaryProd,
@@ -343,7 +373,7 @@ export class CentralBrainService {
             label: `[Mã báo giá: ${quote.quoteCode}]`
           }],
           toolsUsed
-        };
+        });
       }
     }
 
@@ -376,7 +406,8 @@ Nguyên tắc:
 - Dựa vào nội dung tài liệu trích dẫn để giải đáp chính xác, khách quan.
 - Dẫn kèm nguồn trích dẫn theo nhãn [Nguồn: ...].
 - Nếu tài liệu không có thông tin về câu hỏi của người dùng, trả lời trung thực rằng tài liệu hiện có chưa có quy định về nội dung này.
-- Tuyệt đối không đề cập đến việc bán hàng hay sản phẩm thương mại khi đang trả lời về văn bản nội bộ.`;
+- Tuyệt đối không đề cập đến việc bán hàng hay sản phẩm thương mại khi đang trả lời về văn bản nội bộ.
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí".`;
 
       const prompt = `${docInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -394,16 +425,15 @@ Nguyên tắc:
         await RagService.logCitations(conversationId, randomUUID(), filteredCitations);
       }
 
-      return {
-        success: true,
-        reply: sanitizeAiResponse(replyText),
+      return ResponseEngine.formatResponse({
+        replyText,
         revealCatalog: false,
         recommendedField: null,
         recommendedProduct: null,
         stage: 'KNOWLEDGE_CONSULTATION',
         citations: filteredCitations,
         toolsUsed
-      };
+      });
     }
 
     // 2. Excel Query Tool
@@ -425,7 +455,8 @@ Nguyên tắc:
 Nguyên tắc:
 - Dựa trên dữ liệu bảng tính trích xuất để trả lời chính xác, mạch lạc.
 - Dẫn kèm nguồn trích dẫn theo nhãn [Bảng tính: ...].
-- Tuyệt đối không bịa đặt số liệu tài chính.`;
+- Tuyệt đối không bịa đặt số liệu tài chính.
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí".`;
 
       const prompt = `${excelInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -436,16 +467,15 @@ Nguyên tắc:
         replyText = `Dạ, kết quả tra cứu bảng tính cho câu hỏi "${message}":\n\n${JSON.stringify(excelRes.dataPreview?.slice(0, 5) || {})}`;
       }
 
-      return {
-        success: true,
-        reply: sanitizeAiResponse(replyText),
+      return ResponseEngine.formatResponse({
+        replyText,
         revealCatalog: false,
         recommendedField: null,
         recommendedProduct: null,
         stage: 'EXCEL_QUERY',
         citations,
         toolsUsed
-      };
+      });
     }
 
     // 3. Web Search ONLY if user explicitly requested external internet lookups
@@ -469,7 +499,8 @@ Nguyên tắc:
 Nguyên tắc:
 - Trả lời bằng tiếng Việt lịch sự, thông minh, chuyên nghiệp, súc tích.
 - Khi có dữ liệu trích dẫn được cung cấp, hãy tổng hợp câu trả lời chính xác và dẫn kèm nguồn theo nhãn [Nguồn: ...].
-- Tuyệt đối không dẫn nguồn duckduckgo hoặc các đường link tìm kiếm rác.`;
+- Tuyệt đối không dẫn nguồn duckduckgo hoặc các đường link tìm kiếm rác.
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí".`;
 
       const prompt = `${webInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -481,16 +512,15 @@ Nguyên tắc:
       }
 
       const filteredCitations = citations.filter(c => !c.url?.includes('duckduckgo.com') && !c.label?.toLowerCase().includes('duckduckgo'));
-      return {
-        success: true,
-        reply: sanitizeAiResponse(replyText),
+      return ResponseEngine.formatResponse({
+        replyText,
         revealCatalog: false,
         recommendedField: null,
         recommendedProduct: null,
         stage: 'WEB_SEARCH',
         citations: filteredCitations,
         toolsUsed
-      };
+      });
     }
 
     // 4. BÁN HÀNG & TƯ VẤN SẢN PHẨM & CHAT SHOP (CORE DEFAULT CHO TOÀN BỘ CÂU HỎI CÒN LẠI)
@@ -506,9 +536,8 @@ Nguyên tắc:
       orgId
     });
 
-    return {
-      success: true,
-      reply: sanitizeAiResponse(salesResult.reply),
+    return ResponseEngine.formatResponse({
+      replyText: salesResult.reply,
       revealCatalog: salesResult.revealCatalog || false,
       recommendedField: salesResult.recommendedField || null,
       recommendedProduct: salesResult.recommendedProduct || null,
@@ -519,7 +548,7 @@ Nguyên tắc:
       leadCaptured: salesResult.leadCaptured || false,
       citations: [],
       toolsUsed
-    };
+    });
   }
 
   /**
@@ -537,10 +566,13 @@ Nguyên tắc:
 Bạn có quyền truy cập các công cụ:
 1. consult_sales_engine: Tư vấn sản phẩm, tồn kho, kiểm tra danh mục và chốt đơn mua hàng.
 2. lookup_supplier_products: Tra cứu sản phẩm, thông số kỹ thuật và đơn giá từ kho nhà cung cấp đã thu thập và kiểm duyệt.
-3. generate_formal_quotation: Khởi tạo bảng báo giá chính thức kèm mã báo giá, bảng tính chi tiết, VAT 10% và ghi rõ nguồn giá khi khách hàng hỏi hoặc xin báo giá.
-${isDocExplicitQuery ? '4. search_knowledge_base: Tra cứu kho tài liệu quy chuẩn, sổ tay quy trình, chính sách nội bộ (quy chế, văn bản pháp quy).\n' : ''}5. query_excel_data: Tính toán và truy vấn số liệu chính xác trên các bảng tính Excel/CSV.
-6. search_web_internet: Tra cứu thông tin trên Internet khi được yêu cầu.
-QUY TẮC BẮT BUỘC: Khi khách hàng tìm hiểu, hỏi mua sản phẩm, hỏi giá, báo giá hoặc trò chuyện mua sắm, BÁN HÀNG LÀ ƯU TIÊN DUY NHẤT. TUYỆT ĐỐI KHÔNG lôi kéo nội dung tài liệu nội bộ (như quy chế ngân hàng, văn bản công văn) vào câu trả lời bán hàng!`;
+3. live_website_retrieval: Truy xuất trực tiếp trang sản phẩm từ website nhà cung cấp theo thời gian thực.
+4. generate_formal_quotation: Khởi tạo bảng báo giá chính thức kèm mã báo giá, bảng tính chi tiết, VAT 10% và ghi rõ nguồn giá khi khách hàng hỏi hoặc xin báo giá.
+${isDocExplicitQuery ? '5. search_knowledge_base: Tra cứu kho tài liệu quy chuẩn, sổ tay quy trình, chính sách nội bộ (quy chế, văn bản pháp quy).\n' : ''}6. query_excel_data: Tính toán và truy vấn số liệu chính xác trên các bảng tính Excel/CSV.
+7. search_web_internet: Tra cứu thông tin trên Internet khi được yêu cầu.
+QUY TẮC BẮT BUỘC:
+- Khi khách hàng tìm hiểu, hỏi mua sản phẩm, hỏi giá, báo giá hoặc trò chuyện mua sắm, BÁN HÀNG LÀ ƯU TIÊN DUY NHẤT. TUYỆT ĐỐI KHÔNG lôi kéo nội dung tài liệu nội bộ (như quy chế ngân hàng, văn bản công văn) vào câu trả lời bán hàng!
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ tự xưng là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -622,6 +654,21 @@ QUY TẮC BẮT BUỘC: Khi khách hàng tìm hiểu, hỏi mua sản phẩm, h�
             uiDirectives.revealCatalog = true;
             uiDirectives.recommendedProduct = sResults[0];
             uiDirectives.recommendedField = sResults[0].category;
+          }
+        } else if (fnName === 'live_website_retrieval') {
+          const lwRes = await LiveWebsiteRetrieval.searchLiveProduct(args.product_query, { orgId });
+          toolResultStr = JSON.stringify(lwRes);
+          if (lwRes.success && lwRes.product) {
+            uiDirectives.revealCatalog = true;
+            uiDirectives.recommendedProduct = lwRes.product;
+            uiDirectives.recommendedField = lwRes.product.category;
+            if (lwRes.product.productUrl) {
+              citations.push({
+                source: 'live_website',
+                url: lwRes.product.productUrl,
+                label: `[Website: ${lwRes.product.name}]`
+              });
+            }
           }
         } else if (fnName === 'generate_formal_quotation') {
           let matchedProds = await QuotationService.searchSupplierCatalog({ query: args.product_name, limit: 1 });

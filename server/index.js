@@ -9,6 +9,7 @@ import SalesEngineAdapter from './adapters/salesEngineAdapter.js';
 import CentralBrainService from './services/centralBrainService.js';
 import knowledgeRoutes from './routes/knowledgeRoutes.js';
 import supplierWebsiteRoutes from './routes/supplierWebsiteRoutes.js';
+import centralBrainRoutes from './routes/centralBrainRoutes.js';
 const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 
@@ -41,6 +42,9 @@ app.use('/api/knowledge', knowledgeRoutes);
 
 // Mount Supplier Websites & Quotation Engine APIs
 app.use('/api/supplier-websites', supplierWebsiteRoutes);
+
+// Mount TRÍ AI Smart Intelligence 2.0 Central Brain APIs
+app.use('/api/central-brain', centralBrainRoutes);
 
 // Anti-tamper & Security headers
 app.use((req, res, next) => {

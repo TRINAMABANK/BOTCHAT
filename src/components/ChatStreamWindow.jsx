@@ -111,7 +111,7 @@ export const ChatStreamWindow = ({
             </div>
             <h4 className="font-semibold text-slate-200 text-sm">Chào mừng bạn đến với TRÍ AI Sales Robot!</h4>
             <p className="text-xs text-slate-400 max-w-sm mt-1 leading-relaxed">
-              Tôi là trợ lý bán hàng của {ownerName || 'Quang Nhựt Trí'}. Hãy bấm chọn sản phẩm bên Cột 2 (Product Selector) hoặc nhắn tin trực tiếp để tôi tư vấn nhé!
+              Tôi là trợ lý bán hàng thông minh. Hãy bấm chọn sản phẩm bên Cột 2 (Product Selector) hoặc nhắn tin trực tiếp để tôi tư vấn nhé!
             </p>
           </div>
         )}

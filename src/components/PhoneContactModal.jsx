@@ -34,7 +34,7 @@ export const PhoneContactModal = ({
     }
 
     if (!consent) {
-      setError(`Vui lòng tích đồng ý để ${ownerName || 'Quang Nhựt Trí'} có thể liên hệ với bạn.`);
+      setError('Vui lòng tích đồng ý để Shop có thể liên hệ với bạn.');
       return;
     }
 
@@ -66,10 +66,10 @@ export const PhoneContactModal = ({
           </div>
           <div>
             <h3 className="font-bold text-base text-slate-100 font-display">
-              KẾT NỐI VỚI {ownerName ? ownerName.toUpperCase() : 'QUANG NHỰT TRÍ'}
+              KẾT NỐI VỚI CHUYÊN VIÊN TƯ VẤN
             </h3>
             <p className="text-xs text-fuchsia-300 font-medium">
-              {ownerName || 'Quang Nhựt Trí'} sẽ liên hệ lại trực tiếp
+              Chuyên viên tư vấn sẽ liên hệ lại trực tiếp
             </p>
           </div>
         </div>
@@ -142,7 +142,7 @@ export const PhoneContactModal = ({
               className="mt-0.5 rounded border-slate-700 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
             />
             <label htmlFor="modalConsent" className="text-[11px] text-slate-300 leading-tight">
-              Tôi đồng ý để {ownerName || 'Quang Nhựt Trí'} trực tiếp liên hệ tư vấn và gửi bảng báo giá ưu đãi.
+              Tôi đồng ý để Shop trực tiếp liên hệ tư vấn và gửi bảng báo giá ưu đãi.
             </label>
           </div>
 
