@@ -313,10 +313,10 @@ export class SmartSalesConsultant {
   }
 
   /**
-   * 4. Detect if query is a Precision Spec Search (RAM, CPU, In 2 mặt, Screen Hz)
+   * 4. Detect if query is a Precision Spec Search (RAM, CPU, In 2 mặt, Screen Hz, Wifi/LAN)
    */
   static isSpecSearch(normMessage = '') {
-    return /(ram\s*\d+|ssd\s*\d+|core\s*[iu]?\d+|core\s*5|u3|u5|u7|in\s*2\s*mat|dao\s*mat|144hz|ips|wuxga|fhd|laser|scan\s*2\s*mat)\b/i.test(normMessage);
+    return /(ram\s*(\d+|bao\s*nhieu|may|nhiue)|dung\s*luong\s*ram|ssd\s*(\d+|bao\s*nhieu|may)|o\s*cung|core\s*[iu]?\d+|core\s*5|u3|u5|u7|in\s*2\s*mat|dao\s*mat|144hz|ips|wuxga|fhd|laser|scan\s*2\s*mat|wifi|mang\s*lan|\blan\b|ket\s*noi\s*mang)\b/i.test(normMessage);
   }
 
   /**
@@ -333,23 +333,45 @@ export class SmartSalesConsultant {
     let matchedProd = null;
     let highlightSpec = '';
 
+    // First, check if customer mentioned a specific model in the query
+    for (const p of allProducts) {
+      const pNameLower = (p.name || '').toLowerCase();
+      if (/e14/i.test(lower) && /e14/i.test(pNameLower)) { matchedProd = p; break; }
+      if (/l14/i.test(lower) && /l14/i.test(pNameLower)) { matchedProd = p; break; }
+      if (/neo\s*50s/i.test(lower) && /neo\s*50s/i.test(pNameLower)) { matchedProd = p; break; }
+      if (/brother|6210|may\s*in/i.test(lower) && /brother/i.test(pNameLower)) { matchedProd = p; break; }
+    }
+
+    if (matchedProd && /ram/i.test(lower)) {
+      highlightSpec = /16g/i.test(matchedProd.name) ? 'RAM 16GB DDR5 tốc độ cao' : 'RAM chính hãng';
+    } else if (matchedProd && (/in\s*2\s*mat|dao\s*mat|duplex/i.test(lower))) {
+      highlightSpec = 'tính năng in 2 mặt tự động (Duplex)';
+    } else if (matchedProd && (/wifi|lan|ket\s*noi|mang/i.test(lower))) {
+      highlightSpec = 'hỗ trợ đầy đủ kết nối mạng LAN Gigabit và Wifi không dây tiện lợi (chuẩn DW)';
+    }
+
     // Match RAM 16GB
-    if (/ram\s*16|16g/i.test(lower)) {
+    if (!matchedProd && /ram\s*16|16g/i.test(lower)) {
       matchedProd = allProducts.find(p => /16g/i.test(p.name) || (p.specs_json && /16gb|16g/i.test(p.specs_json)));
       highlightSpec = 'RAM 16GB mạnh mẽ';
     }
     // Match in 2 mặt / Duplex
-    else if (/in\s*2\s*mat|dao\s*mat|duplex/i.test(lower)) {
+    else if (!matchedProd && /in\s*2\s*mat|dao\s*mat|duplex/i.test(lower)) {
       matchedProd = allProducts.find(p => /hl\s*-\s*l6210dw|dw|duplex/i.test(p.name) || p.field === 'MAY IN');
       highlightSpec = 'tính năng in 2 mặt tự động (Duplex)';
     }
+    // Match Wifi / LAN
+    else if (!matchedProd && /wifi|mang\s*lan|\blan\b|ket\s*noi/i.test(lower)) {
+      matchedProd = allProducts.find(p => /hl\s*-\s*l6210dw|dw|brother/i.test(p.name) || p.field === 'MAY IN');
+      highlightSpec = 'hỗ trợ đầy đủ kết nối mạng LAN Gigabit và Wifi không dây tiện lợi (chuẩn DW)';
+    }
     // Match 144Hz screen
-    else if (/144hz/i.test(lower)) {
+    else if (!matchedProd && /144hz/i.test(lower)) {
       matchedProd = allProducts.find(p => /144hz/i.test(p.name) || p.field === 'MAN HINH VI TINH');
       highlightSpec = 'tần số quét 144Hz siêu mượt mà';
     }
     // Match CPU / PC neo 50s
-    else if (/neo\s*50s|core\s*5|u3|u5/i.test(lower)) {
+    else if (!matchedProd && /neo\s*50s|core\s*5|u3|u5/i.test(lower)) {
       matchedProd = allProducts.find(p => /neo\s*50s/i.test(p.name) || p.field === 'CPU');
       highlightSpec = 'bộ vi xử lý hiệu năng cao Intel thế hệ mới';
     }

@@ -611,6 +611,55 @@ Nguyên tắc:
       });
     }
 
+    // 3B.5B. UNKNOWN MODEL CODE GUARD: Prevent hallucinating when customer asks for a non-existent model
+    if (slots.modelCode) {
+      const codeClean = slots.modelCode.replace(/[-_\s]/g, '').toLowerCase();
+      const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
+      const modelExists = allActiveProds.some(p => {
+        const nClean = (p.name || '').replace(/[-_\s]/g, '').toLowerCase();
+        const sClean = (p.sku || '').replace(/[-_\s]/g, '').toLowerCase();
+        return nClean.includes(codeClean) || sClean.includes(codeClean);
+      });
+      if (!modelExists) {
+        toolsUsed.push('unknown_model_guard', 'learning_capture_engine');
+        let missingName = slots.modelCode;
+        if (slots.brand && !missingName.toUpperCase().includes(slots.brand.toUpperCase())) {
+          missingName = `${slots.brand} ${slots.modelCode}`;
+        } else if (slots.productName) {
+          const cleanP = slots.productName.replace(/[^\p{L}\p{N}\s]/gu, ' ').trim();
+          missingName = cleanP ? `${cleanP} ${slots.modelCode}` : `mẫu ${slots.modelCode}`;
+        } else {
+          missingName = `mẫu ${slots.modelCode}`;
+        }
+        const relatedProd = allActiveProds.find(p => slots.categoryDomain ? p.field === slots.categoryDomainName : p.field === 'CONG NGHE' || p.field === 'MAY TINH XACH TAY') || allActiveProds[0];
+
+        try {
+          await LearningCaptureEngine.recordGap({
+            unansweredQuestion: message,
+            aiResponse: `Dạ hiện tại sản phẩm ${missingName} chưa tìm thấy trong dữ liệu của shop ạ.`,
+            conversationId,
+            reason: 'MODEL_NOT_FOUND',
+            relatedTopic: slots.categoryDomainName || 'Sản phẩm',
+            relatedProductName: missingName,
+            orgId
+          });
+        } catch (_) {}
+
+        const reply = `Dạ hiện tại sản phẩm **${missingName}** chưa tìm thấy trong dữ liệu của shop ạ.\n\n` +
+          `Bạn vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\n` +
+          (relatedProd ? `Đồng thời, hiện tại bên em đang có sản phẩm tương tự có thể phù hợp với nhu cầu của mình là **${relatedProd.name}** (Giá niêm yết: **${SmartSalesConsultant.formatPrice(relatedProd.price)}**). Thông tin chi tiết đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm nhé ạ!` : `Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm nhé ạ!`);
+
+        return ResponseEngine.formatResponse({
+          replyText: reply,
+          revealCatalog: true,
+          recommendedField: relatedProd ? relatedProd.field : null,
+          recommendedProduct: relatedProd || null,
+          stage: 'MISSING_PRODUCT_CAPTURED',
+          toolsUsed
+        });
+      }
+    }
+
     // 3B.6. GROUNDED PRICE INQUIRY: Báo giá niêm yết chính xác từ Database khi khách hỏi giá cụ thể
     if (primaryIntent === 'PRICE_INQUIRY' || /(gia bao nhieu|bao nhieu tien|may tien)\b/i.test(unaccentedMsg)) {
       const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
@@ -621,6 +670,9 @@ Nguyên tắc:
       if (!targetProd && slots.productName) {
         const pClean = slots.productName.toLowerCase();
         targetProd = allActiveProds.find(p => p.name.toLowerCase().includes(pClean) || pClean.includes((p.name || '').toLowerCase()));
+      }
+      if (!targetProd && selectedProduct) {
+        targetProd = selectedProduct;
       }
       if (targetProd) {
         toolsUsed.push('grounded_price_inquiry');

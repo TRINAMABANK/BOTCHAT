@@ -104,7 +104,7 @@ export class LearningIngestionEngine {
         related_topic, related_product_id, related_product_name, source_type,
         source_filename, source_url, extracted_content, approval_status,
         approved_by, approved_at, version, is_active, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'READY_TO_TEST', ?, ?, 1, 1, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_REVIEW', NULL, NULL, 1, 0, ?, ?)
     `, [
       entryId,
       unansweredQuestionId,
@@ -118,8 +118,6 @@ export class LearningIngestionEngine {
       sourceFilename,
       sourceUrl,
       extractedContent,
-      approvedBy,
-      now,
       now,
       now
     ]);
@@ -235,7 +233,8 @@ export class LearningIngestionEngine {
    */
   static async lookupApprovedKnowledge(query = '') {
     if (!query || typeof query !== 'string') return null;
-    const cleanQuery = query.toLowerCase().trim();
+    const cleanQuery = query.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').trim();
+    if (!cleanQuery) return null;
 
     // Query active & approved knowledge
     const entries = await db.all(`
@@ -246,14 +245,38 @@ export class LearningIngestionEngine {
 
     if (!entries || entries.length === 0) return null;
 
+    const STOPWORDS = new Set([
+      'shop', 'cua', 'của', 'ben', 'bên', 'minh', 'mình', 'ban', 'bán', 'cho', 'xin', 'co', 'có', 
+      'khong', 'không', 'the', 'thế', 'nao', 'nào', 'nay', 'này', 'em', 'anh', 'chi', 'chị', 'hoi', 
+      'hỏi', 'muon', 'muốn', 'voi', 'với', 'va', 'và', 'hay', 'da', 'dạ', 'dang', 'đang', 'duoc', 
+      'được', 'di', 'đi', 'gi', 'gì', 'k', 'ko', 'nhe', 'nhé', 'a', 'ạ', 'oi', 'ơi', 'ti', 'la', 'là'
+    ]);
+
+    const queryWords = cleanQuery.split(/\s+/).filter(w => w.length >= 2);
+    const queryWordSet = new Set(queryWords);
+
     // Direct and token overlap matching
     for (const e of entries) {
-      const qNorm = (e.standard_question || '').toLowerCase();
+      const qNorm = (e.standard_question || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').trim();
       if (qNorm && (cleanQuery.includes(qNorm) || qNorm.includes(cleanQuery))) {
         return e;
       }
-      if (e.related_product_name && cleanQuery.includes(e.related_product_name.toLowerCase())) {
-        return e;
+      if (e.related_product_name) {
+        const prodNorm = e.related_product_name.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').trim();
+        if (prodNorm && cleanQuery.includes(prodNorm)) {
+          return e;
+        }
+      }
+
+      // Token overlap matching for natural paraphrased queries
+      const qTokens = qNorm.split(/\s+/).filter(w => w.length >= 2 && !STOPWORDS.has(w));
+      if (qTokens.length >= 2) {
+        const matchCount = qTokens.filter(t => queryWordSet.has(t) || cleanQuery.includes(t)).length;
+        const ratio = matchCount / qTokens.length;
+        // Require at least 2 significant tokens and at least 40% match ratio, or 3+ matches
+        if ((matchCount >= 2 && ratio >= 0.4) || matchCount >= 3) {
+          return e;
+        }
       }
     }
 

@@ -1103,7 +1103,7 @@ export function findMatchingField(normMsg, allProducts) {
     { regex: /\b(ca phe|cafe|espresso|rang moc)\b/i, fieldKeywords: ['ca phe', 'cafe'] },
     { regex: /\b(matcha|bot matcha)\b/i, fieldKeywords: ['matcha'] },
     { regex: /\b(nuoc hoa|my pham|tay te bao chet|cindy bloom|aroma flower)\b/i, fieldKeywords: ['nuoc hoa', 'my pham', 'da chet'] },
-    { regex: /\b(cpu|chip|vi xu ly|thinkcentre)\b/i, fieldKeywords: ['cpu', 'thinkcentre'] },
+    { regex: /\b(cpu|chip|vi xu ly|thinkcentre|may ban|may tinh de ban|may de ban|pc|may tinh ban)\b/i, fieldKeywords: ['cpu', 'thinkcentre'] },
     { regex: /\b(tablet|may tinh bang|ipad)\b/i, fieldKeywords: ['tablet', 'may tinh bang'] },
     { regex: /\b(bo tien|dong chung tu|thiet bi van phong)\b/i, fieldKeywords: ['thiet bi', 'van phong'] },
     { regex: /\b(ket sat|bofa|viet tiep)\b/i, fieldKeywords: ['ket sat'] }
