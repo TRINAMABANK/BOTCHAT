@@ -165,7 +165,8 @@ export class IntentEngine {
     const isIdentityInquiry = /(bạn là ai|em là ai|robot là ai|tên gì|giới thiệu bản thân)/i.test(norm);
 
     // 3. Document / RAG explicit intent (Strictly internal documents, excluded from warranty/commercial policies)
-    const isDocExplicitQuery = (/(tài liệu|tai lieu|quy trình|quy trinh|quy chế|quy che|quyết định|quyet dinh|điều chuyển|dieu chuyen|nam a bank|namabank|thủ tục|thu tuc|công văn|cong van|văn bản|van ban|sổ tay|so tay|quy định|quy dinh|hồ sơ|ho so)/i.test(norm) || (/(chính sách|chinh sach)/i.test(norm) && !/(bảo hành|bao hanh|đổi trả|doi tra|giao hàng|giao hang|mua hàng|mua hang)/i.test(norm))) && !/(báo giá|bao gia)/i.test(norm);
+    const isOfficeDocDevice = /(máy hủy tài liệu|may huy tai lieu|máy scan tài liệu|may scan tai lieu|máy quét tài liệu|may quet tai lieu)/i.test(norm);
+    const isDocExplicitQuery = !isOfficeDocDevice && ((/(tài liệu|tai lieu|quy trình|quy trinh|quy chế|quy che|quyết định|quyet dinh|điều chuyển|dieu chuyen|nam a bank|namabank|thủ tục|thu tuc|công văn|cong van|văn bản|van ban|sổ tay|so tay|quy định|quy dinh|hồ sơ|ho so)/i.test(norm) || (/(chính sách|chinh sach)/i.test(norm) && !/(bảo hành|bao hanh|đổi trả|doi tra|giao hàng|giao hang|mua hàng|mua hang)/i.test(norm))) && !/(báo giá|bao gia)/i.test(norm));
 
     // 4. Quotation intent
     const isQuotation = /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(norm);
@@ -183,7 +184,7 @@ export class IntentEngine {
     const isStaffHandoff = /(gặp nhân viên|gap nhan vien|gặp người|gap nguoi|nói chuyện với người|chuyên viên tư vấn|chuyen vien tu van|hỗ trợ trực tiếp|ho tro truc tiep|gọi lại cho tôi|goi lai cho toi|gọi điện lại|tư vấn trực tiếp|chăm sóc khách hàng|cskh|gặp chủ shop|người thật)\b/i.test(norm);
 
     // 7C. Policy Inquiry intent (Warranty, Shipping, Return)
-    const isPolicyInquiry = /(chính sách bảo hành|thời gian bảo hành|bảo hành bao lâu|bảo hành như thế nào|bảo hành mấy năm|bảo hành mấy tháng|chính sách đổi trả|đổi trả hàng|quy định đổi trả|đổi trả như thế nào|chính sách giao hàng|phí ship|phí vận chuyển|giao hàng tận nơi|ship cod|bao lâu nhận được hàng|chính sách ship|ship tỉnh)\b/i.test(norm);
+    const isPolicyInquiry = /(?:chính sách|chinh sach|thời gian|thoi gian|thời hạn|thoi han|quy định|quy dinh)?\s*(?:bảo hành|bao hanh|đổi trả|doi tra|giao hàng|giao hang|phí ship|phi ship|vận chuyển|van chuyen|ship cod)\b/i.test(norm);
 
     // 7D. Order Request intent
     const isOrderRequest = /(đặt mua|mua ngay|lấy chiếc này|lấy con này|mua con này|đặt hàng|chốt đơn|lấy mẫu này)\b/i.test(norm);
@@ -340,12 +341,12 @@ export class IntentEngine {
     let budgetMax = null;
     let budgetMin = null;
 
-    const millionMatch = normText.match(/(?:dưới|tầm|khoảng|ngân sách|loại|mức)\s*(\d+(?:[.,]\d+)?)\s*(?:triệu|tr|trieu)\b/i);
+    const millionMatch = normText.match(/(?:dưới|duoi|tầm|tam|khoảng|khoang|ngân sách|ngan sach|loại|loai|mức|muc|giá|gia)?\s*(\d+(?:[.,]\d+)?)\s*(?:triệu|tr|trieu)\b/i);
     if (millionMatch) {
       budgetMax = parseFloat(millionMatch[1].replace(',', '.')) * 1000000;
     }
 
-    const thousandMatch = normText.match(/(?:dưới|tầm|khoảng|ngân sách|loại|mức)\s*(\d+)\s*(?:k|nghìn|ngan)\b/i);
+    const thousandMatch = normText.match(/(?:dưới|duoi|tầm|tam|khoảng|khoang|ngân sách|ngan sach|loại|loai|mức|muc|giá|gia)?\s*(\d+)\s*(?:k|nghìn|ngan)\b/i);
     if (thousandMatch) {
       budgetMax = parseInt(thousandMatch[1], 10) * 1000;
     }

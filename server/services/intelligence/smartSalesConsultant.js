@@ -125,7 +125,7 @@ export class SmartSalesConsultant {
    * 2. Detect if query is a Policy Inquiry (Warranty, Shipping, Return)
    */
   static isPolicyInquiry(normMessage = '') {
-    return /(chinh sach bao hanh|thoi gian bao hanh|bao hanh bao lau|bao hanh nhu the nao|bao hanh may nam|bao hanh may thang|chinh sach doi tra|doi tra hang|quy dinh doi tra|doi tra nhu the nao|chinh sach giao hang|phi ship|phi van chuyen|giao hang tan noi|ship cod|bao lau nhan duoc hang|chinh sach ship|ship tinh)\b/i.test(normMessage);
+    return /(?:chinh sach|thoi gian|thoi han|che do)?\s*(?:bao hanh|doi tra|giao hang|phi ship|phi van chuyen|ship cod)\b/i.test(normMessage);
   }
 
   /**
@@ -166,6 +166,8 @@ export class SmartSalesConsultant {
         specificProd = allProducts.find(p => /neo\s*50s/i.test(p.name)) || null;
       } else if (/ads\s*4300n/i.test(lower)) {
         specificProd = allProducts.find(p => /4300n/i.test(p.name)) || null;
+      } else if (/brother/i.test(lower)) {
+        specificProd = allProducts.find(p => /brother/i.test(p.name)) || null;
       }
     }
 

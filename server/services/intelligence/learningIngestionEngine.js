@@ -195,6 +195,42 @@ export class LearningIngestionEngine {
   }
 
   /**
+   * Update an existing knowledge entry
+   */
+  static async updateKnowledge(entryId, updates = {}, updatedBy = 'Admin') {
+    const now = new Date().toISOString();
+    const { standardQuestion, standardAnswer, relatedTopic, relatedProductName } = updates;
+    
+    await db.run(`
+      UPDATE learning_knowledge_entries
+      SET standard_question = COALESCE(?, standard_question),
+          standard_answer = COALESCE(?, standard_answer),
+          related_topic = COALESCE(?, related_topic),
+          related_product_name = COALESCE(?, related_product_name),
+          version = version + 1,
+          updated_at = ?
+      WHERE id = ?
+    `, [standardQuestion || null, standardAnswer || null, relatedTopic || null, relatedProductName || null, now, entryId]);
+
+    return { success: true, entryId, updated: true };
+  }
+
+  /**
+   * Enable or disable (vô hiệu hóa) a knowledge entry
+   */
+  static async toggleKnowledgeActive(entryId, isActive = true) {
+    const now = new Date().toISOString();
+    await db.run(`
+      UPDATE learning_knowledge_entries
+      SET is_active = ?,
+          updated_at = ?
+      WHERE id = ?
+    `, [isActive ? 1 : 0, now, entryId]);
+
+    return { success: true, entryId, isActive: Boolean(isActive) };
+  }
+
+  /**
    * Search approved curated knowledge entries (Priority 1 in Runtime Brain)
    */
   static async lookupApprovedKnowledge(query = '') {
