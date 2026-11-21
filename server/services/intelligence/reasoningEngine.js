@@ -31,6 +31,30 @@ export class ReasoningEngine {
     };
 
     // 1. Quản lý yêu cầu Báo giá (Quotation Flow)
+    if (primaryIntent === 'STAFF_HANDOFF') {
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.steps = ['COLLECT_PHONE_AND_CREATE_STAFF_LEAD'];
+      plan.targetSources = ['leads', 'smartSalesConsultant'];
+      plan.internalReasoningLog = 'Customer requested human staff assistance. Routing to staff handoff handler.';
+      return plan;
+    }
+
+    if (primaryIntent === 'POLICY_INQUIRY') {
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.steps = ['FETCH_GROUNDED_STORE_POLICY'];
+      plan.targetSources = ['products', 'learning_knowledge_entries', 'smartSalesConsultant'];
+      plan.internalReasoningLog = 'Customer inquired about store warranty/shipping policy.';
+      return plan;
+    }
+
+    if (primaryIntent === 'ORDER_REQUEST') {
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.steps = ['VALIDATE_ORDER_ITEM', 'CAPTURE_CUSTOMER_DETAILS'];
+      plan.targetSources = ['products', 'leads', 'smartSalesConsultant'];
+      plan.internalReasoningLog = 'Customer initiated order request.';
+      return plan;
+    }
+
     if (primaryIntent === 'FORMAL_QUOTATION') {
       if (!slots.productName && !selectedProduct) {
         plan.dataSufficient = false;

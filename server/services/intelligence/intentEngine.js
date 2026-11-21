@@ -179,6 +179,15 @@ export class IntentEngine {
     // 7. Product comparison intent
     const isComparison = /(so sánh|so sanh|khác nhau|khac nhau|mẫu nào tốt hơn|loại nào hơn|nên mua con nào)/i.test(norm);
 
+    // 7B. Staff Handoff intent
+    const isStaffHandoff = /(gặp nhân viên|gap nhan vien|gặp người|gap nguoi|nói chuyện với người|chuyên viên tư vấn|chuyen vien tu van|hỗ trợ trực tiếp|ho tro truc tiep|gọi lại cho tôi|goi lai cho toi|gọi điện lại|tư vấn trực tiếp|chăm sóc khách hàng|cskh|gặp chủ shop|người thật)\b/i.test(norm);
+
+    // 7C. Policy Inquiry intent (Warranty, Shipping, Return)
+    const isPolicyInquiry = /(chính sách bảo hành|thời gian bảo hành|bảo hành bao lâu|bảo hành như thế nào|bảo hành mấy năm|bảo hành mấy tháng|chính sách đổi trả|đổi trả hàng|quy định đổi trả|đổi trả như thế nào|chính sách giao hàng|phí ship|phí vận chuyển|giao hàng tận nơi|ship cod|bao lâu nhận được hàng|chính sách ship|ship tỉnh)\b/i.test(norm);
+
+    // 7D. Order Request intent
+    const isOrderRequest = /(đặt mua|mua ngay|lấy chiếc này|lấy con này|mua con này|đặt hàng|chốt đơn|lấy mẫu này)\b/i.test(norm);
+
     // 8. Live Website retrieval intent
     const isLiveWebIntent = /(website|trên website|trên trang web|tren website|web nhà cung cấp|web nhacungcap|tìm trên web|kiểm tra.*website|tra cứu.*website|giá trên website|xem link|đường dẫn)/i.test(norm);
 
@@ -220,6 +229,33 @@ export class IntentEngine {
       return {
         primaryIntent: 'FORMAL_QUOTATION',
         confidence: 0.98,
+        slots,
+        flags: { isSales: true, isDoc: false }
+      };
+    }
+
+    if (isStaffHandoff) {
+      return {
+        primaryIntent: 'STAFF_HANDOFF',
+        confidence: 0.98,
+        slots,
+        flags: { isSales: true, isDoc: false }
+      };
+    }
+
+    if (isPolicyInquiry) {
+      return {
+        primaryIntent: 'POLICY_INQUIRY',
+        confidence: 0.95,
+        slots,
+        flags: { isSales: true, isDoc: false }
+      };
+    }
+
+    if (isOrderRequest) {
+      return {
+        primaryIntent: 'ORDER_REQUEST',
+        confidence: 0.95,
         slots,
         flags: { isSales: true, isDoc: false }
       };
@@ -361,10 +397,14 @@ export class IntentEngine {
       .replace(/\s+/g, ' ')
       .trim();
 
+    // Filter out policy, handoff and comparison meta phrases so they are never mistakenly treated as product names
+    const isNonProductPhrase = /(bảo hành|giao hàng|đổi trả|phí ship|gặp nhân viên|người thật|chuyên viên|so sánh|khác nhau|hỗ trợ trực tiếp)/i.test(cleanedQuery);
+    const resolvedProductName = isNonProductPhrase ? null : (cleanedQuery || null);
+
     const extractedPhone = normText.match(/(0\d{9})\b/)?.[1] || null;
 
     return {
-      productName: cleanedQuery || null,
+      productName: resolvedProductName,
       quantity,
       budget: budgetMax,
       budgetMax,

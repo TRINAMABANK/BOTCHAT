@@ -888,6 +888,45 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
     };
   }
 
+  // TÌNH HUỐNG YÊU CẦU GẶP NHÂN VIÊN HỖ TRỢ / CHUYÊN VIÊN TƯ VẤN:
+  if (/(gap nhan vien|gap nguoi|noi chuyen voi nguoi|chuyen vien tu van|ho tro truc tiep|goi lai cho toi|goi dien lai|tu van truc tiep|chamsoc khach hang|cskh|gap chu shop|nguoi that)\b/i.test(normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isStaffHandoff: true
+    };
+  }
+
+  // TÌNH HUỐNG HỎI CHÍNH SÁCH BẢO HÀNH / ĐỔI TRẢ / GIAO HÀNG:
+  if (/(chinh sach bao hanh|thoi gian bao hanh|bao hanh bao lau|bao hanh nhu the nao|bao hanh may nam|bao hanh may thang|chinh sach doi tra|doi tra hang|quy dinh doi tra|doi tra nhu the nao|chinh sach giao hang|phi ship|phi van chuyen|giao hang tan noi|ship cod|bao lau nhan duoc hang|chinh sach ship|ship tinh)\b/i.test(normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isPolicyInquiry: true
+    };
+  }
+
+  // TÌNH HUỐNG SO SÁNH SẢN PHẨM:
+  if (/(so sanh|khac nhau nhu the nao|khac nhau diem nao|nen chon mau nao|nen mua con nao|loai nao tot hon|mau nao hon)\b/i.test(normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isComparison: true
+    };
+  }
+
   // TÌNH HUỐNG KHÁCH HÀNG NÓI TÊN ĐỂ XƯNG HÔ ("Tôi tên Trí", "Em tên Linh", "Anh là Nam"...):
   // Tuyệt đối KHÔNG ĐƯỢC gán là sản phẩm hay tìm kiếm hàng hoá!
   if (isCustomerNameDeclaration(message, normMessage)) {
@@ -2734,6 +2773,24 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     // 0B. Phân biệt rõ ràng: Khách hàng khai báo tên để xưng hô ("Tôi tên Trí", "Em tên Linh"...)
     if (isCustomerNameDeclaration(message, normMessage)) {
       return `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHiện **${customerRef}** đang cần tìm sản phẩm thuộc lĩnh vực nào để tôi tư vấn ngay ạ?`;
+    }
+
+    // 0C. Yêu cầu gặp nhân viên hỗ trợ / Chuyên viên tư vấn
+    if (productMatch?.isStaffHandoff) {
+      return `Dạ, em đã ghi nhận yêu cầu kết nối với chuyên viên tư vấn của shop.\n\nBạn vui lòng để lại **Số điện thoại** (và tên nếu tiện), nhân viên bên em sẽ gọi lại ngay để hỗ trợ bạn trực tiếp và nhanh nhất ạ!\n\nNgoài ra, bạn cũng có thể liên hệ trực tiếp hotline của shop: **${hotline || '0982441446'}** nhé ạ.`;
+    }
+
+    // 0D. Hỏi chính sách bảo hành / Đổi trả / Giao hàng
+    if (productMatch?.isPolicyInquiry) {
+      if (normMessage.includes('giao hang') || normMessage.includes('phi ship')) {
+        return `Dạ, shop có chính sách giao hàng tận nơi trên toàn quốc rất tiện lợi cho bạn ạ:\n\n• **Đồng kiểm:** Bạn được quyền mở kiểm tra hàng và tem niêm phong trước khi thanh toán.\n• **Miễn phí vận chuyển:** Áp dụng cho các đơn hàng máy tính, laptop và thiết bị có giá trị cao trong nội thành.\n• **Giao hàng toàn quốc:** Giao qua chuyển phát nhanh (1 - 3 ngày làm việc).\n\nBạn đang ở khu vực nào để em báo thời gian nhận hàng chính xác nhất nhé ạ!`;
+      }
+      return `Dạ, toàn bộ sản phẩm tại shop đều là hàng chính hãng 100% và được bảo hành chính hãng từ nhà sản xuất (từ 12 đến 36 tháng tùy từng model).\n\n• **Chính sách 1 đổi 1:** Hỗ trợ đổi mới trong 7 ngày đầu nếu có lỗi phần cứng từ nhà sản xuất.\n• **Bảo hành tận tâm:** Tiếp nhận bảo hành tại shop hoặc trung tâm bảo hành ủy quyền của hãng.\n\nBạn đang quan tâm đến sản phẩm nào để em kiểm tra thời gian bảo hành chính xác nhất của máy đó nhé ạ!`;
+    }
+
+    // 0E. So sánh sản phẩm
+    if (productMatch?.isComparison) {
+      return `Dạ, khi so sánh các dòng sản phẩm, shop luôn đánh giá dựa trên độ bền thực tế, cấu hình chip/RAM và chính sách bảo hành chính hãng.\n\nToàn bộ các mẫu sản phẩm chất lượng cao đang có sẵn tại shop đã được hiển thị chi tiết ở **Cột 2**. Bạn đang phân vân giữa 2 model cụ thể nào để em so sánh thông số kỹ thuật chi tiết nhất cho bạn nhé ạ!`;
     }
 
     // 1. Lead Captured Confirmation

@@ -28,6 +28,7 @@ import { ResponseEngine } from './intelligence/responseEngine.js';
 import { ToolOrchestrator } from './intelligence/toolOrchestrator.js';
 import { LearningCaptureEngine } from './intelligence/learningCaptureEngine.js';
 import { LearningIngestionEngine } from './intelligence/learningIngestionEngine.js';
+import { SmartSalesConsultant } from './intelligence/smartSalesConsultant.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -540,6 +541,103 @@ Nguyên tắc:
         citations: filteredCitations,
         toolsUsed
       });
+    }
+
+    // 3B. TRÍ AN SMART SALES CONSULTANT (LEVEL 2.0 - PROMPT 04)
+    // Phục vụ: Yêu cầu gặp nhân viên, Chính sách bảo hành/giao hàng, So sánh sản phẩm, Tra cứu cấu hình & Đặt hàng
+    const unaccentedMsg = IntentEngine.stripDiacritics(message).toLowerCase();
+
+    // 3B.1. STAFF HANDOFF: Chuyển nhân viên hỗ trợ khi vượt khả năng hoặc khách yêu cầu
+    if (primaryIntent === 'STAFF_HANDOFF' || SmartSalesConsultant.isStaffHandoff(unaccentedMsg)) {
+      toolsUsed.push('smart_staff_handoff');
+      return await SmartSalesConsultant.handleStaffHandoff({
+        message,
+        conversationId,
+        customerInfo,
+        extractedPhone: slots.phone || slots.extractedPhone,
+        orgId
+      });
+    }
+
+    // 3B.2. POLICY INQUIRY: Chính sách bảo hành, đổi trả, giao hàng (Có căn cứ DB, không bịa)
+    if (primaryIntent === 'POLICY_INQUIRY' || SmartSalesConsultant.isPolicyInquiry(unaccentedMsg)) {
+      toolsUsed.push('smart_policy_inquiry');
+      const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
+      return await SmartSalesConsultant.handlePolicyInquiry({
+        message,
+        normMessage: unaccentedMsg,
+        conversationId,
+        allProducts: allActiveProds,
+        customerInfo
+      });
+    }
+
+    // 3B.3. ORDER REQUEST: Khách yêu cầu mua ngay / đặt hàng
+    if (primaryIntent === 'ORDER_REQUEST' || SmartSalesConsultant.isOrderRequest(unaccentedMsg)) {
+      toolsUsed.push('smart_order_flow');
+      const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
+      return await SmartSalesConsultant.handleOrderRequest({
+        message,
+        conversationId,
+        selectedProduct,
+        customerInfo,
+        extractedPhone: slots.phone || slots.extractedPhone,
+        allProducts: allActiveProds,
+        orgId
+      });
+    }
+
+    // 3B.4. PRODUCT COMPARISON: So sánh sản phẩm khách quan, không ép thành tên sản phẩm thiếu
+    if (primaryIntent === 'PRODUCT_COMPARISON' || SmartSalesConsultant.isComparison(unaccentedMsg)) {
+      toolsUsed.push('smart_product_comparison');
+      const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
+      return await SmartSalesConsultant.handleComparison({
+        message,
+        normMessage: unaccentedMsg,
+        allProducts: allActiveProds,
+        conversationContextField: null
+      });
+    }
+
+    // 3B.5. PRECISION SPEC SEARCH: Tra cứu cấu hình chi tiết (RAM 16GB, in 2 mặt, 144Hz)
+    if (SmartSalesConsultant.isSpecSearch(unaccentedMsg) && !slots.isBroadCategory) {
+      toolsUsed.push('smart_spec_search');
+      const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
+      return await SmartSalesConsultant.handleSpecSearch({
+        message,
+        normMessage: unaccentedMsg,
+        allProducts: allActiveProds
+      });
+    }
+
+    // 3B.6. GROUNDED PRICE INQUIRY: Báo giá niêm yết chính xác từ Database khi khách hỏi giá cụ thể
+    if (primaryIntent === 'PRICE_INQUIRY' || /(gia bao nhieu|bao nhieu tien|may tien)\b/i.test(unaccentedMsg)) {
+      const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
+      let targetProd = null;
+      if (slots.modelCode) {
+        targetProd = allActiveProds.find(p => p.name.toUpperCase().includes(slots.modelCode) || (p.sku && p.sku.toUpperCase().includes(slots.modelCode)));
+      }
+      if (!targetProd && slots.productName) {
+        const pClean = slots.productName.toLowerCase();
+        targetProd = allActiveProds.find(p => p.name.toLowerCase().includes(pClean) || pClean.includes((p.name || '').toLowerCase()));
+      }
+      if (targetProd) {
+        toolsUsed.push('grounded_price_inquiry');
+        const formattedPrice = SmartSalesConsultant.formatPrice(targetProd.price);
+        const reply = `Dạ, giá niêm yết chính thức của sản phẩm **${targetProd.name}** tại shop hiện là **${formattedPrice}** ạ.\n\n🛡️ **Bảo hành:** Chính hãng **${targetProd.warranty_months || 12} tháng** (1 đổi 1 trong 7 ngày đầu nếu lỗi NSX).\n📦 **Tình trạng:** **Có sẵn tại kho**, sẵn sàng giao ngay.\n\nToàn bộ thông số chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, bạn có thể tự xem chi tiết ở Cột 2 nhé ạ!\n\nBạn có muốn em hỗ trợ đặt mua hay tư vấn thêm ưu đãi cho sản phẩm này không ạ?`;
+        return ResponseEngine.formatResponse({
+          replyText: reply,
+          revealCatalog: true,
+          recommendedField: targetProd.field,
+          recommendedProduct: targetProd,
+          stage: 'PRICE_QUOTED',
+          citations: [{
+            source: 'official_price_list',
+            label: `[Giá niêm yết: ${targetProd.name}]`
+          }],
+          toolsUsed
+        });
+      }
     }
 
     // 4. BÁN HÀNG & TƯ VẤN SẢN PHẨM & CHAT SHOP (CORE DEFAULT CHO TOÀN BỘ CÂU HỎI CÒN LẠI)
