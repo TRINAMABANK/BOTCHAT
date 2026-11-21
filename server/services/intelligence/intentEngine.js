@@ -34,8 +34,76 @@ const VIETNAMESE_SLANG_MAP = {
   '\\bcanonn\\b': 'canon',
   '\\bssung\\b': 'samsung',
   '\\bsam sung\\b': 'samsung',
-  '\\btv\\b': 'tư vấn',
+  '\\btv\\b': 'tivi',
   '\\btu van\\b': 'tư vấn'
+};
+
+export const DOMAIN_CATEGORIES = {
+  TELECOM: {
+    id: 'TELECOM',
+    name: 'Điện thoại & Viễn thông',
+    keywords: ['dien thoai ban', 'dien thoai de ban', 'dien thoai', 'tong dai', 'may dien thoai', 'kx-tsc', 'kx-ts', 'panasonic kx']
+  },
+  REFRIGERATOR: {
+    id: 'REFRIGERATOR',
+    name: 'Tủ lạnh & Thiết bị điện lạnh',
+    keywords: ['tu lanh', 'tu dong', 'tu mat', 'inverter 2 canh', 'side by side']
+  },
+  AIR_CONDITIONER: {
+    id: 'AIR_CONDITIONER',
+    name: 'Máy lạnh & Điều hòa',
+    keywords: ['may lanh', 'dieu hoa', 'daikin', 'inverter 1 hp', 'inverter 1.5 hp']
+  },
+  WASHING_MACHINE: {
+    id: 'WASHING_MACHINE',
+    name: 'Máy giặt & Máy sấy',
+    keywords: ['may giat', 'may say']
+  },
+  HOME_APPLIANCE: {
+    id: 'HOME_APPLIANCE',
+    name: 'Đồ gia dụng',
+    keywords: ['do gia dung', 'gia dung', 'noi com', 'may hut am', 'quat dien', 'may loc nuoc', 'hut bui']
+  },
+  LAPTOP_PC: {
+    id: 'LAPTOP_PC',
+    name: 'Máy tính & Laptop',
+    keywords: ['may tinh', 'máy tính', 'laptop', 'may tinh xach tay', 'may vi tinh', 'may tinh de ban', 'pc', 'thinkcentre', 'thinkpad', 'macbook', 'cpu', 'tablet', 'may tinh bang', 'ideapad', 'vivobook']
+  },
+  MONITOR: {
+    id: 'MONITOR',
+    name: 'Màn hình vi tính',
+    keywords: ['man hinh', 'màn hình', 'man hinh vi tinh', 'man hinh pc', 'man hinh lenovo', 'man hinh lcd', 'man hinh 24', 'man hinh 27']
+  },
+  PRINTER_SCANNER: {
+    id: 'PRINTER_SCANNER',
+    name: 'Máy in & Máy scan',
+    keywords: ['may in', 'máy in', 'may scan', 'máy scan', 'muc in', 'hop muc', 'may photocopy', 'hl-l6210dw', 'ads-4300n', 'tn3609']
+  },
+  BANK_EQUIPMENT: {
+    id: 'BANK_EQUIPMENT',
+    name: 'Thiết bị ngân hàng & Máy đếm tiền',
+    keywords: ['may dem tien', 'máy đếm tiền', 'dem tien', 'đếm tiền', 'phan loai tien', 'may bo tien', 'dong chung tu', 'ket sat', 'julong', 'lidix', 'xinda', 'xiudun']
+  },
+  TEA: {
+    id: 'TEA',
+    name: 'Trà cao cấp',
+    keywords: ['tra', 'trà', 'tra cao cap', 'tra oolong', 'tra xanh', 'hong tra', 'bich thuy', 'hoang ty', 'xuan nhat', 'tam thanh', 'hao ky', 'matcha', 'bot matcha']
+  },
+  COFFEE: {
+    id: 'COFFEE',
+    name: 'Cà phê rang mộc',
+    keywords: ['ca phe', 'cà phê', 'cafe', 'espresso', 'robusta', 'arabica', 'rang moc', 'doi dep']
+  },
+  COSMETICS: {
+    id: 'COSMETICS',
+    name: 'Nước hoa & Mỹ phẩm',
+    keywords: ['nuoc hoa', 'nước hoa', 'my pham', 'mỹ phẩm', 'tay da chet', 'tay te bao chet', 'miss saigon', 'cindy bloom']
+  },
+  FURNITURE: {
+    id: 'FURNITURE',
+    name: 'Nội thất văn phòng',
+    keywords: ['ban ghe', 'bàn ghế', 'ban lam viec', 'ban giam doc', 'ban hop', 'ghe xoay', 'ghe giam doc', 'ghe gaming', 'sofa', 'noi that', 'nội thất']
+  }
 };
 
 export class IntentEngine {
@@ -203,8 +271,18 @@ export class IntentEngine {
       };
     }
 
+    // Broad Category Consultation requiring clarification (Active Listening)
+    if (slots.isBroadCategory) {
+      return {
+        primaryIntent: 'BROAD_CATEGORY_INQUIRY',
+        confidence: 0.94,
+        slots,
+        flags: { isSales: true, isDoc: false }
+      };
+    }
+
     // Default for product questions or shopping assistance
-    const isSalesKeywords = /(mua|bán|ban|sản phẩm|san pham|hàng|laptop|máy in|may in|máy scan|may scan|trà|tra|cà phê|cafe|nước hoa|nuoc hoa|màn hình|tivi|tai nghe|bột matcha|cpu|tablet|chuột|bàn phím)/i.test(norm);
+    const isSalesKeywords = /(mua|bán|ban|sản phẩm|san pham|hàng|laptop|máy in|may in|máy scan|may scan|trà|tra|cà phê|cafe|nước hoa|nuoc hoa|màn hình|tivi|tai nghe|bột matcha|cpu|tablet|chuột|bàn phím|điện thoại|dien thoai)/i.test(norm);
 
     return {
       primaryIntent: isSalesKeywords || slots.productName ? 'SALES_CONSULTATION' : 'GENERAL_CONVERSATION',
@@ -215,7 +293,7 @@ export class IntentEngine {
   }
 
   /**
-   * Extract slots: product, quantity, budget, brand
+   * Extract slots: product, quantity, budget, brand, modelCode, domain
    */
   static extractSlots(normText = '', unaccented = '') {
     // 1. Quantity extraction
@@ -237,12 +315,49 @@ export class IntentEngine {
     }
 
     // 3. Known Brand identification
-    const knownBrands = ['dell', 'hp', 'lenovo', 'canon', 'brother', 'samsung', 'logitech', 'cindy bloom', 'julong', 'lidix', 'miss saigon'];
+    const knownBrands = [
+      'panasonic', 'samsung', 'daikin', 'sharp', 'lg', 'dell', 'hp', 'lenovo',
+      'canon', 'brother', 'logitech', 'cindy bloom', 'julong', 'lidix', 'miss saigon',
+      'xinda', 'xiudun', 'bofa', 'apple', 'asus', 'acer', 'sony', 'toshiba', 'hitachi',
+      'electrolux', 'philips'
+    ];
     const matchedBrand = knownBrands.find(b => normText.includes(b)) || null;
 
-    // 4. Product Name Candidate Cleaning
+    // 4. Model Code Extraction (e.g. KX-TSC11, KX-TS500, QA55Q6FA, neo 50s, E14, L14, JL206, ML-2FS, HL-L6210DW)
+    let extractedModelCode = null;
+    const modelPatterns = [
+      /\b([a-z]{1,4}[-_][a-z0-9]{2,8})\b/i,
+      /\b(kx[-_\s]?[a-z0-9]{3,7})\b/i,
+      /\b(jl\s*206|ml\s*2fs|bc\s*39f|ls\s*200f|neo\s*50s|e14|l14|l24-4c|hl\s*l6210dw|ads\s*4300n|tn\s*3609)\b/i
+    ];
+    for (const pat of modelPatterns) {
+      const match = normText.match(pat);
+      if (match) {
+        extractedModelCode = match[1].toUpperCase().replace(/\s+/g, '-');
+        break;
+      }
+    }
+
+    // 5. Category Domain Identification
+    let categoryDomain = null;
+    let categoryDomainName = null;
+    for (const [domKey, domObj] of Object.entries(DOMAIN_CATEGORIES)) {
+      if (domObj.keywords.some(kw => normText.includes(kw) || unaccented.includes(kw))) {
+        categoryDomain = domKey;
+        categoryDomainName = domObj.name;
+        break;
+      }
+    }
+
+    // 6. Broad Category Inquiry Detection (Trí An Active Listening: Hỏi lại khi câu hỏi chưa rõ)
+    const isBroadCategory = !extractedModelCode && !budgetMax && (
+      /^(?:tư vấn|tu van|hỏi về|hoi ve|tìm hiểu|tim hieu)\s+(?:máy tính|may tinh|laptop|tivi|tv|máy in|may in|trà|tra|nước hoa|nuoc hoa|máy đếm tiền|may dem tien|cà phê|ca phe)\s*$/i.test(normText) ||
+      /(?:có|co)\s+(?:những|cac|nhung)\s+(?:loại|mẫu|dong|dòng)\s+(?:máy tính|may tinh|laptop|tivi|tv|máy in|may in|trà|tra|nước hoa|nuoc hoa|máy đếm tiền|may dem tien)\s*(?:nào|nao)/i.test(normText)
+    );
+
+    // 7. Product Name Candidate Cleaning
     const cleanedQuery = normText
-      .replace(/(cho tôi|cho em|cho e|tôi|mình|minh|em|anh|chị|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|mua|bán|có sẵn|tư vấn|tìm|hỏi|dưới|khoảng|tầm giá|\d+|triệu|tr|k|nghìn|máy|cái|chiếc|bộ|sản phẩm)/gi, ' ')
+      .replace(/(cho tôi|cho em|cho e|tôi|mình|minh|em|anh|chị|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|mua|bán|có sẵn|tư vấn|tìm|hỏi|dưới|khoảng|tầm giá|\d+|triệu|tr|k|nghìn|máy|cái|chiếc|bộ|sản phẩm|có hàng không|co hang khong)/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -255,6 +370,10 @@ export class IntentEngine {
       budgetMax,
       budgetMin,
       brand: matchedBrand,
+      modelCode: extractedModelCode,
+      categoryDomain,
+      categoryDomainName,
+      isBroadCategory,
       phone: extractedPhone,
       extractedPhone
     };

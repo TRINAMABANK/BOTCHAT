@@ -104,6 +104,16 @@ export class ReasoningEngine {
       return plan;
     }
 
+    // 5B. Khách hỏi danh mục rộng (Broad Category Inquiry - Trí An Active Listening)
+    if (primaryIntent === 'BROAD_CATEGORY_INQUIRY') {
+      plan.dataSufficient = false;
+      plan.complexity = 'NEEDS_CLARIFICATION';
+      const catName = slots.categoryDomainName || 'sản phẩm';
+      plan.clarificationQuestion = `Dạ bên em đang có sẵn các mẫu **${catName}** chính hãng rất đa dạng. Anh/chị đang có nhu cầu sử dụng cho mục đích nào hoặc dự trù ngân sách khoảng bao nhiêu tiền để em tư vấn mẫu sát nhất cho mình ạ?`;
+      plan.internalReasoningLog = `Broad category inquiry detected for domain ${slots.categoryDomain}. Asking single targeted clarification question.`;
+      return plan;
+    }
+
     // 6. Mặc định: Bán hàng và tư vấn sản phẩm
     plan.complexity = 'SIMPLE_DIRECT';
     plan.steps = ['CONSULT_SALES_ENGINE', 'SYNC_COLUMN_2_DIRECTIVES'];
@@ -111,6 +121,73 @@ export class ReasoningEngine {
     plan.internalReasoningLog = 'Routed to sales engine core.';
 
     return plan;
+  }
+
+  /**
+   * Anti-Confusion & Domain Disambiguation Check
+   * Ensures that queries for one product domain (e.g. Panasonic KX-TSC11 desk phone)
+   * are never mistakenly answered with a conflicting product (e.g. Panasonic refrigerator or home appliance).
+   * 
+   * @param {Object} params - { querySlots, candidateProduct }
+   * @returns {Object} { isValidMatch, reason }
+   */
+  static disambiguateProductMatch({ querySlots = {}, candidateProduct = {} }) {
+    if (!candidateProduct) return { isValidMatch: false, reason: 'NO_PRODUCT' };
+
+    const { categoryDomain, modelCode, brand } = querySlots;
+    const prodName = (candidateProduct.name || '').toLowerCase();
+    const prodField = (candidateProduct.field || '').toLowerCase();
+    const prodSpecs = JSON.stringify(candidateProduct.specs || candidateProduct.specs_json || '').toLowerCase();
+
+    // 1. Model Code Discrepancy Check:
+    // If the customer specifically asks for model "KX-TSC11" and candidate product does not contain "KX-TSC11"
+    if (modelCode) {
+      const normModel = modelCode.toLowerCase().replace(/[-_\s]/g, '');
+      const prodNormName = prodName.replace(/[-_\s]/g, '');
+      const prodNormSpecs = prodSpecs.replace(/[-_\s]/g, '');
+      const hasModel = prodNormName.includes(normModel) || prodNormSpecs.includes(normModel);
+
+      if (!hasModel) {
+        return {
+          isValidMatch: false,
+          reason: `MODEL_CODE_MISMATCH: Customer asked for ${modelCode} but product is ${candidateProduct.name}`
+        };
+      }
+    }
+
+    // 2. Category Domain Conflict Check:
+    // Telecom phone vs Home Appliance / Refrigerator / Laptop / Tea / Furniture
+    if (categoryDomain === 'TELECOM') {
+      const isTelecomCandidate = /dien thoai|tong dai|kx-ts|kx-tsc/i.test(prodName) || /dien thoai|viễn thông/i.test(prodField);
+      if (!isTelecomCandidate) {
+        return {
+          isValidMatch: false,
+          reason: `DOMAIN_CONFLICT: Customer asked for Telecom phone, but candidate is ${candidateProduct.field || candidateProduct.name}`
+        };
+      }
+    }
+
+    if (categoryDomain === 'REFRIGERATOR') {
+      const isFridge = /tu lanh|tu dong|tu mat/i.test(prodName) || /tu lanh/i.test(prodField);
+      if (!isFridge) {
+        return {
+          isValidMatch: false,
+          reason: `DOMAIN_CONFLICT: Customer asked for Refrigerator, but candidate is ${candidateProduct.field || candidateProduct.name}`
+        };
+      }
+    }
+
+    if (categoryDomain === 'LAPTOP_PC') {
+      const isPc = /laptop|may tinh|thinkpad|thinkcentre|macbook|pc|cpu|tablet/i.test(prodName) || /laptop|cpu|tablet|man hinh/i.test(prodField);
+      if (!isPc) {
+        return {
+          isValidMatch: false,
+          reason: `DOMAIN_CONFLICT: Customer asked for Computer/Laptop, but candidate is ${candidateProduct.field || candidateProduct.name}`
+        };
+      }
+    }
+
+    return { isValidMatch: true, reason: 'VERIFIED_DOMAIN_MATCH' };
   }
 }
 

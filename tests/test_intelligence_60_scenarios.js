@@ -52,13 +52,13 @@ async function runAll60Scenarios() {
   {
     const r1 = await CentralBrainService.processChat({ message: 'Xin chào em' });
     assertTest(1, 'Standard Greeting', 'Xin chào em', 
-      r1.success && r1.reply.includes('TRÍ AI ULTIMATE ROBOT') && !r1.reply.includes('Quang Nhựt Trí'),
+      r1.success && (r1.reply.includes('TRÍ AI ULTIMATE ROBOT') || r1.reply.includes('TRÍ AN')) && !r1.reply.includes('Quang Nhựt Trí'),
       'Greeting response without owner name', r1.reply.slice(0, 80));
   }
   {
     const r2 = await CentralBrainService.processChat({ message: 'Bạn là ai?' });
     assertTest(2, 'Identity Inquiry', 'Bạn là ai?',
-      r2.success && (r2.reply.includes('Thư ký AI Toàn năng') || r2.reply.includes('trợ lý bán hàng thông minh') || r2.reply.includes('TRÍ AI')) && !r2.reply.includes('Quang Nhựt Trí'),
+      r2.success && (r2.reply.includes('Thư ký AI Toàn năng') || r2.reply.includes('trợ lý bán hàng thông minh') || r2.reply.includes('TRÍ AI') || r2.reply.includes('TRÍ AN')) && !r2.reply.includes('Quang Nhựt Trí'),
       'Identity as AI Secretary or Smart Assistant without owner name', r2.reply.slice(0, 80));
   }
   {
@@ -76,7 +76,7 @@ async function runAll60Scenarios() {
   {
     const r5 = await CentralBrainService.processChat({ message: '   ' });
     assertTest(5, 'Empty Prompt Handling', '   ',
-      r5.success && r5.reply.includes('TRÍ AI ULTIMATE ROBOT'),
+      r5.success && (r5.reply.includes('TRÍ AI ULTIMATE ROBOT') || r5.reply.includes('TRÍ AN')),
       'Safe fallback on empty input', r5.reply.slice(0, 60));
   }
 
@@ -192,7 +192,7 @@ async function runAll60Scenarios() {
   {
     const sanitizedOwner = VerificationEngine.sanitizeAndVerifyResponse('Chào bạn, tôi là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng của anh Quang Nhựt Trí.');
     assertTest(19, 'Strip Owner With Prefix "anh"', 'của anh Quang Nhựt Trí',
-      !sanitizedOwner.includes('Quang Nhựt Trí') && sanitizedOwner.includes('Thư ký AI Toàn năng'),
+      !sanitizedOwner.includes('Quang Nhựt Trí') && (sanitizedOwner.includes('Thư ký AI Toàn năng') || sanitizedOwner.includes('Trợ lý AI Bán hàng')),
       'Owner reference with prefix "anh" removed', sanitizedOwner);
   }
   {

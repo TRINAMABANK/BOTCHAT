@@ -578,6 +578,44 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
     }
   }
 
+  // 0A1. CHỐNG NHẦM LẪN SẢN PHẨM & XUNG ĐỘT DANH MỤC (ANTI-CONFUSION & DOMAIN CONFLICT GUARD):
+  // Ví dụ: Khách hỏi "Điện thoại Panasonic KX-TSC11", tuyệt đối KHÔNG ĐƯỢC lấy "Tủ lạnh Panasonic" hay "Đồ gia dụng Panasonic" để trả lời.
+  const isTelecomQuery = /\b(dien thoai|dien thoai ban|tong dai|kx[-_\s]?[a-z0-9]{3,7})\b/i.test(cleanNormMsg + ' ' + normCore);
+  const isFridgeQuery = /\b(tu lanh|tu dong|tu mat)\b/i.test(cleanNormMsg + ' ' + normCore);
+  const isAirConditionerQuery = /\b(may lanh|dieu hoa)\b/i.test(cleanNormMsg + ' ' + normCore);
+  const isHomeApplianceQuery = /\b(do gia dung|gia dung|noi com|may hut am|quat dien|may loc nuoc|hut bui)\b/i.test(cleanNormMsg + ' ' + normCore);
+  const isComputerQuery = /\b(laptop|may tinh|thinkpad|thinkcentre|macbook|pc|cpu|tablet|may tinh bang)\b/i.test(cleanNormMsg + ' ' + normCore);
+
+  const isProdTelecom = /\b(dien thoai|tong dai|kx[-_\s]?[a-z0-9]{3,7})\b/i.test(normProdName + ' ' + normField);
+  const isProdFridge = /\b(tu lanh|tu dong|tu mat)\b/i.test(normProdName + ' ' + normField);
+  const isProdAirConditioner = /\b(may lanh|dieu hoa)\b/i.test(normProdName + ' ' + normField);
+  const isProdHomeAppliance = /\b(gia dung|do gia dung|noi com|hut am)\b/i.test(normProdName + ' ' + normField);
+  const isProdComputer = /\b(laptop|may tinh|thinkpad|thinkcentre|pc|cpu|tablet|man hinh)\b/i.test(normProdName + ' ' + normField);
+
+  if (isTelecomQuery && !isProdTelecom) {
+    return 0; // Khách hỏi điện thoại bàn, sản phẩm không phải điện thoại bàn => 0%
+  }
+  if (isFridgeQuery && !isProdFridge) {
+    return 0; // Khách hỏi tủ lạnh, sản phẩm không phải tủ lạnh => 0%
+  }
+  if (isAirConditionerQuery && !isProdAirConditioner) {
+    return 0; // Khách hỏi máy lạnh, sản phẩm không phải máy lạnh => 0%
+  }
+  if (isComputerQuery && !isProdComputer && (isProdFridge || isProdAirConditioner || isProdHomeAppliance || isProdTelecom)) {
+    return 0; // Khách hỏi máy tính, sản phẩm là đồ gia dụng/điện lạnh/viễn thông => 0%
+  }
+
+  // 0A2. MÂU THUẪN MÃ SẢN PHẨM CỤ THỂ (MODEL CODE DISCREPANCY GUARD):
+  // Ví dụ: Khách hỏi KX-TSC11, KX-TS500, JL206, v.v. Nếu sản phẩm không chứa mã này thì không được gán >= 80%
+  const specificModelMatch = (cleanNormMsg + ' ' + normCore).match(/\b(kx[-_\s]?[a-z0-9]{3,7}|jl\s*206|ml\s*2fs|bc\s*39f|ls\s*200f|hl[-_\s]?l6210dw|ads[-_\s]?4300n|tn[-_\s]?3609)\b/i);
+  if (specificModelMatch) {
+    const rawTargetModel = specificModelMatch[1].replace(/[-_\s]/g, '').toLowerCase();
+    const prodTargetModel = (normProdName + ' ' + normSlug).replace(/[-_\s]/g, '').toLowerCase();
+    if (!prodTargetModel.includes(rawTargetModel)) {
+      return 0; // Mâu thuẫn mã sản phẩm cụ thể
+    }
+  }
+
 
   // 0B. Nếu đang có ngữ cảnh danh mục cụ thể (ví dụ Laptop) mà sản phẩm lại thuộc danh mục khác (ví dụ Trà, Tivi, Nội thất, Gia dụng):
   // Chỉ lọc bỏ nếu câu hỏi của khách KHÔNG đề cập đến tên sản phẩm hoặc từ khóa của danh mục này.
@@ -1205,6 +1243,7 @@ function cleanInquiredProductName(str) {
   }
 
   const suffixes = [
+    'co hang khong shop', 'co hang khong', 'co hang ko', 'co hang', 'co khong',
     'khong shop', 'khong ban', 'khong em', 'khong a', 'khong vay', 'khong nua', 'khong',
     'bao nhieu tien', 'bao nhieu', 'gia bao nhieu', 'a', 'nhi', 'vay'
   ];
@@ -1232,10 +1271,18 @@ function formatMissingProductName(rawName, contextField) {
   let s = cleanInquiredProductName(rawName).replace(/<[^>]*>?/gm, '').trim();
   s = s
     .replace(/^(?:anh|chị|chi|em|tôi|toi|mình|minh|bạn|ban|shop)?\s*(?:có\s+bán|co\s+ban|bán\s+cho|ban\s+cho|bán|ban|muốn\s+mua|muon\s+mua|cần\s+mua|can\s+mua|hỏi\s+mua|hoi\s+mua|mua|cần|can|muốn|muon|tìm|tim|hỏi\s+về|hoi\s+ve|hỏi|hoi|xem|lấy|lay)\s+/i, '')
-    .replace(/\s+(?:thì\s+có\s+không|thi\s+co\s+khong|thì\s+có|thi\s+co|có\s+không|co\s+khong|có\s+chưa|co\s+chua|có\s+bán\s+không|co\s+ban\s+khong|không|khong|có|co|ạ|a|nhé|nhe|hả|ha)\b.*$/i, '')
+    .replace(/\s+(?:có\s+hàng\s+không|co\s+hang\s+khong|có\s+hàng|co\s+hang|thì\s+có\s+không|thi\s+co\s+khong|thì\s+có|thi\s+co|có\s+không|co\s+khong|có\s+chưa|co\s+chua|có\s+bán\s+không|co\s+ban\s+khong|không|khong|có|co|ạ|a|nhé|nhe|hả|ha)\b.*$/i, '')
     .replace(/^(?:thì\s+có|thi\s+co|có|co|hỏi|hoi|lấy|lay)\s+/i, '')
     .replace(/\s+(?:thì\s+có|thi\s+co|có|co|không|khong)$/i, '')
     .trim();
+
+  // Capitalize model codes & brand names
+  s = s.replace(/\b(kx[-_\s]?[a-z0-9]+)\b/gi, (m) => m.toUpperCase().replace(/\s+/g, '-'));
+  s = s.replace(/\bpanasonic\b/gi, 'Panasonic');
+  s = s.replace(/\bsamsung\b/gi, 'Samsung');
+  s = s.replace(/\blenovo\b/gi, 'Lenovo');
+  s = s.replace(/\bbrother\b/gi, 'Brother');
+  s = s.replace(/\bcanon\b/gi, 'Canon');
   const norm = removeVietnameseTones(s).toLowerCase();
 
   const inchMatch = norm.match(/\b(\d{2,3})\s*inch\b/);
@@ -2876,13 +2923,13 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       if (tier === 2) {
         // TÌNH HUỐNG 2: Giống từ 80% đến dưới 90%
         const missingName = productMatch?.missingProductQuery || (coreQuery ? formatMissingProductName(coreQuery, conversationContextField) : null);
-        if (missingName) {
+        if (missingName && missingName !== top.name) {
           return `${politeAskBanner}Dạ hiện tại sản phẩm **${missingName}** chưa tìm thấy trong dữ liệu của shop ạ.\n\n${capRef} vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\nĐồng thời, hiện tại bên em đang có sản phẩm tương tự rất phù hợp là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n\n${salesPitch}\n\nThông số chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm nhé ạ!`;
         }
         const budgetAsk = hasBudgetInQuery
           ? ` ${capRef} muốn tôi tư vấn thêm hay hỗ trợ đặt mua ngay ạ?`
           : ` Bạn đang dự tính mua trong tầm giá khoảng bao nhiêu tiền để tôi tư vấn mẫu sát nhất với nhu cầu của bạn nhé?`;
-        return `Dạ hiện bên em đang có sản phẩm tương tự rất phù hợp là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n\n${salesPitch}\n\nThông số chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**.${budgetAsk}`;
+        return `Dạ hiện bên em đang có sản phẩm tương tự có thể phù hợp với nhu cầu của mình là:\n\n🌟 **${top.name}**\n💵 **Giá niêm yết:** **${formatPrice(top)}**\n\n${salesPitch}\n\nThông số chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**.${budgetAsk}`;
       }
 
       // TÌNH HUỐNG 1: Giống từ 90% trở lên -> Kịch bản bán hàng dựa trên chính TÊN SẢN PHẨM + Báo giá niêm yết + Mở Cột 2 + Hỏi số tiền

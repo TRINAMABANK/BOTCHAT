@@ -201,7 +201,7 @@ export class CentralBrainService {
     if (!trimmedMsg) {
       return {
         success: true,
-        reply: 'Dạ, tôi là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng. Tôi có thể giúp gì cho bạn hôm nay ạ?',
+        reply: 'Dạ, tôi là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện. Tôi có thể giúp gì cho bạn hôm nay ạ?',
         citations: [],
         toolsUsed: []
       };
@@ -302,11 +302,11 @@ export class CentralBrainService {
     const isQuotationRequest = primaryIntent === 'FORMAL_QUOTATION' || /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(message);
     const isLiveWebSearch = primaryIntent === 'LIVE_WEBSITE_SEARCH' || lower.includes('website') || lower.includes('web nha cung cap');
 
-    // 0A. Greeting & Conversational Routing (Polite Personal Secretary)
+    // 0A. Greeting & Conversational Routing (Polite Personal Assistant)
     const isGreeting = primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim());
     if (isGreeting && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery && !isLiveWebSearch) {
       return ResponseEngine.formatResponse({
-        replyText: 'Dạ, em chào bạn ạ! Em là **TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng**.\n\nHôm nay em có thể hỗ trợ bạn tra cứu tài liệu quy chuẩn, tư vấn sản phẩm, kiểm tra tồn kho hay lập bảng báo giá nào không ạ?',
+        replyText: 'Dạ, em chào bạn ạ! Em là **TRÍ AN** — Trợ lý AI Bán hàng & Tư vấn Toàn diện.\n\nHôm nay em có thể hỗ trợ bạn tư vấn sản phẩm, kiểm tra tồn kho hay lập bảng báo giá nào không ạ?',
         stage: 'GREETING',
         toolsUsed: ['greeting_handler']
       });
@@ -401,13 +401,13 @@ export class CentralBrainService {
         });
       }
 
-      const docInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng hỗ trợ tra cứu tài liệu quy chuẩn và quy trình nội bộ.
+      const docInstruction = `Bạn là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện hỗ trợ tra cứu tài liệu quy chuẩn và quy trình nội bộ.
 Nguyên tắc:
 - Dựa vào nội dung tài liệu trích dẫn để giải đáp chính xác, khách quan.
 - Dẫn kèm nguồn trích dẫn theo nhãn [Nguồn: ...].
 - Nếu tài liệu không có thông tin về câu hỏi của người dùng, trả lời trung thực rằng tài liệu hiện có chưa có quy định về nội dung này.
 - Tuyệt đối không đề cập đến việc bán hàng hay sản phẩm thương mại khi đang trả lời về văn bản nội bộ.
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí".`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AN.`;
 
       const prompt = `${docInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -451,12 +451,12 @@ Nguyên tắc:
         });
       }
 
-      const excelInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng hỗ trợ tính toán và phân tích bảng tính Excel.
+      const excelInstruction = `Bạn là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện hỗ trợ tính toán và phân tích bảng tính Excel.
 Nguyên tắc:
 - Dựa trên dữ liệu bảng tính trích xuất để trả lời chính xác, mạch lạc.
 - Dẫn kèm nguồn trích dẫn theo nhãn [Bảng tính: ...].
 - Tuyệt đối không bịa đặt số liệu tài chính.
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí".`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AN.`;
 
       const prompt = `${excelInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -495,12 +495,12 @@ Nguyên tắc:
         });
       }
 
-      const webInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng tra cứu thông tin Internet.
+      const webInstruction = `Bạn là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện tra cứu thông tin Internet.
 Nguyên tắc:
 - Trả lời bằng tiếng Việt lịch sự, thông minh, chuyên nghiệp, súc tích.
 - Khi có dữ liệu trích dẫn được cung cấp, hãy tổng hợp câu trả lời chính xác và dẫn kèm nguồn theo nhãn [Nguồn: ...].
 - Tuyệt đối không dẫn nguồn duckduckgo hoặc các đường link tìm kiếm rác.
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí".`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AN.`;
 
       const prompt = `${webInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -562,7 +562,7 @@ Nguyên tắc:
 
     const isDocExplicitQuery = /(tài liệu|tai lieu|quy trình|quy trinh|chính sách|chinh sach|hướng dẫn|huong dan|quy chế|quy che|quyết định|quyet dinh|điều chuyển|dieu chuyen|nam a bank|namabank|thủ tục|thu tuc|công văn|cong van|văn bản|van ban|nội bộ|noi bo|sổ tay|so tay|quy định|quy dinh|hồ sơ|ho so)/i.test(message);
 
-    const systemPrompt = `Bạn là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng.
+    const systemPrompt = `Bạn là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện.
 Bạn có quyền truy cập các công cụ:
 1. consult_sales_engine: Tư vấn sản phẩm, tồn kho, kiểm tra danh mục và chốt đơn mua hàng.
 2. lookup_supplier_products: Tra cứu sản phẩm, thông số kỹ thuật và đơn giá từ kho nhà cung cấp đã thu thập và kiểm duyệt.
@@ -572,7 +572,7 @@ ${isDocExplicitQuery ? '5. search_knowledge_base: Tra cứu kho tài liệu quy 
 7. search_web_internet: Tra cứu thông tin trên Internet khi được yêu cầu.
 QUY TẮC BẮT BUỘC:
 - Khi khách hàng tìm hiểu, hỏi mua sản phẩm, hỏi giá, báo giá hoặc trò chuyện mua sắm, BÁN HÀNG LÀ ƯU TIÊN DUY NHẤT. TUYỆT ĐỐI KHÔNG lôi kéo nội dung tài liệu nội bộ (như quy chế ngân hàng, văn bản công văn) vào câu trả lời bán hàng!
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ tự xưng là TRÍ AI ULTIMATE ROBOT — Thư ký AI Toàn năng.`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ tự xưng là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },

@@ -79,7 +79,7 @@ export class VerificationEngine {
 
   /**
    * Validate and sanitize outgoing response
-   * Ensures no fake search links and labels unverified claims
+   * Ensures no fake search links, strips internal bank leaks in retail chat, and unifies persona
    */
   static sanitizeAndVerifyResponse(text = '', verifiedUrls = []) {
     if (!text) return '';
@@ -91,11 +91,19 @@ export class VerificationEngine {
       .replace(/\(https?:\/\/(?:www\.)?duckduckgo\.com[^\s)]*\)/gi, '')
       .replace(/https?:\/\/(?:www\.)?duckduckgo\.com\S*/gi, '')
       .replace(/\[Nguồn:\s*\]/gi, '')
+      // 2. Eliminate owner names and unify persona
       .replace(/(\*\*[^*]+?)\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?Quang Nhựt Trí\*\*/gi, '$1**')
-      .replace(/—\s*Thư ký AI Toàn năng của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí\b/gi, '— Thư ký AI Toàn năng')
-      .replace(/trợ lý bán hàng (?:thông minh )?của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí/gi, 'trợ lý bán hàng thông minh')
+      .replace(/—\s*Thư ký AI Toàn năng của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí\b/gi, '— Trợ lý AI Bán hàng & Tư vấn Toàn diện')
+      .replace(/trợ lý bán hàng (?:thông minh )?của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí/gi, 'Trợ lý AI Bán hàng & Tư vấn Toàn diện')
       .replace(/\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?[\.]?/gi, '')
+      .replace(/TRÍ AI ULTIMATE ROBOT\s*—\s*Thư ký AI Toàn năng/gi, 'TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện')
+      .replace(/TRÍ AI SALES ROBOT\s*—\s*trợ lý bán hàng thông minh/gi, 'TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện')
+      // 3. Block accidental internal bank regulation leakage in public chats
+      .replace(/Rất tiếc,\s*hiện tại dữ liệu tra cứu từ hệ thống chỉ cung cấp các thông tin nội bộ liên quan đến Quy chế.*?(?:Trang.*?)?(?:\.|$)/gis, 'Dạ hiện tại thông tin này chưa có trong dữ liệu sản phẩm của shop ạ.')
       .trim();
+
+    // 4. Incomplete Sentence Guard (e.g. ends with "với", "và", "là", "cho", "cùng")
+    cleaned = cleaned.replace(/\s+(?:với|và|là|được|cho|cùng|kèm)\s*$/i, '.');
 
     return cleaned;
   }
