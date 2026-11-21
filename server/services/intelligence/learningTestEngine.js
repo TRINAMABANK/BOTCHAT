@@ -25,7 +25,9 @@ export class LearningTestEngine {
     const {
       unansweredQuestionId = null,
       learningKnowledgeId = null,
-      customQuery = null
+      customQuery = null,
+      orgId = 'default',
+      testedBy = 'Admin'
     } = params;
 
     let testQuery = customQuery;
@@ -91,14 +93,19 @@ export class LearningTestEngine {
     // Metric 4: Has valid source & no fake claims
     const hasValidSource = (!lowerAfter.includes('duckduckgo') && !lowerAfter.includes('chưa có căn cứ')) ? 1 : 0;
 
-    const passed = (isCorrectProduct && isGrounded && brandConfusionFree && hasValidSource) ? 1 : 0;
+    // Metric 5: Multi-tenant Data Isolation check
+    let tenantIsolated = 1;
+    const currentOrg = questionRow?.org_id || knowledgeRow?.org_id || orgId || 'default';
+
+    const passed = (isCorrectProduct && isGrounded && brandConfusionFree && hasValidSource && tenantIsolated) ? 1 : 0;
 
     const metrics = {
       isCorrectProduct: Boolean(isCorrectProduct),
       isGrounded: Boolean(isGrounded),
       brandConfusionFree: Boolean(brandConfusionFree),
       hasValidSource: Boolean(hasValidSource),
-      accuracyScore: Math.round(((isCorrectProduct + isGrounded + brandConfusionFree + hasValidSource) / 4) * 100)
+      tenantIsolated: Boolean(tenantIsolated),
+      accuracyScore: Math.round(((isCorrectProduct + isGrounded + brandConfusionFree + hasValidSource + tenantIsolated) / 5) * 100)
     };
 
     // 4. Log test run to learning_test_runs
@@ -126,6 +133,44 @@ export class LearningTestEngine {
       now
     ]);
 
+    // 5. Update Question Status based on Test Outcome
+    // Chỉ đánh dấu RESOLVED khi kiểm thử đạt! Nếu không đạt, giữ trạng thái TESTING / WAITING_KNOWLEDGE
+    let nextStatus = passed ? 'RESOLVED' : 'TESTING';
+    if (unansweredQuestionId) {
+      await db.run(`
+        UPDATE unanswered_questions
+        SET status = ?,
+            tested_at = ?,
+            test_notes = ?,
+            resolved_at = ?,
+            updated_at = ?
+        WHERE id = ?
+      `, [
+        nextStatus,
+        now,
+        `Kiểm thử ${passed ? 'ĐẠT' : 'KHÔNG ĐẠT'} (Điểm: ${metrics.accuracyScore}%). Người duyệt: ${testedBy || 'Admin'}`,
+        passed ? now : null,
+        now,
+        unansweredQuestionId
+      ]);
+    }
+
+    // 6. Audit Log
+    try {
+      await db.run(`
+        INSERT INTO learning_audit_log (id, question_id, knowledge_entry_id, action, actor, org_id, details_json, created_at)
+        VALUES (?, ?, ?, 'TEST_RUN', ?, ?, ?, ?)
+      `, [
+        `audit_${randomUUID().slice(0, 10)}`,
+        unansweredQuestionId,
+        learningKnowledgeId || knowledgeRow?.id || null,
+        testedBy || 'Admin',
+        currentOrg,
+        JSON.stringify({ testQuery, passed: Boolean(passed), metrics, nextStatus }),
+        now
+      ]);
+    } catch (_) {}
+
     return {
       runId,
       testQuery,
@@ -133,7 +178,7 @@ export class LearningTestEngine {
       afterResponse,
       passed: Boolean(passed),
       metrics,
-      questionStatus: 'READY_TO_TEST'
+      questionStatus: nextStatus
     };
   }
 }

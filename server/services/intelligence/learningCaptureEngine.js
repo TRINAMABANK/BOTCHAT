@@ -187,12 +187,135 @@ export class LearningCaptureEngine {
 
     console.log(`[LEARNING CAPTURE] Logged question gap: "${message.trim()}" | Reason: ${failureReason} | Priority: ${priority}`);
 
+    // Audit log
+    try {
+      await db.run(`
+        INSERT INTO learning_audit_log (id, question_id, action, actor, org_id, details_json, created_at)
+        VALUES (?, ?, 'CREATED_GAP', 'SYSTEM', 'default', ?, ?)
+      `, [`audit_${randomUUID().slice(0, 10)}`, newId, JSON.stringify({ failureReason, priority, relatedProductName }), now]);
+    } catch (_) {}
+
     return {
       logged: true,
       action: 'CREATED_NEW_GAP',
       questionId: newId,
       failureReason,
       priority
+    };
+  }
+
+  /**
+   * Explicitly record a knowledge gap (used when CentralBrain or SalesConsultant detects missing info)
+   */
+  static async recordGap(params = {}) {
+    const {
+      unansweredQuestion = '',
+      aiResponse = '',
+      conversationId = null,
+      reason = 'NO_RELEVANT_KNOWLEDGE',
+      relatedTopic = 'Sản phẩm',
+      relatedProductName = null,
+      relatedProductId = null,
+      orgId = 'default',
+      chatbotId = 'tri-an-core',
+      priority = null
+    } = params;
+
+    const trimmed = (unansweredQuestion || '').trim();
+    if (!trimmed || trimmed.length < 2) return null;
+
+    const now = new Date().toISOString();
+
+    // Determine priority automatically if not specified: inquiries with commercial purchase intent are HIGH/URGENT
+    let effectivePriority = priority || 'MEDIUM';
+    const norm = this.normalizeText(trimmed);
+    if (/(\bmua\b|\bgia\b|\bbao nhieu\b|\bdat hang\b|\bchi tiet\b|\bbao hanh\b|\bton kho\b)/i.test(norm)) {
+      effectivePriority = 'HIGH';
+    }
+
+    // 1. Check for duplicate or similar existing question
+    const existing = await db.get(`
+      SELECT id, hit_count, status, priority, org_id
+      FROM unanswered_questions
+      WHERE (question = ? OR original_question = ?)
+        AND (org_id = ? OR org_id = 'default')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [trimmed, trimmed, orgId]);
+
+    if (existing) {
+      const updatedHit = (existing.hit_count || 1) + 1;
+      const higherPriority = (existing.priority === 'URGENT' || effectivePriority === 'URGENT')
+        ? 'URGENT'
+        : (existing.priority === 'HIGH' || effectivePriority === 'HIGH')
+          ? 'HIGH'
+          : (updatedHit >= 3 ? 'HIGH' : 'MEDIUM');
+
+      await db.run(`
+        UPDATE unanswered_questions
+        SET hit_count = ?,
+            ai_response = COALESCE(?, ai_response),
+            priority = ?,
+            updated_at = ?
+        WHERE id = ?
+      `, [updatedHit, aiResponse, higherPriority, now, existing.id]);
+
+      // Log to audit log
+      try {
+        await db.run(`
+          INSERT INTO learning_audit_log (id, question_id, action, actor, org_id, details_json, created_at)
+          VALUES (?, ?, 'INCREMENTED_GAP_HIT', 'SYSTEM', ?, ?, ?)
+        `, [`audit_${randomUUID().slice(0, 10)}`, existing.id, orgId, JSON.stringify({ hitCount: updatedHit, priority: higherPriority }), now]);
+      } catch (_) {}
+
+      return {
+        logged: true,
+        action: 'INCREMENTED_HIT_COUNT',
+        questionId: existing.id,
+        hitCount: updatedHit
+      };
+    }
+
+    // 2. Insert new record
+    const newId = `q_gap_${randomUUID().slice(0, 10)}`;
+    await db.run(`
+      INSERT INTO unanswered_questions (
+        id, conversation_id, question, original_question, ai_response,
+        status, related_topic, related_product_name, related_product_id,
+        failure_reason, priority, hit_count, org_id, chatbot_id,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+    `, [
+      newId,
+      conversationId,
+      trimmed,
+      trimmed,
+      aiResponse,
+      relatedTopic,
+      relatedProductName,
+      relatedProductId,
+      reason,
+      effectivePriority,
+      orgId,
+      chatbotId,
+      now,
+      now
+    ]);
+
+    // Log to audit log
+    try {
+      await db.run(`
+        INSERT INTO learning_audit_log (id, question_id, action, actor, org_id, details_json, created_at)
+        VALUES (?, ?, 'CREATED_GAP', 'SYSTEM', ?, ?, ?)
+      `, [`audit_${randomUUID().slice(0, 10)}`, newId, orgId, JSON.stringify({ reason, priority: effectivePriority, relatedProductName }), now]);
+    } catch (_) {}
+
+    return {
+      logged: true,
+      action: 'CREATED_NEW_GAP',
+      questionId: newId,
+      reason,
+      priority: effectivePriority
     };
   }
 }

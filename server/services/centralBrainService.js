@@ -212,6 +212,7 @@ export class CentralBrainService {
 
     // 1. INTENT ENGINE: Natural language analysis, slang normalization, entity & intent extraction
     const intentResult = IntentEngine.analyzeIntent(trimmedMsg, params);
+    const unaccentedMsg = IntentEngine.stripDiacritics(trimmedMsg).toLowerCase();
 
     // Resolve user ID with priority on explicit phone entity
     const effectiveUserId = intentResult.slots?.phone || customerInfo?.phone || customerInfo?.id || userId;
@@ -227,20 +228,23 @@ export class CentralBrainService {
     }
 
     // 2B. TRÍ AN LEARNING CENTER: Priority 1 Curated Approved Knowledge Lookup
-    const approvedCurated = await LearningIngestionEngine.lookupApprovedKnowledge(trimmedMsg);
-    if (approvedCurated && approvedCurated.standard_answer) {
-      return ResponseEngine.formatResponse({
-        replyText: `Dạ, về câu hỏi của bạn:\n\n${approvedCurated.standard_answer}\n\nThông tin chi tiết và các sản phẩm liên quan đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm nhé ạ!`,
-        revealCatalog: true,
-        recommendedField: approvedCurated.related_topic || null,
-        recommendedProduct: approvedCurated.related_product_id ? { id: approvedCurated.related_product_id, name: approvedCurated.related_product_name } : null,
-        stage: 'LEARNING_CENTER_RESOLVED',
-        citations: [{
-          source: 'learning_center',
-          label: `[Tri thức đã duyệt: ${approvedCurated.standard_question || 'Chuẩn Admin'}]`
-        }],
-        toolsUsed: ['learning_center_approved']
-      });
+    // Skip if customer explicitly requested staff handoff or greeting
+    if (intentResult.primaryIntent !== 'STAFF_HANDOFF' && !SmartSalesConsultant.isStaffHandoff(unaccentedMsg)) {
+      const approvedCurated = await LearningIngestionEngine.lookupApprovedKnowledge(trimmedMsg, orgId);
+      if (approvedCurated && approvedCurated.standard_answer) {
+        return ResponseEngine.formatResponse({
+          replyText: `Dạ, về câu hỏi của bạn:\n\n${approvedCurated.standard_answer}\n\nThông tin chi tiết và các sản phẩm liên quan đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm nhé ạ!`,
+          revealCatalog: true,
+          recommendedField: approvedCurated.related_topic || null,
+          recommendedProduct: approvedCurated.related_product_id ? { id: approvedCurated.related_product_id, name: approvedCurated.related_product_name } : null,
+          stage: 'LEARNING_CENTER_RESOLVED',
+          citations: [{
+            source: 'learning_center',
+            label: `[Tri thức đã duyệt: ${approvedCurated.standard_question || 'Chuẩn Admin'}]`
+          }],
+          toolsUsed: ['learning_center_approved']
+        });
+      }
     }
 
     // Remember customer phone or budget if stated
@@ -720,19 +724,23 @@ Nguyên tắc:
       toolsUsed
     });
 
-    // Asynchronously log gap to TRÍ AN Learning Center if quality gap detected
+    // Log gap to TRÍ AN Learning Center if quality gap detected
     const cleanTurnMsg = (message || '').trim();
-    LearningCaptureEngine.inspectAndLogTurn({
-      conversationId,
-      message: cleanTurnMsg,
-      aiResponse: finalRes.reply || '',
-      intentResult,
-      productMatch: salesResult.productMatch || null,
-      disambiguation: null,
-      stage: finalRes.stage,
-      toolsUsed,
-      customerInfo
-    }).catch(err => console.error('[LEARNING CAPTURE HOOK ERROR]:', err.message));
+    try {
+      await LearningCaptureEngine.inspectAndLogTurn({
+        conversationId,
+        message: cleanTurnMsg,
+        aiResponse: finalRes.reply || '',
+        intentResult,
+        productMatch: salesResult.productMatch || null,
+        disambiguation: null,
+        stage: finalRes.stage,
+        toolsUsed,
+        customerInfo
+      });
+    } catch (err) {
+      console.error('[LEARNING CAPTURE HOOK ERROR]:', err.message);
+    }
 
     return finalRes;
   }
