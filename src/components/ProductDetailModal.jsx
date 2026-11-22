@@ -1,5 +1,40 @@
 import React from 'react';
-import { X, CheckCircle, ShieldCheck, PhoneCall, ShoppingCart, MessageSquare, Tag, Award } from 'lucide-react';
+import { X, CheckCircle, ShieldCheck, PhoneCall, ShoppingCart, MessageSquare, Tag, Award, Sparkles, Calendar } from 'lucide-react';
+
+export function isFoodOrBeverage(product) {
+  if (!product) return false;
+  const raw = `${product.field || ''} ${product.group_name || ''} ${product.name || ''} ${product.description || ''}`;
+  const norm = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+
+  const foodBeveragePatterns = [
+    /\b(?:tra|tea|oolong|olong|hac tra|matcha|che|hong tra|luc tra)\b/,
+    /\b(?:ca phe|coffee|espresso|robusta|arabica|culi|rang moc)\b/,
+    /\b(?:thuc pham|do an|thuc uong|do uong|an uong|beverage|food)\b/,
+    /\b(?:banh|keo|sua|ngu coc|yen sao|to yen|dong trung ha thao|sam|nam linh chi)\b/,
+    /\b(?:gia vi|nuoc mam|dau an|nong san|trai cay|hat dieu|mac ca|hanh nhan)\b/,
+    /\b(?:ruou|bia|nuoc ngot|nuoc giai khat|nuoc suoi|nuoc khoang)\b/
+  ];
+
+  return foodBeveragePatterns.some((pattern) => pattern.test(norm));
+}
+
+export function isConsumableOrCosmetic(product) {
+  if (!product) return false;
+  if (isFoodOrBeverage(product)) return true;
+  const raw = `${product.field || ''} ${product.group_name || ''} ${product.name || ''}`;
+  const norm = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+  return /\b(?:nuoc hoa|my pham|son|kem duong|tay te bao|sua tam|dau goi|serum|perfume|cosmetics)\b/.test(norm);
+}
 
 export const ProductDetailModal = ({
   isOpen = false,
@@ -11,6 +46,9 @@ export const ProductDetailModal = ({
 }) => {
   if (!isOpen || !product) return null;
 
+  const isFood = isFoodOrBeverage(product);
+  const isCosmetic = !isFood && isConsumableOrCosmetic(product);
+
   let specs = {};
   if (product.specs_json) {
     try {
@@ -18,6 +56,21 @@ export const ProductDetailModal = ({
     } catch {
       specs = { 'Thông số': product.specs_json };
     }
+  } else if (isFood) {
+    specs = {
+      'Loại sản phẩm': product.field || 'Trà & Đồ uống cao cấp',
+      'Chất lượng': 'Chính hãng 100% - Đạt chuẩn ATVSTP',
+      'Hạn sử dụng': 'Date mới nhất theo lô sản xuất',
+      'Đóng gói': 'Nguyên hộp tem niêm phong',
+      'Chính sách': 'Đổi trả trong 7 ngày nếu lỗi NSX hoặc vận chuyển'
+    };
+  } else if (isCosmetic) {
+    specs = {
+      'Loại sản phẩm': product.field || 'Nước hoa & Mỹ phẩm cao cấp',
+      'Xuất xứ': 'Chính hãng 100%',
+      'Tình trạng': 'Mới 100% nguyên seal',
+      'Chính sách': 'Cam kết chính hãng, đổi trả trong 7 ngày nếu lỗi bao bì'
+    };
   } else {
     specs = {
       'Tốc độ đếm': '1.100 - 1.200 tờ/phút',
@@ -29,7 +82,48 @@ export const ProductDetailModal = ({
     };
   }
 
+  // Phân loại để setup bảo hành hoặc chính hãng:
+  // Đồ ăn, thức uống: KHÔNG CÓ BẢO HÀNH (vì thực phẩm không bảo hành như máy móc). Thay vào đó setup badge Chính hãng & HSD/Đổi trả.
+  let warrantyBadge = null;
+  let secondaryBadge = null;
+
+  if (isFood) {
+    // Đồ ăn, thức uống: Không setup bảo hành máy móc
+    const hsd = specs['Hạn sử dụng'] || specs['HSD'] || null;
+    secondaryBadge = hsd
+      ? {
+          text: `HSD: ${hsd}`,
+          icon: <Calendar size={12} className="text-amber-300" />,
+          style: 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+        }
+      : {
+          text: 'Đổi trả nếu lỗi NSX',
+          icon: <ShieldCheck size={12} className="text-emerald-300" />,
+          style: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
+        };
+  } else if (isCosmetic) {
+    // Nước hoa & Mỹ phẩm
+    secondaryBadge = {
+      text: 'Nguyên seal • Date mới',
+      icon: <Sparkles size={12} className="text-amber-300" />,
+      style: 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+    };
+  } else {
+    // Máy móc, thiết bị công nghệ, phần cứng: Có bảo hành chính hãng
+    const rawWarranty = specs['Bảo hành'] || specs['Bảo hành chính hãng'] || specs['Bảo hành & Support'] || null;
+    warrantyBadge = {
+      text: rawWarranty || 'Bảo hành chính hãng',
+      icon: <ShieldCheck size={12} />,
+      style: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
+    };
+  }
+
   const priceStr = product.price_formatted || `${(product.price || 0).toLocaleString('vi-VN')} ₫`;
+  const fallbackDesc = isFood
+    ? 'Dòng sản phẩm trà & đồ uống hảo hạng, hương vị tinh tế, nguồn gốc tự nhiên, đóng gói tiêu chuẩn cao cấp.'
+    : (isCosmetic
+      ? 'Dòng sản phẩm nước hoa & mỹ phẩm chính hãng, hương thơm quyến rũ, đóng gói nguyên seal tinh xảo.'
+      : 'Dòng máy đếm tiền thế hệ mới, tích hợp cảm biến thông minh kiểm tra tiền giả siêu chuẩn xác, độ bền cao, hoạt động êm ái.');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fade-in">
@@ -52,7 +146,7 @@ export const ProductDetailModal = ({
               {product.name}
             </h2>
             <p className="text-xs text-cyan-300 font-medium">
-              Lĩnh vực: {product.field} • Nhóm: {product.group_name || 'Máy đếm tiền cao cấp'}
+              Lĩnh vực: {product.field} • Nhóm: {product.group_name || (isFood ? 'Trà & Đồ uống cao cấp' : 'Thiết bị cao cấp')}
             </p>
           </div>
         </div>
@@ -78,18 +172,26 @@ export const ProductDetailModal = ({
               </div>
 
               <p className="text-xs text-slate-300 leading-relaxed">
-                {product.description || 'Dòng máy đếm tiền thế hệ mới, tích hợp cảm biến thông minh kiểm tra tiền giả siêu chuẩn xác, độ bền cao, hoạt động êm ái.'}
+                {product.description || fallbackDesc}
               </p>
 
               <div className="flex flex-wrap gap-2 pt-1">
-                <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">
-                  <ShieldCheck size={12} />
-                  <span>Bảo hành 24 tháng</span>
-                </span>
+                {warrantyBadge && (
+                  <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${warrantyBadge.style}`}>
+                    {warrantyBadge.icon}
+                    <span>{warrantyBadge.text}</span>
+                  </span>
+                )}
                 <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-500/40">
                   <CheckCircle size={12} />
                   <span>Chính hãng 100%</span>
                 </span>
+                {secondaryBadge && (
+                  <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${secondaryBadge.style}`}>
+                    {secondaryBadge.icon}
+                    <span>{secondaryBadge.text}</span>
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -102,7 +204,17 @@ export const ProductDetailModal = ({
             <div className="rounded-xl border border-slate-700/80 overflow-hidden bg-[#071530]/80">
               <table className="w-full text-xs">
                 <tbody>
-                  {Object.entries(specs).map(([key, val], idx) => (
+                  {Object.entries(specs)
+                    .filter(([key]) => {
+                      if (isFood || isCosmetic) {
+                        const kLower = key.toLowerCase();
+                        if (kLower.includes('bảo hành') || kLower.includes('bao hanh') || kLower.includes('warranty')) {
+                          return false;
+                        }
+                      }
+                      return true;
+                    })
+                    .map(([key, val], idx) => (
                     <tr
                       key={key}
                       className={idx % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-900/10'}

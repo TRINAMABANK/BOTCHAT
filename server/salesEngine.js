@@ -78,6 +78,31 @@ function formatShortDesc(desc, maxLen = 85) {
   return firstLine.slice(0, maxLen).trim() + '...';
 }
 
+export function isFoodOrBeverageProduct(product) {
+  if (!product) return false;
+  const raw = `${product.field || ''} ${product.group_name || ''} ${product.name || ''} ${product.description || ''}`;
+  const norm = removeVietnameseTones(raw);
+
+  const foodBeveragePatterns = [
+    /\b(?:tra|tea|oolong|olong|hac tra|matcha|che|hong tra|luc tra)\b/,
+    /\b(?:ca phe|coffee|espresso|robusta|arabica|culi|rang moc)\b/,
+    /\b(?:thuc pham|do an|thuc uong|do uong|an uong|beverage|food)\b/,
+    /\b(?:banh|keo|sua|ngu coc|yen sao|to yen|dong trung ha thao|sam|nam linh chi)\b/,
+    /\b(?:gia vi|nuoc mam|dau an|nong san|trai cay|hat dieu|mac ca|hanh nhan)\b/,
+    /\b(?:ruou|bia|nuoc ngot|nuoc giai khat|nuoc suoi|nuoc khoang)\b/
+  ];
+
+  return foodBeveragePatterns.some((pattern) => pattern.test(norm));
+}
+
+export function isConsumableOrCosmeticProduct(product) {
+  if (!product) return false;
+  if (isFoodOrBeverageProduct(product)) return true;
+  const raw = `${product.field || ''} ${product.group_name || ''} ${product.name || ''} ${product.description || ''}`;
+  const norm = removeVietnameseTones(raw);
+  return /\b(?:nuoc hoa|perfume|my pham|cosmetic|son moi|kem duong|serum|dau goi|sua tam)\b/.test(norm);
+}
+
 /**
  * Xây dựng kịch bản bán hàng tập trung 100% vào chính TÊN SẢN PHẨM và các đặc tính, thông số kỹ thuật thực tế
  * Tuyệt đối không dựa trên hoặc nêu nhóm sản phẩm chung chung.
@@ -2384,9 +2409,16 @@ YÊU CẦU PHONG CÁCH BẮT BUỘC:
 
 QUY TẮC BẮT BUỘC KHÁC:
 1. Chỉ dùng giá và thông số có thật trong DANH MỤC ĐƯỢC PHÊ DUYỆT bên dưới. Tuyệt đối KHÔNG tự bịa giá.
-2. Khi khách hỏi SĐT: trả lời đúng tinh thần "${phonePrompt}".
-3. Khi khách muốn mua/báo giá: hỗ trợ ghi nhận từng bước (số lượng -> tên -> SĐT -> ghi chú).
-4. Nếu khách vừa gửi SĐT (${extractedPhone || 'không'}): cảm ơn và xác nhận đã ghi nhận để shop liên hệ sớm nhất.
+2. QUY TẮC BẢO HÀNH & CHÍNH HÃNG THEO NGÀNH HÀNG:
+   - Với ĐỒ ĂN, THỨC UỐNG, TRÀ, CÀ PHÊ, THỰC PHẨM (Consumables):
+     + KHÔNG CÓ BẢO HÀNH (thực phẩm, đồ ăn thức uống không có chế độ bảo hành kỹ thuật/điện tử như máy móc).
+     + Tuyệt đối KHÔNG gán bảo hành 12 hay 24 tháng cho đồ ăn, thức uống!
+     + Cam kết: 100% chính hãng, hạn sử dụng (HSD) mới nhất theo lô sản xuất, bao bì nguyên vẹn chuẩn vệ sinh an toàn thực phẩm. Hỗ trợ đổi mới 1 đổi 1 trong 7 ngày nếu lỗi đóng gói, rách hỏng do vận chuyển hoặc lỗi từ nhà sản xuất.
+   - Với MÁY MÓC, THIẾT BỊ ĐIỆN TỬ, PHẦN CỨNG:
+     + Bảo hành chính hãng từ 12 đến 36 tháng theo đúng thông số kỹ thuật của nhà sản xuất.
+3. Khi khách hỏi SĐT: trả lời đúng tinh thần "${phonePrompt}".
+4. Khi khách muốn mua/báo giá: hỗ trợ ghi nhận từng bước (số lượng -> tên -> SĐT -> ghi chú).
+5. Nếu khách vừa gửi SĐT (${extractedPhone || 'không'}): cảm ơn và xác nhận đã ghi nhận để shop liên hệ sớm nhất.
 ${showHotline ? `Hotline: ${hotline}` : ''}
 
 DANH MỤC SẢN PHẨM ĐƯỢC QUẢN TRỊ PHÊ DUYỆT:
@@ -3094,11 +3126,21 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       if (normMessage.includes('giao hang') || normMessage.includes('phi ship')) {
         return `Dạ, shop có chính sách giao hàng tận nơi trên toàn quốc rất tiện lợi cho bạn ạ:\n\n• **Đồng kiểm:** Bạn được quyền mở kiểm tra hàng và tem niêm phong trước khi thanh toán.\n• **Miễn phí vận chuyển:** Áp dụng cho các đơn hàng máy tính, laptop và thiết bị có giá trị cao trong nội thành.\n• **Giao hàng toàn quốc:** Giao qua chuyển phát nhanh (1 - 3 ngày làm việc).\n\nBạn đang ở khu vực nào để em báo thời gian nhận hàng chính xác nhất nhé ạ!`;
       }
-      return `Dạ, toàn bộ sản phẩm tại shop đều là hàng chính hãng 100% và được bảo hành chính hãng từ nhà sản xuất (từ 12 đến 36 tháng tùy từng model).\n\n• **Chính sách 1 đổi 1:** Hỗ trợ đổi mới trong 7 ngày đầu nếu có lỗi phần cứng từ nhà sản xuất.\n• **Bảo hành tận tâm:** Tiếp nhận bảo hành tại shop hoặc trung tâm bảo hành ủy quyền của hãng.\n\nBạn đang quan tâm đến sản phẩm nào để em kiểm tra thời gian bảo hành chính xác nhất của máy đó nhé ạ!`;
+      const activeProd = activeProduct || conversationActiveProduct || selectedProduct;
+      const isFood = isFoodOrBeverageProduct(activeProd);
+      if (isFood) {
+        return `Dạ, đối với các sản phẩm trà, đồ uống và thực phẩm như **${activeProd.name}**, sản phẩm không áp dụng bảo hành điện tử mà shop cam kết chất lượng tuyệt đối:\n\n• **Chính hãng 100%:** Nguồn gốc xuất xứ rõ ràng, bao bì nguyên vẹn, đảm bảo an toàn vệ sinh thực phẩm.\n• **Hạn sử dụng:** Cam kết Date mới nhất từ nhà sản xuất theo lô hàng.\n• **Chính sách đổi trả:** Hỗ trợ đổi mới 1 đổi 1 trong 7 ngày đầu nếu có lỗi đóng gói do vận chuyển hoặc phát hiện lỗi chất lượng từ nhà sản xuất.\n\nBạn có muốn em hỗ trợ tư vấn thêm thông tin nào về sản phẩm này không ạ?`;
+      }
+      return `Dạ, toàn bộ sản phẩm tại shop đều là hàng chính hãng 100%. Đối với các thiết bị công nghệ, điện tử và máy móc sẽ được bảo hành chính hãng từ nhà sản xuất (từ 12 đến 36 tháng tùy từng model). Riêng các sản phẩm thực phẩm, trà & thức uống thì cam kết Date mới và hỗ trợ 1 đổi 1 trong 7 ngày nếu lỗi từ NSX.\n\n• **Chính sách 1 đổi 1:** Hỗ trợ đổi mới trong 7 ngày đầu nếu có lỗi từ nhà sản xuất.\n• **Bảo hành tận tâm:** Tiếp nhận bảo hành tại shop hoặc trung tâm bảo hành ủy quyền của hãng.\n\nBạn đang quan tâm đến sản phẩm nào để em kiểm tra chính sách bảo hành chính xác nhất của sản phẩm đó nhé ạ!`;
     }
 
     // 0E. So sánh sản phẩm
     if (productMatch?.isComparison) {
+      const activeProd = activeProduct || conversationActiveProduct || selectedProduct;
+      const isFood = isFoodOrBeverageProduct(activeProd);
+      if (isFood) {
+        return `Dạ, khi so sánh các dòng trà và đồ uống, shop luôn đánh giá dựa trên phẩm cấp nguyên liệu, hương vị đặc trưng, độ đậm đà và hình thức đóng gói làm quà biếu.\n\nToàn bộ các dòng trà hảo hạng đang có sẵn tại shop đã được hiển thị chi tiết ở **Cột 2**. Bạn đang phân vân giữa 2 dòng trà nào để em tư vấn chi tiết nhất cho bạn nhé ạ!`;
+      }
       return `Dạ, khi so sánh các dòng sản phẩm, shop luôn đánh giá dựa trên độ bền thực tế, cấu hình chip/RAM và chính sách bảo hành chính hãng.\n\nToàn bộ các mẫu sản phẩm chất lượng cao đang có sẵn tại shop đã được hiển thị chi tiết ở **Cột 2**. Bạn đang phân vân giữa 2 model cụ thể nào để em so sánh thông số kỹ thuật chi tiết nhất cho bạn nhé ạ!`;
     }
 
@@ -3254,12 +3296,15 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     // 6. Warranty, Inventory, Delivery & Discount Objections
     if (normMessage.includes('bao hanh') || normMessage.includes('sua chua') || normMessage.includes('loi')) {
       const target = matchedFromText[0] || conversationActiveProduct || selectedProduct;
+      if (target && isFoodOrBeverageProduct(target)) {
+        return `${politeAskBanner}Dạ, sản phẩm **${target.name}** là mặt hàng trà/thực phẩm nên không có chính sách bảo hành điện tử như máy móc ạ. Shop cam kết **chính hãng 100%**, **date mới nhất** và hỗ trợ **đổi trả trong 7 ngày** nếu có lỗi bao bì hoặc lỗi do nhà sản xuất.\n\n${capRef} cần tìm hiểu thêm thông tin nào về sản phẩm này không ạ?`;
+      }
       const specs = parseSpecs(target);
       const warranty = specs['Bảo hành'] || specs['Bảo hành & Support'];
       if (target && warranty) {
         return `${politeAskBanner}Dạ, **${target.name}** có chế độ bảo hành chính hãng là: **${warranty}**.\n\n${capRef} cần tìm hiểu thêm thông tin nào về sản phẩm này không ạ?`;
       }
-      return `${politeAskBanner}Dạ, tất cả sản phẩm bên tôi đều được bảo hành chính hãng từ 12 - 36 tháng. ${capRef} đang quan tâm mẫu nào để tôi gửi thông tin bảo hành cụ thể ạ?`;
+      return `${politeAskBanner}Dạ, các sản phẩm máy móc, thiết bị bên tôi đều được bảo hành chính hãng từ 12 - 36 tháng; riêng các sản phẩm trà, đồ uống, thực phẩm thì cam kết 100% chính hãng, Date mới và hỗ trợ đổi trả 7 ngày nếu lỗi từ NSX. ${capRef} đang quan tâm mẫu nào để tôi gửi thông tin cụ thể ạ?`;
     }
 
     if (normMessage.includes('con hang') || normMessage.includes('ton kho') || normMessage.includes('giao hang') || normMessage.includes('ship') || normMessage.includes('bao lau nhan')) {

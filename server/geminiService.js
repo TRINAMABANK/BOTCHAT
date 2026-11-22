@@ -317,9 +317,41 @@ function heuristicProductAnalysis({ title, metaDesc, ogImage, text, sourceUrl })
   } else if (lower.includes('tra') || lower.includes('trà')) {
     field = 'Trà đạo thượng hạng';
     group_name = 'Trà biếu cao cấp';
+  } else if (lower.includes('ca phe') || lower.includes('cà phê')) {
+    field = 'Cà phê thượng hạng';
+    group_name = 'Cà phê nguyên chất';
+  } else if (lower.includes('nuoc hoa') || lower.includes('mỹ phẩm') || lower.includes('my pham')) {
+    field = 'Nước hoa & Mỹ phẩm';
+    group_name = 'Mỹ phẩm cao cấp';
   }
 
-  const desc = metaDesc || `Sản phẩm chính hãng ${name}, chất lượng bảo đảm, chế độ bảo hành uy tín.`;
+  const isFoodBeverage = lower.includes('tra') || lower.includes('trà') || lower.includes('ca phe') || lower.includes('cà phê') || lower.includes('thuc pham') || lower.includes('thực phẩm');
+  const isCosmetic = lower.includes('nuoc hoa') || lower.includes('mỹ phẩm') || lower.includes('my pham');
+
+  const desc = metaDesc || (isFoodBeverage
+    ? `Sản phẩm thực phẩm, trà & đồ uống chính hãng ${name}, hương vị tự nhiên thượng hạng, đảm bảo an toàn vệ sinh thực phẩm.`
+    : (isCosmetic
+      ? `Sản phẩm nước hoa & mỹ phẩm chính hãng ${name}, hương thơm quyến rũ, nguyên seal niêm phong.`
+      : `Sản phẩm chính hãng ${name}, chất lượng bảo đảm, chế độ bảo hành uy tín.`));
+
+  const specsJson = isFoodBeverage
+    ? {
+        'Nguồn gốc': 'Chính hãng 100%',
+        'Tình trạng': 'Mới 100% nguyên hộp',
+        'Hạn sử dụng': 'Date mới nhất theo lô sản xuất',
+        'Chính sách': 'Đổi trả trong 7 ngày nếu lỗi do NSX hoặc vận chuyển'
+      }
+    : (isCosmetic
+      ? {
+          'Nguồn gốc': 'Chính hãng 100%',
+          'Tình trạng': 'Mới 100% nguyên seal',
+          'Chính sách': 'Cam kết chính hãng, đổi trả nếu lỗi bao bì'
+        }
+      : {
+          'Nguồn gốc': 'Nhập khẩu chính hãng',
+          'Tình trạng': 'Mới 100% nguyên hộp',
+          'Bảo hành': '12 - 24 tháng tận nơi'
+        });
 
   return {
     sourceUrl,
@@ -329,11 +361,7 @@ function heuristicProductAnalysis({ title, metaDesc, ogImage, text, sourceUrl })
     price,
     price_formatted: price > 0 ? `${price.toLocaleString('vi-VN')} ₫` : 'Liên hệ',
     description: desc,
-    specs_json: {
-      'Nguồn gốc': 'Nhập khẩu chính hãng',
-      'Tình trạng': 'Mới 100% nguyên hộp',
-      'Bảo hành': '12 - 24 tháng tận nơi'
-    },
+    specs_json: specsJson,
     key_highlights: [
       'Chính hãng 100%, nguyên tem niêm phong',
       'Hỗ trợ giao hàng và hướng dẫn sử dụng tận nơi',

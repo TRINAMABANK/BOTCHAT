@@ -707,7 +707,11 @@ Nguyên tắc:
       if (targetProd) {
         toolsUsed.push('grounded_price_inquiry');
         const formattedPrice = SmartSalesConsultant.formatPrice(targetProd.price);
-        const reply = `Dạ, giá niêm yết chính thức của sản phẩm **${targetProd.name}** tại shop hiện là **${formattedPrice}** ạ.\n\n🛡️ **Bảo hành:** Chính hãng **${targetProd.warranty_months || 12} tháng** (1 đổi 1 trong 7 ngày đầu nếu lỗi NSX).\n📦 **Tình trạng:** **Có sẵn tại kho**, sẵn sàng giao ngay.\n\nToàn bộ thông số chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, bạn có thể tự xem chi tiết ở Cột 2 nhé ạ!\n\nBạn có muốn em hỗ trợ đặt mua hay tư vấn thêm ưu đãi cho sản phẩm này không ạ?`;
+        const isFood = SmartSalesConsultant.isFoodOrBeverageProduct(targetProd);
+        const guaranteeLine = isFood
+          ? `🛡️ **Cam kết:** Chính hãng 100%, Date mới nhất (Hỗ trợ 1 đổi 1 trong 7 ngày nếu lỗi NSX hoặc bao bì).`
+          : `🛡️ **Bảo hành:** Chính hãng **${targetProd.warranty_months || 12} tháng** (1 đổi 1 trong 7 ngày đầu nếu lỗi NSX).`;
+        const reply = `Dạ, giá niêm yết chính thức của sản phẩm **${targetProd.name}** tại shop hiện là **${formattedPrice}** ạ.\n\n${guaranteeLine}\n📦 **Tình trạng:** **Có sẵn tại kho**, sẵn sàng giao ngay.\n\nToàn bộ thông số chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, bạn có thể tự xem chi tiết ở Cột 2 nhé ạ!\n\nBạn có muốn em hỗ trợ đặt mua hay tư vấn thêm ưu đãi cho sản phẩm này không ạ?`;
         return ResponseEngine.formatResponse({
           replyText: reply,
           revealCatalog: true,

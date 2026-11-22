@@ -23,7 +23,49 @@ import db from '../../db.js';
 import { randomUUID } from 'crypto';
 import LearningCaptureEngine, { FAILURE_REASONS } from './learningCaptureEngine.js';
 
+export function isFoodOrBeverageProduct(product) {
+  if (!product) return false;
+  const raw = `${product.field || ''} ${product.group_name || ''} ${product.name || ''} ${product.description || ''}`;
+  const norm = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+
+  const foodBeveragePatterns = [
+    /\b(?:tra|tea|oolong|olong|hac tra|matcha|che|hong tra|luc tra)\b/,
+    /\b(?:ca phe|coffee|espresso|robusta|arabica|culi|rang moc)\b/,
+    /\b(?:thuc pham|do an|thuc uong|do uong|an uong|beverage|food)\b/,
+    /\b(?:banh|keo|sua|ngu coc|yen sao|to yen|dong trung ha thao|sam|nam linh chi)\b/,
+    /\b(?:gia vi|nuoc mam|dau an|nong san|trai cay|hat dieu|mac ca|hanh nhan)\b/,
+    /\b(?:ruou|bia|nuoc ngot|nuoc giai khat|nuoc suoi|nuoc khoang)\b/
+  ];
+
+  return foodBeveragePatterns.some((pattern) => pattern.test(norm));
+}
+
+export function isConsumableOrCosmeticProduct(product) {
+  if (!product) return false;
+  if (isFoodOrBeverageProduct(product)) return true;
+  const raw = `${product.field || ''} ${product.group_name || ''} ${product.name || ''} ${product.description || ''}`;
+  const norm = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+  return /\b(?:nuoc hoa|perfume|my pham|cosmetic|son moi|kem duong|serum|dau goi|sua tam)\b/.test(norm);
+}
+
 export class SmartSalesConsultant {
+  static isFoodOrBeverageProduct(product) {
+    return isFoodOrBeverageProduct(product);
+  }
+
+  static isConsumableOrCosmeticProduct(product) {
+    return isConsumableOrCosmeticProduct(product);
+  }
   /**
    * Format standard price currency (VND)
    */
@@ -193,18 +235,27 @@ export class SmartSalesConsultant {
     } else {
       // Chính sách bảo hành
       if (specificProd) {
-        const months = specificProd.warranty_months || 12;
-        reply = `Dạ, về chính sách bảo hành của sản phẩm **${specificProd.name}**:\n\n` +
-          `• **Thời gian bảo hành:** **${months} tháng** chính hãng theo tiêu chuẩn của nhà sản xuất.\n` +
-          `• **Chính sách đổi mới:** Hỗ trợ **1 đổi 1 trong vòng 7 ngày đầu** nếu máy có lỗi phần cứng do nhà sản xuất.\n` +
-          `• **Hình thức bảo hành:** Tiếp nhận bảo hành trực tiếp tại shop hoặc tại các trung tâm bảo hành ủy quyền chính hãng trên toàn quốc.\n\n` +
-          `Thông tin chi tiết và cấu hình của máy đã được mở sẵn ở **Cột 2**, bạn có thể xem thêm ở Cột 2 nhé ạ!`;
+        const isFood = isFoodOrBeverageProduct(specificProd);
+        if (isFood) {
+          reply = `Dạ, đối với dòng sản phẩm thực phẩm, trà & thức uống như **${specificProd.name}**, sản phẩm không áp dụng bảo hành điện tử mà shop cam kết chất lượng tuyệt đối:\n\n` +
+            `• **Chính hãng 100%:** Đạt chuẩn an toàn vệ sinh thực phẩm, đóng gói nguyên hộp niêm phong.\n` +
+            `• **Hạn sử dụng:** Cam kết Date mới nhất từ nhà sản xuất theo lô hàng.\n` +
+            `• **Chính sách đổi trả:** Hỗ trợ **1 đổi 1 trong vòng 7 ngày** nếu phát sinh lỗi bao bì, móp méo do vận chuyển hoặc lỗi chất lượng từ nhà sản xuất.\n\n` +
+            `Thông tin chi tiết của sản phẩm đã được mở sẵn ở **Cột 2**, bạn có thể xem thêm ở Cột 2 nhé ạ!`;
+        } else {
+          const months = specificProd.warranty_months || 12;
+          reply = `Dạ, về chính sách bảo hành của sản phẩm **${specificProd.name}**:\n\n` +
+            `• **Thời gian bảo hành:** **${months} tháng** chính hãng theo tiêu chuẩn của nhà sản xuất.\n` +
+            `• **Chính sách đổi mới:** Hỗ trợ **1 đổi 1 trong vòng 7 ngày đầu** nếu máy có lỗi phần cứng do nhà sản xuất.\n` +
+            `• **Hình thức bảo hành:** Tiếp nhận bảo hành trực tiếp tại shop hoặc tại các trung tâm bảo hành ủy quyền chính hãng trên toàn quốc.\n\n` +
+            `Thông tin chi tiết và cấu hình của máy đã được mở sẵn ở **Cột 2**, bạn có thể xem thêm ở Cột 2 nhé ạ!`;
+        }
       } else {
-        reply = `Dạ, toàn bộ sản phẩm tại shop đều là hàng chính hãng 100% và được áp dụng chính sách bảo hành chính hãng từ nhà sản xuất ạ:\n\n` +
-          `• **Thời gian bảo hành:** Từ **12 đến 36 tháng** tùy theo từng danh mục và model sản phẩm (Laptop, PC, Màn hình thường bảo hành 12 - 36 tháng; Máy in, Máy scan bảo hành 12 - 24 tháng).\n` +
-          `• **Chính sách 1 đổi 1:** Hỗ trợ đổi mới trong vòng **7 ngày đầu** nếu sản phẩm phát sinh lỗi kỹ thuật từ nhà sản xuất.\n` +
-          `• **Hỗ trợ kỹ thuật trọn đời:** Cài đặt phần mềm cơ bản và vệ sinh máy miễn phí.\n\n` +
-          `Bạn đang quan tâm đến sản phẩm hoặc dòng máy cụ thể nào để em kiểm tra thời hạn bảo hành chính xác nhất của model đó nhé ạ!`;
+        reply = `Dạ, chính sách tại shop được phân loại rõ ràng theo từng ngành hàng ạ:\n\n` +
+          `• **Thiết bị công nghệ, điện tử (Laptop, PC, Màn hình, Máy in...):** Bảo hành chính hãng từ **12 đến 36 tháng** từ nhà sản xuất, 1 đổi 1 trong 7 ngày đầu nếu lỗi phần cứng.\n` +
+          `• **Thực phẩm, Trà & Đồ uống:** Cam kết **chính hãng 100%**, hạn sử dụng mới nhất, hỗ trợ 1 đổi 1 trong 7 ngày nếu lỗi đóng gói hoặc lỗi từ NSX (không áp dụng bảo hành điện tử).\n` +
+          `• **Hỗ trợ tận tâm:** Đội ngũ CSKH hỗ trợ tư vấn và tiếp nhận xử lý nhanh chóng.\n\n` +
+          `Bạn đang quan tâm đến sản phẩm cụ thể nào để em kiểm tra và tư vấn chính xác nhất nhé ạ!`;
       }
     }
 
@@ -381,14 +432,18 @@ export class SmartSalesConsultant {
       highlightSpec = 'cấu hình tiêu chuẩn chính hãng';
     }
 
-    const warrantyMonths = matchedProd.warranty_months || 12;
-    const reply = `Dạ, đúng theo yêu cầu kỹ thuật của bạn, em xin giới thiệu mẫu sản phẩm có trang bị **${highlightSpec}** đang có sẵn tại shop:\n\n` +
+    const isFood = isFoodOrBeverageProduct(matchedProd);
+    const guaranteeLine = isFood
+      ? `🛡️ **Cam kết:** Chính hãng 100%, Date mới nhất (1 đổi 1 trong 7 ngày nếu lỗi NSX/bao bì).`
+      : `🛡️ **Bảo hành:** Chính hãng **${matchedProd.warranty_months || 12} tháng** (1 đổi 1 trong 7 ngày đầu nếu lỗi NSX).`;
+
+    const reply = `Dạ, đúng theo yêu cầu của bạn, em xin giới thiệu mẫu sản phẩm có trang bị **${highlightSpec}** đang có sẵn tại shop:\n\n` +
       `🌟 **${matchedProd.name}**\n` +
       `💵 **Giá niêm yết:** **${SmartSalesConsultant.formatPrice(matchedProd.price)}**\n` +
-      `🛡️ **Bảo hành:** Chính hãng **${warrantyMonths} tháng** (1 đổi 1 trong 7 ngày đầu nếu lỗi NSX).\n` +
+      `${guaranteeLine}\n` +
       `📦 **Tình trạng:** **Có sẵn tại kho/cửa hàng**, sẵn sàng giao nhanh.\n\n` +
-      `Toàn bộ thông số kỹ thuật chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**, bạn có thể tự xem chi tiết ở Cột 2 nhé ạ!\n\n` +
-      `Bạn có muốn em hỗ trợ lên đơn hàng giao ngay hay cần tư vấn thêm chi tiết nào của máy không ạ?`;
+      `Toàn bộ thông số chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**, bạn có thể tự xem chi tiết ở Cột 2 nhé ạ!\n\n` +
+      `Bạn có muốn em hỗ trợ lên đơn hàng giao ngay hay cần tư vấn thêm chi tiết nào của sản phẩm không ạ?`;
 
     return {
       success: true,
