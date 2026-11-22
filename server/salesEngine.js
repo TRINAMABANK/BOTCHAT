@@ -234,22 +234,58 @@ function extractPhoneNumber(rawMsg) {
 }
 
 const CUSTOMER_NAME_BLOCKED_TOKENS = new Set([
+  // Action & inquiry words
   'dang', 'hoi', 'ma', 'can', 'muon', 'lay', 'xem', 'tim', 'co', 'biet', 'chua',
-  'nguoi', 'khach', 'hang', 'tivi', 'tv', 'ban', 'ghe', 'laptop', 'may', 'tra',
-  'gia', 'bao', 'nhieu', 'tien', 'dem', 'hut', 'am', 'mua',
+  'nguoi', 'khach', 'hang', 'gia', 'bao', 'nhieu', 'tien', 'mua', 'ban',
   'chao', 'alo', 'hello', 'hi', 'ship', 'shop', 'robot', 'ai',
   'san', 'pham', 'thong', 'tin', 'dia', 'so', 'dien', 'thoai',
   'sdt', 'dong', 'vnd', 'khong', 'chuc', 'nang', 'ok', 'duoc', 'cam', 'on', 'roi',
   'vang', 'dung', 'sai', 'the', 'nao', 'tiet', 'sanh', 'ton', 'kho',
   'gi', 'kinh', 'doanh', 'cai', 'mat', 'nganh', 'vuc', 'sao', 'dau',
-  'loai', 'mau', 'dong', 're', 'dat', 'nhat', 'nhi', 'tot', 'hon', 'khac', 'cao', 'thap',
-  'binh', 'dan', 'chuan', 'chinh', 'nho', 'to', 'lon', 'dep', 'xau', 'moi', 'cu', 'tam', 'chiec'
+  'loai', 'mau', 're', 'dat', 'nhat', 'nhi', 'tot', 'hon', 'khac', 'cao', 'thap',
+  'chuan', 'nho', 'to', 'lon', 'dep', 'xau', 'moi', 'cu', 'chiec',
+  // Appliances & Electronics (Thiết bị gia dụng & điện lạnh)
+  'tu', 'lanh', 'giat', 'say', 'dieu', 'loc', 'nuoc', 'noi', 'com', 'bep', 'lo',
+  'vi', 'song', 'hut', 'am', 'bui', 'quat', 'chieu', 'ep', 'xay', 'may',
+  // IT & Tech devices (Công nghệ & tin học)
+  'tivi', 'tv', 'laptop', 'pc', 'cpu', 'case', 'ram', 'ssd', 'hdd', 'man', 'hinh',
+  'chuot', 'phim', 'tai', 'nghe', 'loa', 'mic', 'camera', 'webcam', 'sac', 'cap', 'day',
+  'the', 'nho', 'usb', 'sim',
+  // Office & Banking equipment (Văn phòng phẩm & Thiết bị ngân hàng)
+  'in', 'scan', 'dem', 'bo', 'ket', 'sat', 'photo', 'fax', 'huy',
+  // Office Furniture (Nội thất)
+  'ghe', 'xoay', 'giam', 'doc', 'hop',
+  // Tea, Coffee, Cosmetics (Trà, Cà phê, Mỹ phẩm)
+  'tra', 'oolong', 'long', 'ca', 'phe', 'cafe', 'matcha',
+  'my', 'pham', 'son', 'kem', 'phan', 'serum',
+  // Vehicles & Accessories (Phương tiện & phụ kiện)
+  'xe', 'balo', 'tui', 'xach'
 ]);
 
-function hasBlockedNameTokens(str) {
+/**
+ * Check if a string represents a product, category or device keyword.
+ */
+export function isProductOrDeviceTerm(str) {
+  if (!str || typeof str !== 'string') return false;
+  const clean = removeVietnameseTones(str).replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
+  if (!clean) return false;
+  const phrases = [
+    'tu lanh', 'may giat', 'may lanh', 'dieu hoa', 'may loc nuoc', 'loc nuoc',
+    'noi com', 'noi com dien', 'may hut bui', 'robot hut bui', 'may ep', 'may say',
+    'may in', 'may scan', 'may dem tien', 'may bo tien', 'ket sat',
+    'tai nghe', 'loa', 'ban phim', 'chuot', 'tivi', 'tv', 'laptop', 'may tinh',
+    'dien thoai', 'tra', 'ca phe', 'cafe', 'matcha', 'nuoc hoa', 'my pham', 'man hinh', 'bep tu',
+    'ban ghe', 'ban lam viec', 'ghe xoay', 'quat', 'o to', 'xe may', 'may chieu', 'tu quan ao',
+    'binh dan', 'chinh hang', 'kem duong'
+  ];
+  return phrases.some((p) => clean === p || clean.startsWith(p + ' ') || clean.endsWith(' ' + p) || clean.includes(' ' + p + ' '));
+}
+
+export function hasBlockedNameTokens(str) {
   if (!str || typeof str !== 'string') return true;
   const norm = removeVietnameseTones(str).toLowerCase().trim();
   if (norm.length < 2 || norm.length > 30) return true;
+  if (isProductOrDeviceTerm(norm)) return true;
   const words = norm.split(/\s+/).filter(Boolean);
   if (words.length < 1 || words.length > 3) return true;
   return words.some((w) => CUSTOMER_NAME_BLOCKED_TOKENS.has(w));
@@ -289,6 +325,7 @@ function extractCustomerName(rawMsg, allowBare = false) {
 
   // If allowBare is false and no intro pattern matched, it cannot be considered a customer name
   if (!allowBare && !matchedIntro) return null;
+  if (allowBare && isProductOrDeviceTerm(s)) return null;
 
   // Strip leading honorific if followed by name (e.g. "anh Nam" -> "Nam")
   s = s.replace(/^(?:anh|chị|cô|chú|bác|ông|bà|em|bạn)\s+/i, '');
@@ -307,6 +344,7 @@ function extractCustomerName(rawMsg, allowBare = false) {
   for (const w of words) {
     if (CUSTOMER_NAME_BLOCKED_TOKENS.has(w)) return null;
   }
+  if (isProductOrDeviceTerm(norm)) return null;
 
   return s
     .split(/\s+/)
@@ -1463,7 +1501,7 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     'ban ghe', 'ban lam viec', 'ban giam doc', 'ban hop', 'ban van phong', 'ghe'
   ];
   if (productDeviceKeywords.some((k) => clean.includes(k))) {
-    return formatMissingProductName(clean, contextField);
+    return formatMissingProductName(coreQuery || message.trim(), contextField);
   }
 
   if (coreQuery && typeof coreQuery === 'string' && coreQuery.trim().length >= 2) {
@@ -1588,8 +1626,10 @@ function applyCustomerAddressing(text, profile) {
   const ref = getCustomerRef(profile);
   const capRef = capitalizeFirst(ref);
   return text
+    .replace(/bạn\/anh\/chị/g, '@@BAN_ANH_CHI@@')
     .replace(/Anh\/chị|Anh\/Chị/g, capRef)
-    .replace(/anh\/chị/g, ref);
+    .replace(/anh\/chị/g, ref)
+    .replace(/@@BAN_ANH_CHI@@/g, 'bạn/anh/chị');
 }
 
 /**
@@ -1718,10 +1758,11 @@ export class SalesEngine {
           }
           if (!prevCustomerProfile && meta.customerProfile) {
             const rawPrevName = meta.customerProfile.name;
-            const validPrevName = rawPrevName && !hasBlockedNameTokens(rawPrevName) ? rawPrevName : null;
+            const validPrevName = rawPrevName && !hasBlockedNameTokens(rawPrevName) && !isProductOrDeviceTerm(rawPrevName) ? rawPrevName : null;
             prevCustomerProfile = {
               ...meta.customerProfile,
-              name: validPrevName
+              name: validPrevName,
+              pendingClarification: meta.customerProfile.pendingClarification || null
             };
           }
           if (!prevActiveProduct && meta.activeProduct) {
@@ -1768,18 +1809,21 @@ export class SalesEngine {
     );
     const allowBareName = Boolean(
       (prevOrderFlow?.step === 'ask_name' || (prevCustomerProfile?.askedAddressing && !prevCustomerProfile?.name)) &&
-      !hasInquiryKeywords
+      !hasInquiryKeywords &&
+      !isProductOrDeviceTerm(normMessage) &&
+      !hasBlockedNameTokens(normMessage)
     );
     const detectedName = extractCustomerName(message, allowBareName);
     const rawResolvedName = parsedAddr?.name || detectedName || customerInfo?.name || prevCustomerProfile?.name || null;
-    const resolvedName = rawResolvedName && !hasBlockedNameTokens(rawResolvedName) ? rawResolvedName : null;
+    const resolvedName = rawResolvedName && !hasBlockedNameTokens(rawResolvedName) && !isProductOrDeviceTerm(rawResolvedName) ? rawResolvedName : null;
     const resolvedPronoun = parsedAddr?.pronoun || prevCustomerProfile?.pronoun || null;
 
     const customerProfile = {
       pronoun: resolvedPronoun,
       name: resolvedName,
       askedAddressing: Boolean(prevCustomerProfile?.askedAddressing),
-      pendingMissingProduct: prevCustomerProfile?.pendingMissingProduct || null
+      pendingMissingProduct: prevCustomerProfile?.pendingMissingProduct || null,
+      pendingClarification: prevCustomerProfile?.pendingClarification || null
     };
 
     // If customer just told their name, immediately update any existing lead in this conversation
@@ -1965,6 +2009,34 @@ export class SalesEngine {
     const isName = isCustomerNameDeclaration(message, normMessage);
     const isMissing = Boolean(missingProductQuery) && !extractedPhone;
 
+    // Xử lý phản hồi cho câu hỏi làm rõ: "X là sản phẩm bạn đang tìm kiếm hay là tên của mình?"
+    if (prevCustomerProfile?.pendingClarification?.type === 'NAME_OR_PRODUCT' && !replyText) {
+      const clarifyingTerm = prevCustomerProfile.pendingClarification.term;
+      const isConfirmProduct = /(?:san pham|san pham tim kiem|tim kiem|tim sp|mua|can mua|tim mua|muon mua|tim|dung roi|chinh no|la san pham|do la san pham|san pham nha|san pham do|san pham a|san pham ban oi|hang|mat hang)\b/i.test(normMessage);
+      const isConfirmName = /(?:ten toi|ten minh|ten anh|ten chi|ten em|la ten|day la ten|ten nha|ten a|ten do)\b/i.test(normMessage) || isCustomerNameDeclaration(message, normMessage);
+
+      if (isConfirmProduct) {
+        customerProfile.name = null;
+        customerProfile.pendingClarification = null;
+        customerProfile.pendingMissingProduct = clarifyingTerm;
+        replyText = `Dạ em đã ghi nhận bạn đang tìm kiếm sản phẩm **${clarifyingTerm}** ạ.\n\nHiện tại mẫu này chưa có sẵn trong dữ liệu của shop. Bạn vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\nĐồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
+      } else if (isConfirmName) {
+        customerProfile.pendingClarification = null;
+        let identifiedName = extractCustomerName(message, false);
+        if (!identifiedName && !hasBlockedNameTokens(clarifyingTerm) && !isProductOrDeviceTerm(clarifyingTerm)) {
+          identifiedName = clarifyingTerm;
+        }
+        if (identifiedName && !hasBlockedNameTokens(identifiedName) && !isProductOrDeviceTerm(identifiedName)) {
+          customerProfile.name = identifiedName;
+        }
+        const updatedRef = getCustomerRef(customerProfile);
+        replyText = `Dạ em chào **${updatedRef}** ạ! Cảm ơn bạn đã xác nhận. Hôm nay bạn đang quan tâm hoặc cần tìm sản phẩm thuộc lĩnh vực nào để em hỗ trợ mở Cột 2 tư vấn ngay nhé ạ?`;
+      } else {
+        // Khách chuyển sang câu hỏi khác hoặc sản phẩm khác -> xóa trạng thái làm rõ và xử lý tiếp bình thường
+        customerProfile.pendingClarification = null;
+      }
+    }
+
     // Xử lý các tình huống có quy tắc chuẩn xác từ khách hàng (hỏi thăm sức khoẻ, chào hỏi, xưng tên, hỏi hàng chưa có)
     if (!replyText) {
       if (isHealth) {
@@ -1997,7 +2069,25 @@ export class SalesEngine {
             step3Alternative = `Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
           }
         }
-        replyText = `Dạ hiện tại sản phẩm **${missingProductQuery}** chưa tìm thấy trong dữ liệu của shop ạ.\n\n${capRef} vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\n${step3Alternative}`;
+
+        // Kiểm tra xem khách có hỏi về giá cả hoặc tính năng cụ thể không
+        const cleanNormMsg = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
+        const hasPriceOrFeature = /(?:gia|gia ca|bao nhieu|nhieu tien|may tien|tinh nang|thong so|chuc nang|cong dung|cau hinh|xem gia|bang gia|bao gia)\b/i.test(normMessage);
+        const cleanWords = cleanNormMsg.split(/\s+/).filter(Boolean);
+        const isBareOrInitialMissingQuery = !hasPriceOrFeature && !prevCustomerProfile?.name && (cleanWords.length <= 4 || !hasInquiryKeywords);
+
+        if (isBareOrInitialMissingQuery) {
+          // Khách mới vào ô chat nhắn thẳng sản phẩm mà không nói tên, không hỏi giá/tính năng:
+          // Phân tích không có trong hệ thống và hỏi khách chốt lại: là sản phẩm tìm kiếm hay là tên của mình
+          replyText = `Dạ hiện tại bên em chưa tìm thấy sản phẩm **${missingProductQuery}** trong hệ thống của shop ạ.\n\nCho em xin phép hỏi lại một chút để tiện phục vụ: **'${missingProductQuery}'** là sản phẩm bạn/anh/chị đang tìm kiếm hay là tên của mình để em tiện xưng hô ạ?\n\n- Nếu là sản phẩm bạn đang cần tìm: Bạn có thể để lại **Số điện thoại** để shop kiểm tra nguồn hàng kho và báo giá sớm nhất, hoặc tham khảo các danh mục sản phẩm hiện có ở **Cột 2** nhé ạ.\n- Nếu bạn muốn xưng hô tên khác: Bạn cứ nhắn tên để em tiện phục vụ chu đáo nhất nhé ạ!`;
+          customerProfile.name = null;
+          customerProfile.pendingClarification = {
+            term: missingProductQuery,
+            type: 'NAME_OR_PRODUCT'
+          };
+        } else {
+          replyText = `Dạ hiện tại sản phẩm **${missingProductQuery}** chưa tìm thấy trong dữ liệu của shop ạ.\n\n${capRef} vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\n${step3Alternative}`;
+        }
       }
     }
 
@@ -2518,6 +2608,10 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       requiresInput: isMissingOrCollectingPhone ? 'PHONE' : null,
       suggestedActions: isMissingOrCollectingPhone
         ? [
+            ...(customerProfile.pendingClarification ? [
+              { id: 'clarify_product', label: `Tìm mua ${customerProfile.pendingClarification.term}` },
+              { id: 'clarify_name', label: 'Đây là tên của tôi' }
+            ] : []),
             { id: 'leave_phone', label: 'Để lại số điện thoại' },
             { id: 'view_catalog', label: 'Xem sản phẩm Cột 2' }
           ]
@@ -2623,7 +2717,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
 
     if (!flow.name) {
       const parsedName = extractCustomerName(message, flow.step === 'ask_name' && !wantsToStartOrder) || customerProfile?.name || null;
-      if (parsedName && !hasBlockedNameTokens(parsedName)) {
+      if (parsedName && !hasBlockedNameTokens(parsedName) && !isProductOrDeviceTerm(parsedName)) {
         flow.name = parsedName;
       }
     }
