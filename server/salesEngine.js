@@ -754,10 +754,34 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   }
 
   // Exact phrase match
+  const qTrim = cleanNormMsg.trim();
+  const qWords = qTrim.split(/\s+/).filter(Boolean);
+  const coreTrim = normCore ? normCore.trim() : '';
+  const coreWords = coreTrim ? coreTrim.split(/\s+/).filter(Boolean) : [];
+
+  if (qTrim === normProdName || coreTrim === normProdName) return 100;
   if (cleanNormMsg.includes(normProdName)) return 100;
-  if (normProdName.includes(cleanNormMsg.trim()) && cleanNormMsg.trim().length >= 6) return 96;
-  if (normCore && normCore.length >= 4 && hasWordMatch(normProdName, normCore)) return 95;
-  if (normCore && normProdName.length >= 4 && hasWordMatch(normCore, normProdName)) return 96;
+
+  // Substring match: only give high score (>= 90%) if the query contains multiple words
+  // and covers a significant portion (>= 45%) of the product name, or at least 3 distinct words.
+  // Never give >= 90% for a single-word substring match of a multi-word product (e.g. 'nguyen' in 'bich thuy hoan nguyen')!
+  if (normProdName.includes(qTrim)) {
+    if (qWords.length >= 3 || (qWords.length >= 2 && qTrim.length >= normProdName.length * 0.45)) {
+      return 96;
+    }
+    if (qWords.length >= 2) {
+      return 86;
+    }
+  }
+
+  if (coreTrim && normProdName.includes(coreTrim)) {
+    if (coreWords.length >= 3 || (coreWords.length >= 2 && coreTrim.length >= normProdName.length * 0.45)) {
+      return 95;
+    }
+    if (coreWords.length >= 2) {
+      return 85;
+    }
+  }
 
   // Meaningful tokens - loại bỏ cả các đơn vị đo lường đơn lẻ (inch, lit, hp, w) để không làm sai lệch tỉ lệ tương đồng
   const UNIT_ONLY_TOKENS = new Set(['inch', 'in', 'lit', 'l', 'hp', 'ngua', 'kg', 'g', 'gr', 'w', 'kw', 'v', 'hz', 'cm', 'mm', 'm']);
@@ -1963,7 +1987,7 @@ export class SalesEngine {
     const productMatch = evaluateProductMatch(message, normMessage, allProducts, activeHistoryField);
     const matchedFromText = productMatch.rankedProducts;
     const matchedField = productMatch.matchedField;
-    const missingProductQuery = productMatch.missingProductQuery;
+    let missingProductQuery = productMatch.missingProductQuery;
     const coreQuery = extractCoreProductQuery(message);
     if (missingProductQuery) {
       customerProfile.pendingMissingProduct = missingProductQuery;
@@ -1978,7 +2002,7 @@ export class SalesEngine {
         !isCatalogOverviewQuery(normMessage) &&
         !isGreetingMessage(normMessage));
 
-    const activeProduct =
+    let activeProduct =
       productMatch.topProduct ||
       matchedFromText[0] ||
       selectedProduct ||
@@ -2187,14 +2211,19 @@ export class SalesEngine {
         customerProfile.pendingClarification = null;
         customerProfile.pendingMissingProduct = clarifyingTerm;
 
-        // Check if clarifyingTerm exists in allProducts
+        // Check if clarifyingTerm exists in allProducts (full or partial match)
+        const normTerm = removeVietnameseTones(clarifyingTerm).toLowerCase();
         const matchedInStore = allProducts.find((p) => {
           const normP = removeVietnameseTones(p.name || '').toLowerCase();
-          const normTerm = removeVietnameseTones(clarifyingTerm).toLowerCase();
-          return normP.includes(normTerm) || normTerm.includes(normP);
+          return normP.includes(normTerm) || normTerm.includes(normP) || hasWordMatch(normP, normTerm);
         });
 
         if (matchedInStore) {
+          activeProduct = matchedInStore;
+          productMatch.topProduct = matchedInStore;
+          productMatch.tier = 1;
+          productMatch.similarity = 95;
+          missingProductQuery = null;
           replyText = `Dạ em đã ghi nhận bạn đang tìm kiếm sản phẩm **${matchedInStore.name}** (${formatPrice(matchedInStore)}) ạ!\n\nThông tin chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**, bạn có thể bấm xem chi tiết hoặc nhắn tôi tư vấn sâu hơn nhé!`;
         } else {
           replyText = `Dạ em đã ghi nhận bạn đang tìm kiếm sản phẩm **${clarifyingTerm}** ạ.\n\nHiện tại mẫu này chưa có sẵn trong danh mục của shop. Bạn vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\nĐồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
@@ -2220,11 +2249,12 @@ export class SalesEngine {
     // 2. Kiểm tra lần đầu khi vào chat: khách nhắn 1 đến 3 từ mà chưa rõ là tên hay sản phẩm
     const rawCleanWords = (message || '').trim().replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').split(/\s+/).filter(Boolean);
     const isOneToThreeWords = rawCleanWords.length >= 1 && rawCleanWords.length <= 3;
-    const hasQuestionKeywords = /(?:bao\s+nhieu|nhieu\s+tien|may\s+tien|gia\s+ca|gia\s+bao|o\s+dau|co\s+khong|co\s+ban|tinh\s+nang|thong\s+so|chuc\s+nang|cau\s+hinh|bao\s+hanh|chinh\s+sach|the\s+nao|nhu\s+the\s+nao|sao\s+the|la\s+gi|ban\s+gi|kinh\s+doanh\s+gi|co\s+nhung)\b/i.test(normMessage);
-    const isExactCatalogProduct = Boolean(productMatch && productMatch.tier === 1 && productMatch.similarity >= 90 && productMatch.topProduct);
+    const hasQuestionKeywords = /(?:bao\s+nhieu|nhieu\s+tien|may\s+tien|gia\s+ca|gia\s+bao|o\s+dau|co\s+khong|co\s+ban|tinh\s+nang|thong\s+so|chuc\s+nang|cau\s+hinh|bao\s+hanh|chinh\s+sach|the\s+nao|nhu\s+the\s+nao|sao\s+the|la\s+gi|ban\s+gi|kinh\s+doanh\s+gi|co\s+nhung|cho\s+(?:anh|toi|em|minh)?\s*xem|xem\s+san\s+pham|mua|dat\s+hang|tu\s+van)\b/i.test(normMessage);
     const userMsgCount = history.filter((h) => h.sender_type === 'user').length;
     const isFirstCustomerTurn = userMsgCount <= 1;
 
+    // Khi khách xuất phát lần đầu và chỉ nhắn 1 đến 3 từ ngắn (ví dụ: 'nguyên', 'nam', 'tủ lạnh', 'trà', 'bột matcha'):
+    // TUYỆT ĐỐI KHÔNG tự ý suy diễn là sản phẩm hay tên của khách, mà BẮT BUỘC phải hỏi lại để khách xác nhận rõ ràng
     const isFirstTurnAmbiguous1To3Words =
       isFirstCustomerTurn &&
       isOneToThreeWords &&
@@ -2232,7 +2262,7 @@ export class SalesEngine {
       !isGreeting &&
       !isName &&
       !hasQuestionKeywords &&
-      !isExactCatalogProduct;
+      !isResetChatQuery;
 
     if (!replyText && isFirstTurnAmbiguous1To3Words) {
       const candidateTerm = rawCleanWords.join(' ');
@@ -2249,6 +2279,10 @@ Từ **"${displayTerm}"** bên trên là **tên của bạn/anh/chị** để ti
 • Nếu là **sản phẩm cần tìm**: Bạn cho tôi biết để tôi kiểm tra nguồn hàng kho và mở bộ sản phẩm ở Cột 2 tư vấn ngay cho bạn ạ!`;
 
       customerProfile.name = null;
+      missingProductQuery = null;
+      productMatch.topProduct = null;
+      productMatch.tier = 3;
+      productMatch.similarity = 0;
       customerProfile.pendingClarification = {
         term: displayTerm,
         type: 'NAME_OR_PRODUCT'
@@ -2657,7 +2691,9 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('hoi tham') ||
       normMessage.includes('lam duoc gi') ||
       normMessage.includes('giup duoc gi') ||
-      isGreetingMessage(normMessage);
+      isGreetingMessage(normMessage) ||
+      Boolean(isFirstTurnAmbiguous1To3Words) ||
+      Boolean(customerProfile.pendingClarification?.type === 'NAME_OR_PRODUCT');
 
     const asksGeneralCatalog = isCatalogOverviewQuery(normMessage);
     const hasBudgetQuery = Boolean(extractBudget(normMessage));

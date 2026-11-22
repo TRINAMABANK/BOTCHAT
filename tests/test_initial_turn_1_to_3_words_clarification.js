@@ -122,7 +122,83 @@ async function runTests() {
   );
   console.log('✅ Test 5 Passed: Không bị gán tên khách nhầm lẫn khi khách chuyển chủ đề.');
 
-  console.log('\n🎉 ALL 5 INITIAL TURN 1-3 WORDS CLARIFICATION TESTS PASSED SUCCESSFULLY!');
+  // Test 6: Khách tên "nguyên" nhắn "nguyên" ở Turn 1 (dù "nguyên" có trong Bích Thủy Hoàn Nguyên)
+  // BẮT BUỘC phải hỏi lại là tên hay sản phẩm, TUYỆT ĐỐI KHÔNG giới thiệu Bích Thủy Hoàn Nguyên!
+  const convId6 = 'test_name_nguyen_' + Date.now();
+  const res6_1 = await SalesEngine.processMessage({
+    conversationId: convId6,
+    message: 'nguyên',
+    customerInfo: {},
+    actionType: null
+  });
+
+  console.log('\n[Test 6 - Turn 1 khách nhắn "nguyên"]:\n', res6_1.reply);
+  assert(
+    res6_1.reply.includes('Nguyên') && res6_1.reply.includes('tên của bạn/anh/chị'),
+    'Phải hỏi lại từ "Nguyên" là tên của bạn hay sản phẩm cần tìm'
+  );
+  assert(
+    !res6_1.reply.toLowerCase().includes('bích thủy hoàn nguyên'),
+    'Tuyệt đối không được tự ý giới thiệu sản phẩm Bích Thủy Hoàn Nguyên khi khách mới chỉ nhắn "nguyên"'
+  );
+  assert(
+    res6_1.suggestedActions && res6_1.suggestedActions.some(a => a.action === 'confirm_name'),
+    'Phải có nút [👤 "Nguyên" là tên của tôi]'
+  );
+
+  // Turn 2: Khách xác nhận là tên
+  const res6_2 = await SalesEngine.processMessage({
+    conversationId: convId6,
+    message: '👤 "Nguyên" là tên của tôi',
+    customerInfo: {},
+    actionType: 'confirm_name'
+  });
+
+  console.log('\n[Test 6 - Turn 2 khách xác nhận là tên Nguyên]:\n', res6_2.reply);
+  assert(
+    res6_2.reply.includes('bạn Nguyên') || res6_2.reply.includes('Nguyên'),
+    'Phải chào và ghi nhận bạn Nguyên'
+  );
+
+  // Turn 3: Khách hỏi "có bao nhiêu loại trà" -> Phải xưng hô đúng "bạn Nguyên"
+  const res6_3 = await SalesEngine.processMessage({
+    conversationId: convId6,
+    message: 'có bao nhiêu loại trà',
+    customerInfo: {},
+    actionType: null
+  });
+
+  console.log('\n[Test 6 - Turn 3 bạn Nguyên hỏi về trà]:\n', res6_3.reply);
+  assert(
+    res6_3.reply.includes('bạn Nguyên'),
+    'Phải xưng hô đúng "bạn Nguyên", không được gọi sai'
+  );
+  console.log('✅ Test 6 Passed: Khách tên "nguyên" được hỏi làm rõ, xác nhận tên và xưng hô chuẩn xác.');
+
+  // Test 7: Khách nhắn "nguyên" ở Turn 1, nhưng Turn 2 chọn "🔍 'Nguyên' là sản phẩm cần tìm"
+  const convId7 = 'test_prod_nguyen_' + Date.now();
+  await SalesEngine.processMessage({
+    conversationId: convId7,
+    message: 'nguyên',
+    customerInfo: {},
+    actionType: null
+  });
+
+  const res7 = await SalesEngine.processMessage({
+    conversationId: convId7,
+    message: '🔍 "Nguyên" là sản phẩm cần tìm',
+    customerInfo: {},
+    actionType: 'confirm_product'
+  });
+
+  console.log('\n[Test 7 - Turn 2 xác nhận "Nguyên" là sản phẩm]:\n', res7.reply);
+  assert(
+    res7.reply.includes('Bích Thủy Hoàn Nguyên 182Gr'),
+    'Phải tìm thấy và giới thiệu Bích Thủy Hoàn Nguyên khi khách xác nhận là sản phẩm'
+  );
+  console.log('✅ Test 7 Passed: Xác nhận là sản phẩm tìm kiếm thì giới thiệu đúng Bích Thủy Hoàn Nguyên.');
+
+  console.log('\n🎉 ALL 7 INITIAL TURN 1-3 WORDS CLARIFICATION TESTS PASSED SUCCESSFULLY!');
 }
 
 runTests().catch(err => {
