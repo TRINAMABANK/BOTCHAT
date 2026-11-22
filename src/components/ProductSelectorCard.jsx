@@ -85,8 +85,21 @@ export const ProductSelectorCard = ({
         (p.price_formatted || '').toLowerCase().includes(q)
       );
     }
+
+    // Nếu có selectedProduct, luôn đưa sản phẩm đang được chọn/được hỏi lên ĐẦU DANH SÁCH (index 0)
+    if (selectedProduct && selectedProduct.id) {
+      const idx = list.findIndex((p) => p.id === selectedProduct.id);
+      if (idx > 0) {
+        const found = list[idx];
+        const rest = list.filter((_, i) => i !== idx);
+        list = [found, ...rest];
+      } else if (idx === -1 && (showAllProducts || selectedProduct.field === activeCategory)) {
+        list = [selectedProduct, ...list];
+      }
+    }
+
     return list;
-  }, [products, showAllProducts, allFilterField, categoryProducts, searchQuery]);
+  }, [products, showAllProducts, allFilterField, categoryProducts, searchQuery, selectedProduct, activeCategory]);
 
   const updateScrollButtons = () => {
     const el = carouselRef.current;
@@ -126,10 +139,17 @@ export const ProductSelectorCard = ({
     if (!showAllProducts && selectedProduct.field && selectedProduct.field !== activeCategory && isInMainCategories) {
       setActiveCategory(selectedProduct.field);
     }
-    const cardEl = cardRefs.current[selectedProduct.id];
-    if (cardEl) {
-      cardEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    // Vì sản phẩm đang chọn luôn được sắp xếp ở index 0 của displayProducts, cuộn carousel về 0 để thấy ngay lập tức
+    if (carouselRef.current) {
+      carouselRef.current.scrollTo({ left: 0, behavior: 'smooth' });
     }
+    const timer = setTimeout(() => {
+      const cardEl = cardRefs.current[selectedProduct.id];
+      if (cardEl) {
+        cardEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    }, 80);
+    return () => clearTimeout(timer);
   }, [selectedProduct?.id]);
 
   const scrollCarousel = (direction) => {
@@ -375,7 +395,13 @@ export const ProductSelectorCard = ({
           >
             {displayProducts.map((prod, idx) => {
               const isSelected = selectedProduct?.id === prod.id;
-              const badge = getBadge(idx);
+              const badge = isSelected
+                ? {
+                    text: '⭐ Đang xem',
+                    icon: <Star size={12} className="text-cyan-300 fill-cyan-400" />,
+                    style: 'bg-gradient-to-r from-cyan-500/40 via-sky-500/40 to-blue-500/40 text-cyan-200 border-cyan-400/80 shadow-[0_0_12px_rgba(0,240,255,0.4)]'
+                  }
+                : getBadge(idx);
               const priceNumberStr = (prod.price || 0).toLocaleString('vi-VN');
 
               return (
@@ -388,7 +414,7 @@ export const ProductSelectorCard = ({
                   }}
                   className={`product-hover-card relative flex-shrink-0 w-[198px] sm:w-[205px] snap-start rounded-2xl p-2.5 sm:p-3 border cursor-pointer transition-all flex flex-col justify-between group overflow-hidden ${
                     isSelected
-                      ? 'bg-gradient-to-b from-[#0e214d] to-[#071330] border-cyan-400 shadow-[0_0_20px_rgba(0,240,255,0.45)] ring-1 ring-cyan-400'
+                      ? 'bg-gradient-to-b from-[#0e214d] to-[#071330] border-cyan-400 shadow-[0_0_25px_rgba(0,240,255,0.5)] ring-2 ring-cyan-400/80 scale-[1.01]'
                       : 'bg-[#081533]/85 border-slate-700/70 hover:border-transparent hover:bg-[#0c1f4d]'
                   }`}
                 >

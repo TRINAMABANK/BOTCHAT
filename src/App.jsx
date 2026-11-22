@@ -276,7 +276,19 @@ export const App = () => {
         setBotState('idle');
       }
 
-      if (data.revealCatalog) {
+      const isEnteringOrderFlow = Boolean(
+        data.orderFlow?.active ||
+        data.orderFlow?.step ||
+        data.leadCreated ||
+        data.leadCaptured ||
+        data.stage === 'COLLECTING_PHONE' ||
+        data.requiresInput === 'PHONE'
+      );
+      const isExplicitViewAsk = /(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)?\s*(?:xem|coi)|xem\s+(?:lai\s+)?san\s+pham|xem\s+chi\s+tiet|mo\s+(?:lai\s+)?cot\s+2|hien\s+cot\s+2|xem\s+hinh|xem\s+anh)\b/i.test(text);
+
+      if (data.revealCatalog === false || (isEnteringOrderFlow && !isExplicitViewAsk)) {
+        setIsCatalogRevealed(false);
+      } else if (data.revealCatalog || isExplicitViewAsk) {
         setIsCatalogRevealed(true);
       }
       if (data.recommendedField) {

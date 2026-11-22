@@ -191,6 +191,13 @@ function extractExplicitQuantity(normMsg) {
     if (q >= 1 && q <= 500) return q;
   }
 
+  // Pattern 1B: Số lượng bằng chữ đi kèm đơn vị tính ("hai hộp", "một cái", "ba chiếc")
+  const wordQtyMatch = normMsg.match(/(?:lay|dat|mua|giao|ship|cho|chot)\s+(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)\s+)?(mot|hai|ba|bon|nam|sau|bay|tam|chin|muoi)\s*(?:cai|chiec|hop|goi|bo|sp|san pham)?\b/);
+  if (wordQtyMatch) {
+    const wordMap = { mot: 1, hai: 2, ba: 3, bon: 4, nam: 5, sau: 6, bay: 7, tam: 8, chin: 9, muoi: 10 };
+    return wordMap[wordQtyMatch[1]] || null;
+  }
+
   // Nếu là câu hỏi thăm dò hàng có hay không, không tự suy diễn số bất kỳ thành số lượng mua
   if (isAvailabilityInquiry) {
     return null;
@@ -431,7 +438,7 @@ function extractCoreProductQuery(rawMsg) {
     s = s.replace(/^(?:đang\s+hỏi\s+về|đang\s+hỏi|đang\s+nói\s+về|đang\s+nói|đang\s+tìm\s+hiểu|đang\s+tìm|đang\s+cần|đang\s+xem)\s+/i, '');
     s = s.replace(/^(?:cần\s+tìm\s+mua|muốn\s+tìm\s+mua|cần\s+mua|muốn\s+mua|đang\s+tìm|cần\s+tìm|tìm\s+mua|mua\s+giúp|mua\s+hộ|mua)\s+/i, '');
     s = s.replace(/^(?:bán\s+cho\s+(?:tôi|mình|anh|em|chị|bác|chú|cô)?|bán\s+hộ|bán)\s+/i, '');
-    s = s.replace(/^(?:cho\s+(?:tôi|mình|anh|em|chị|bác|chú|cô)\s+xem|cho\s+xem|xem)\s+/i, '');
+    s = s.replace(/^(?:cho\s+(?:tôi|mình|anh|em|chị|bác|chú|cô)?\s*(?:xem|coi)|cho\s+xem|cho\s+coi|xem)\s*/i, '');
     s = s.replace(/^(?:bên\s+(?:bạn|em|shop|mình)\s+có\s+bán|bên\s+(?:bạn|em|shop|mình)\s+có|có\s+bán|có\s+sản\s+phẩm|có\s+mẫu|có)\s+/i, '');
     s = s.replace(/^(?:báo\s+giá\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?|tư\s+vấn\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?)\s+/i, '');
     s = s.replace(/^(?:cái|chiếc|mẫu|loại|dòng|con|bộ)\s+/i, '');
@@ -1280,6 +1287,11 @@ function userExplicitlyWantsProducts({ normMessage, actionType, matchedFromText,
     'cho toi xem',
     'cho minh xem',
     'cho em xem',
+    'cho anh xem',
+    'cho chi xem',
+    'cho bac xem',
+    'cho chu xem',
+    'cho co xem',
     'gui san pham',
     'gui hinh',
     'gui anh',
@@ -1305,9 +1317,19 @@ function userExplicitlyWantsProducts({ normMessage, actionType, matchedFromText,
     'xem thu',
     'show san pham',
     'trinh bay san pham',
-    'bao gia san pham'
+    'bao gia san pham',
+    'mo cot 2',
+    'mo lai cot 2',
+    'hien cot 2',
+    'xem chi tiet',
+    'xem hinh',
+    'xem anh'
   ];
   if (explicitViewPhrases.some((p) => normMessage.includes(p))) {
+    return true;
+  }
+  const explicitViewRegex = /(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)?\s*(?:xem|coi)|xem\s+(?:lai\s+)?san\s+pham|xem\s+chi\s+tiet|mo\s+(?:lai\s+)?cot\s+2|hien\s+cot\s+2|xem\s+hinh|xem\s+anh)\b/;
+  if (explicitViewRegex.test(normMessage)) {
     return true;
   }
 
@@ -1487,6 +1509,7 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     normMessage.includes('o dau') ||
     normMessage.includes('dia chi') ||
     /(?:xoa\s+(?:noi\s+dung\s+)?chat|noi\s+dung\s+chat|dung\s+chat|xoa\s+chat|lam\s+moi|tin\s+nhan|lich\s+su\s+chat|cuoc\s+tro\s+chuyen|clear\s+chat|reset\s+chat)\b/.test(normMessage) ||
+    /(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)?\s*(?:xem|coi)|xem\s+(?:lai\s+)?san\s+pham|xem\s+chi\s+tiet|mo\s+(?:lai\s+)?cot\s+2|hien\s+cot\s+2|xem\s+hinh|xem\s+anh)\b/i.test(normMessage) ||
     /(?:khong\s+cho|khong\s+can|thoi\s+khoi|bo\s+qua|cu\s+tu\s+van|khong\s+tien|khong\s+noi|chua\s+tien|khong\s+thich|khoi\s+can)\b/.test(normMessage) ||
     /(?:ten\s+la|ten\s+toi|ten\s+minh|ten\s+em|ten\s+anh|ten\s+chi|toi\s+ten|minh\s+ten|em\s+ten|anh\s+ten|chi\s+ten|toi\s+la|minh\s+la|em\s+la|anh\s+la|chi\s+la)\b/.test(normMessage) ||
     /(?:bi\s+sai|lac\s+de|nham\s+roi|khong\s+dung)\b/.test(normMessage)
@@ -1733,9 +1756,9 @@ export class SalesEngine {
   /**
    * Main chat processing pipeline combining live catalog DB, CRM Lead capture, LLM & Smart Rule Brain.
    */
-  static async processMessage({ conversationId, message, selectedProduct, actionType, customerInfo, clientDevice }) {
+  static async processMessage({ conversationId, convId: altConvId, message, selectedProduct, actionType, customerInfo, clientDevice }) {
     const now = new Date().toISOString();
-    let convId = conversationId;
+    let convId = conversationId || altConvId;
 
     // 1. Load live settings & full approved product catalog from DB (including approved supplier catalog)
     const [settingsList, rawProducts, rawCrawledProducts] = await Promise.all([
@@ -1801,6 +1824,7 @@ export class SalesEngine {
 
     // Recover any active multi-step purchase flow, customer addressing profile & product/category context from history
     let prevOrderFlow = null;
+    let checkedOrderFlow = false;
     let prevCustomerProfile = null;
     let prevActiveProduct = null;
     let prevField = null;
@@ -1810,8 +1834,11 @@ export class SalesEngine {
       if (hMsg.metadata_json) {
         try {
           const meta = JSON.parse(hMsg.metadata_json);
-          if (!prevOrderFlow && meta.orderFlow && meta.orderFlow.active) {
-            prevOrderFlow = meta.orderFlow;
+          if (!checkedOrderFlow && Object.prototype.hasOwnProperty.call(meta, 'orderFlow')) {
+            checkedOrderFlow = true;
+            if (meta.orderFlow && meta.orderFlow.active) {
+              prevOrderFlow = meta.orderFlow;
+            }
           }
           if (!prevCustomerProfile && meta.customerProfile) {
             const rawPrevName = meta.customerProfile.name;
@@ -1822,11 +1849,11 @@ export class SalesEngine {
               pendingClarification: meta.customerProfile.pendingClarification || null
             };
           }
-          if (!prevActiveProduct && meta.activeProduct) {
-            prevActiveProduct = meta.activeProduct;
+          if (!prevActiveProduct && (meta.activeProduct || meta.recommendedProduct)) {
+            prevActiveProduct = meta.activeProduct || meta.recommendedProduct;
           }
           if (!prevField) {
-            const fCand = meta.activeField || meta.recommendedField || meta.activeProduct?.field || null;
+            const fCand = meta.activeField || meta.recommendedField || meta.activeProduct?.field || meta.recommendedProduct?.field || null;
             if (fCand && fCand !== 'Tất cả') {
               prevField = fCand;
             }
@@ -1900,6 +1927,10 @@ export class SalesEngine {
     const hasAddressingInfo = Boolean(customerProfile.pronoun || customerProfile.name);
     const customerRef = getCustomerRef(customerProfile);
 
+    const isExplicitViewAsk =
+      /(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)?\s*(?:xem|coi)|xem\s+(?:lai\s+)?san\s+pham|xem\s+chi\s+tiet|mo\s+(?:lai\s+)?cot\s+2|hien\s+cot\s+2|xem\s+hinh|xem\s+anh)\b/i.test(message || '') ||
+      /(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)?\s*(?:xem|coi)|xem\s+(?:lai\s+)?san\s+pham|xem\s+chi\s+tiet|mo\s+(?:lai\s+)?cot\s+2|hien\s+cot\s+2|xem\s+hinh|xem\s+anh)\b/i.test(normMessage || '');
+
     const activeHistoryField = (isCatalogOverviewQuery(normMessage) || isGreetingMessage(normMessage))
       ? null
       : (selectedProduct?.field || prevField || prevActiveProduct?.field || null);
@@ -1911,7 +1942,21 @@ export class SalesEngine {
     if (missingProductQuery) {
       customerProfile.pendingMissingProduct = missingProductQuery;
     }
-    const activeProduct = productMatch.topProduct || matchedFromText[0] || selectedProduct || null;
+
+    const isOngoingProductInquiry =
+      isExplicitViewAsk ||
+      productMatch.isRelativeQuery ||
+      (!productMatch.topProduct &&
+        !matchedFromText.length &&
+        !productMatch.missingProductQuery &&
+        !isCatalogOverviewQuery(normMessage) &&
+        !isGreetingMessage(normMessage));
+
+    const activeProduct =
+      productMatch.topProduct ||
+      matchedFromText[0] ||
+      selectedProduct ||
+      (isOngoingProductInquiry ? (prevActiveProduct || null) : null);
     const explicitQty = extractExplicitQuantity(normMessage);
     const detectedQty = explicitQty ?? 1;
 
@@ -1924,10 +1969,13 @@ export class SalesEngine {
     const activeSelectedField = selectedProduct?.field || null;
     const conversationContextField = (isOverviewAsk || isGreeting)
       ? null
-      : (matchedField || (productMatch.topProduct?.field) || (productMatch.missingProductQuery ? null : (activeSelectedField || prevField || prevActiveProduct?.field || null)));
+      : (matchedField || (productMatch.topProduct?.field) || (productMatch.missingProductQuery ? null : (activeSelectedField || prevField || prevActiveProduct?.field || activeProduct?.field || null)));
     const conversationActiveProduct = (isGreeting || productMatch.missingProductQuery)
       ? null
-      : (productMatch.topProduct || matchedFromText[0] || (productMatch.isRelativeQuery ? selectedProduct : null) || null);
+      : (productMatch.topProduct ||
+         matchedFromText[0] ||
+         (isOngoingProductInquiry ? (selectedProduct || prevActiveProduct || null) : null) ||
+         null);
 
     // 6. Detect Phone, Email, Name & auto-capture Lead into CRM
     const emailMatches = message ? message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/) : null;
@@ -1938,11 +1986,16 @@ export class SalesEngine {
     let orderFlowReply = null;
 
     // 6A. Guided Step-by-Step Purchase Flow ("khi bấm mua thì hỏi khách hàng cung cấp thông tin từ từ")
-    const wantsToStartOrder =
+    const isOrderIntentMessage =
       normAction.includes('dat mua') ||
       normMessage.includes('dat mua') ||
       normMessage.includes('mua ngay') ||
-      normMessage.includes('dat hang');
+      normMessage.includes('dat hang') ||
+      /(?:lay|mua|ban|giao|ship|chot|len don|dat)\s+(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)\s+)?(?:\d+|mot|hai|ba|bon|nam|sau|bay|tam|chin|muoi)\s*(?:cai|chiec|hop|san pham|goi|lo|thung|chuyen)?\b/i.test(normMessage) ||
+      /(?:lay|chot|mua|giao|ship)\s+(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)\s+)?(?:san\s+pham|mau|loai|hop|cai)\s+nay\b/i.test(normMessage) ||
+      /(?:giao|ship)\s+(?:ve|den|toi|dia chi)\b/i.test(normMessage);
+
+    const wantsToStartOrder = isOrderIntentMessage;
 
     const wantsToCancelOrder =
       prevOrderFlow &&
@@ -1958,13 +2011,22 @@ export class SalesEngine {
       nextOrderFlow = null;
       orderFlowReply = `Không sao đâu ${customerRef}! Tôi đã hủy thao tác đặt mua hiện tại. ${capitalizeFirst(customerRef)} cứ thoải mái xem thêm sản phẩm hoặc nhắn câu hỏi bất cứ lúc nào để tôi hỗ trợ nhé!`;
     } else if (!switchedToOtherButton && (wantsToStartOrder || prevOrderFlow)) {
+      const orderTargetProd =
+        matchedFromText[0] ||
+        (prevOrderFlow?.productId ? allProducts.find((p) => p.id === prevOrderFlow.productId) : null) ||
+        activeProduct ||
+        conversationActiveProduct ||
+        prevActiveProduct ||
+        selectedProduct ||
+        allProducts[0];
+
       const resultFlow = await this.handleOrderFlowStep({
         convId,
         now,
         message,
         normMessage,
         allProducts,
-        targetProd: matchedFromText[0] || (prevOrderFlow?.productId ? allProducts.find((p) => p.id === prevOrderFlow.productId) : null) || selectedProduct || allProducts[0],
+        targetProd: orderTargetProd,
         prevOrderFlow: wantsToStartOrder && !prevOrderFlow ? null : prevOrderFlow,
         wantsToStartOrder,
         explicitQty,
@@ -2530,30 +2592,59 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     // HOẶC khi khách hỏi sản phẩm chưa có (để khách tham khảo các mẫu khác cùng loại ở Cột 2)
     const mentionsRelatedProduct =
       isMissingProduct ||
+      isExplicitViewAsk ||
       (!isNonProductIntent &&
         (productMatch.tier === 1 ||
           productMatch.tier === 2 ||
           (productMatch.tier === 3 && (wantsProducts || Boolean(matchedField) || asksGeneralCatalog || hasBudgetQuery || hasCompareQuery || isAskOtherModels || Boolean(actionType)))));
 
-    const revealCatalog = mentionsRelatedProduct;
+    const isMissingOrCollectingPhone = Boolean(missingProductQuery) && !extractedPhone;
+    if (isMissingOrCollectingPhone) {
+      customerProfile.pendingMissingProduct = missingProductQuery;
+    }
+
+    const isEnteringOrderFlowOrCRM = Boolean(
+      (nextOrderFlow && nextOrderFlow.active) ||
+      (prevOrderFlow && prevOrderFlow.active) ||
+      leadCreated ||
+      isMissingOrCollectingPhone ||
+      wantsToStartOrder
+    );
+
+    const revealCatalog = (isEnteringOrderFlowOrCRM && !isExplicitViewAsk)
+      ? false
+      : Boolean(mentionsRelatedProduct);
 
     // Resolve category and products to display in Column 2 (strictly honoring active conversation domain)
     const activeScopeField = matchedField || (productMatch.topProduct?.field) || conversationContextField || activeHistoryField || (conversationActiveProduct?.field) || (activeProduct?.field) || (selectedProduct?.field) || null;
 
-    const recommendedProduct = mentionsRelatedProduct
-      ? (!isMissingProduct ? (productMatch.topProduct || matchedFromText[0] || (productMatch.isRelativeQuery ? selectedProduct : null)) : null)
+    const targetProductForRecommendation =
+      productMatch.topProduct ||
+      matchedFromText[0] ||
+      (isExplicitViewAsk ? (activeProduct || prevActiveProduct || selectedProduct) : null) ||
+      (productMatch.isRelativeQuery ? (selectedProduct || prevActiveProduct) : null) ||
+      activeProduct ||
+      null;
+
+    const recommendedProduct = mentionsRelatedProduct && !isMissingProduct
+      ? targetProductForRecommendation
       : null;
 
     const recommendedField = mentionsRelatedProduct
       ? (isMissingProduct
           ? (matchedField || 'Tất cả')
-          : (productMatch.topProduct?.field || matchedField || activeScopeField || 'Tất cả'))
+          : (recommendedProduct?.field || matchedField || activeScopeField || 'Tất cả'))
       : null;
 
     // Collect products when related products are mentioned/requested
     let returnProducts = [];
     if (mentionsRelatedProduct) {
-      if (isMissingProduct && activeScopeField && activeScopeField !== 'Tất cả') {
+      if (recommendedProduct) {
+        const sameFieldOthers = allProducts.filter(
+          (p) => p.field === recommendedProduct.field && p.id !== recommendedProduct.id
+        );
+        returnProducts = [recommendedProduct, ...sameFieldOthers.slice(0, 5)];
+      } else if (isMissingProduct && activeScopeField && activeScopeField !== 'Tất cả') {
         returnProducts = allProducts.filter((p) => p.field === activeScopeField).slice(0, 6);
       } else if (isMissingProduct) {
         returnProducts = allProducts.slice(0, 6);
@@ -2650,11 +2741,6 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
 
     const isResetPrompt = Boolean(isResetChatQuery || isConfirmResetQuery);
 
-    const isMissingOrCollectingPhone = Boolean(missingProductQuery) && !extractedPhone;
-    if (isMissingOrCollectingPhone) {
-      customerProfile.pendingMissingProduct = missingProductQuery;
-    }
-
     let finalSuggestedActions = [];
     if (isResetChatQuery) {
       finalSuggestedActions = [
@@ -2695,6 +2781,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           leadCreated,
           leadCaptured: Boolean(leadCreated),
           activeProduct: targetSavedProduct,
+          recommendedProduct: recommendedProduct || targetSavedProduct || null,
           activeField: targetSavedField,
           recommendedField,
           actionType: effectiveActionType,
@@ -2807,22 +2894,25 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       flow.leadId = null;
     }
 
-    // Step 4: Customer replying with delivery note / feedback after phone was saved
-    if (flow.step === 'ask_note' && !wantsToStartOrder) {
-      const isSkip = ['xong', 'khong', 'khong co', 'ko', 'ok', 'du roi', 'cam on'].includes(normMessage.replace(/[.!,?]+/g, '').trim());
-      const trimmedNote = (message || '').trim();
-      if (!isSkip && trimmedNote && flow.leadId) {
-        const noteText = `SL: ${flow.quantity || 1} | Ghi chú khách hàng: ${trimmedNote}`;
-        await db.run('UPDATE leads SET notes = ?, updated_at = ? WHERE id = ?', [noteText, now, flow.leadId]);
+    // Step 4: Customer replying with delivery note / address / feedback after phone was saved
+    if (flow.step === 'ask_note') {
+      const isSwitchProduct = wantsToStartOrder && targetProd && targetProd.id !== flow.productId;
+      if (!isSwitchProduct) {
+        const isSkip = ['xong', 'khong', 'khong co', 'ko', 'ok', 'du roi', 'cam on', 'da xong', 'the thoi'].includes(normMessage.replace(/[.!,?]+/g, '').trim());
+        const trimmedNote = (message || '').trim();
+        if (!isSkip && trimmedNote && flow.leadId) {
+          const noteText = `SL: ${flow.quantity || 1} | Giao hàng / Ghi chú: ${trimmedNote}`;
+          await db.run('UPDATE leads SET notes = ?, updated_at = ? WHERE id = ?', [noteText, now, flow.leadId]);
+          return {
+            orderFlow: null,
+            reply: `Dạ, tôi đã ghi nhận địa chỉ / ghi chú của bạn: **"${trimmedNote}"** vào đơn đặt hàng rồi ạ!\n\n**${ownerName}** sẽ sớm liên hệ qua số **${flow.phone}** để xác nhận và giao hàng chu đáo cho bạn.${showHotline ? ` Hotline: **${hotline}**.` : ''}`
+          };
+        }
         return {
           orderFlow: null,
-          reply: `Dạ, tôi đã ghi nhận ghi chú của bạn: **"${trimmedNote}"** vào đơn đặt hàng rồi ạ!\n\n**${ownerName}** sẽ sớm liên hệ qua số **${flow.phone}** để xác nhận và giao hàng chu đáo cho bạn.${showHotline ? ` Hotline: **${hotline}**.` : ''}`
+          reply: `Dạ, đã hoàn tất rồi ạ! Tôi đã chuyển đơn hàng **${flow.productName}** (SL: **${flow.quantity || 1}**) đến **${ownerName}**.\n\n**${ownerName}** sẽ sớm liên hệ số **${flow.phone}** để hỗ trợ bạn chu đáo nhất ạ!`
         };
       }
-      return {
-        orderFlow: null,
-        reply: `Dạ, đã hoàn tất rồi ạ! Tôi đã chuyển đơn hàng **${flow.productName}** (SL: **${flow.quantity || 1}**) đến **${ownerName}**.\n\n**${ownerName}** sẽ sớm liên hệ số **${flow.phone}** để hỗ trợ bạn chu đáo nhất ạ!`
-      };
     }
 
     // Collect fields from current turn according to active step
@@ -3037,6 +3127,18 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('goi lai cho toi')
     ) {
       return `${politeAskBanner}Dạ, tôi là trợ lý bán hàng thông minh. ${phonePrompt}\n\n${capRef} vui lòng để lại số điện thoại để shop liên hệ trực tiếp nhé!`;
+    }
+
+    // 2B. Explicit View Request ("cho anh xem", "cho xem sản phẩm", "cho tôi xem", "xem chi tiết")
+    const isExplicitViewAskLocal =
+      /(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)?\s*(?:xem|coi)|xem\s+(?:lai\s+)?san\s+pham|xem\s+chi\s+tiet|mo\s+(?:lai\s+)?cot\s+2|hien\s+cot\s+2|xem\s+hinh|xem\s+anh)\b/i.test(message || '') ||
+      /(?:cho\s+(?:anh|chi|em|toi|minh|bac|chu|co)?\s*(?:xem|coi)|xem\s+(?:lai\s+)?san\s+pham|xem\s+chi\s+tiet|mo\s+(?:lai\s+)?cot\s+2|hien\s+cot\s+2|xem\s+hinh|xem\s+anh)\b/i.test(normMessage || '');
+    if (isExplicitViewAskLocal) {
+      const viewTarget = activeProduct || conversationActiveProduct || selectedProduct;
+      if (viewTarget) {
+        const salesPitch = buildProductSalesPitch(viewTarget);
+        return `${politeAskBanner}Dạ ${customerRef} vui lòng xem hình ảnh và thông số chi tiết của sản phẩm **${viewTarget.name}** (giá niêm yết **${formatPrice(viewTarget)}**) ngay ở **Cột 2** nhé.\n\n${salesPitch}\n\n${capRef} có muốn em hỗ trợ lên đơn hoặc giữ hàng mẫu này luôn cho mình không ạ?`;
+      }
     }
 
     // 3. Explicit Buy / Order Flow fallback
