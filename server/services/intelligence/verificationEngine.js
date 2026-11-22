@@ -102,8 +102,20 @@ export class VerificationEngine {
       .replace(/Rất tiếc,\s*hiện tại dữ liệu tra cứu từ hệ thống chỉ cung cấp các thông tin nội bộ liên quan đến Quy chế.*?(?:Trang.*?)?(?:\.|$)/gis, 'Dạ hiện tại thông tin này chưa có trong dữ liệu sản phẩm của shop ạ.')
       .trim();
 
-    // 4. Incomplete Sentence Guard (e.g. ends with "với", "và", "là", "cho", "cùng")
-    cleaned = cleaned.replace(/\s+(?:với|và|là|được|cho|cùng|kèm)\s*$/i, '.');
+    // 4. Incomplete Sentence Guard (e.g. ends with "với", "và", "là", "cho", "cùng", dangling open paren)
+    cleaned = cleaned
+      .replace(/\s+(?:với|và|là|được|cho|cùng|kèm)\s*$/i, '.')
+      .replace(/[\(,;:\-–—]\s*$/, '.')
+      .trim();
+
+    // Ensure proper terminal punctuation if prose ends without closing punctuation
+    if (cleaned && !/[.!?…""'\*\)\n>:]$/.test(cleaned)) {
+      if (/(?:ạ|nhé|nha|nhỉ|nè)$/i.test(cleaned)) {
+        cleaned += '!';
+      } else {
+        cleaned += '.';
+      }
+    }
 
     return cleaned;
   }

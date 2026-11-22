@@ -50,11 +50,12 @@ export const ProductDetailModal = ({
   const isCosmetic = !isFood && isConsumableOrCosmetic(product);
 
   let specs = {};
-  if (product.specs_json) {
+  if (product.specs_json || product.specs) {
     try {
-      specs = typeof product.specs_json === 'string' ? JSON.parse(product.specs_json) : product.specs_json;
+      const raw = product.specs_json || product.specs;
+      specs = typeof raw === 'string' ? JSON.parse(raw) : (typeof raw === 'object' && raw !== null ? raw : {});
     } catch {
-      specs = { 'Thông số': product.specs_json };
+      specs = { 'Thông số': String(product.specs_json || product.specs) };
     }
   } else if (isFood) {
     specs = {

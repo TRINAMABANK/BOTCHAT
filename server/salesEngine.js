@@ -459,6 +459,7 @@ function extractCoreProductQuery(rawMsg) {
   while (prev !== s) {
     prev = s;
     s = s.replace(/^(?:dạ|vâng|ạ|alo|chào|hi|hello)\s+/i, '');
+    s = s.replace(/^(?:sản phẩm|mẫu sản phẩm|dòng sản phẩm|mặt hàng)\s+/i, '');
     s = s.replace(/^(?:anh|chị|tôi|mình|em|bạn|shop|ad|bác|chú|cô)\s+/i, '');
     s = s.replace(/^(?:đang\s+hỏi\s+về|đang\s+hỏi|đang\s+nói\s+về|đang\s+nói|đang\s+tìm\s+hiểu|đang\s+tìm|đang\s+cần|đang\s+xem)\s+/i, '');
     s = s.replace(/^(?:cần\s+tìm\s+mua|muốn\s+tìm\s+mua|cần\s+mua|muốn\s+mua|đang\s+tìm|cần\s+tìm|tìm\s+mua|mua\s+giúp|mua\s+hộ|mua)\s+/i, '');
@@ -468,6 +469,8 @@ function extractCoreProductQuery(rawMsg) {
     s = s.replace(/^(?:báo\s+giá\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?|tư\s+vấn\s+(?:cho\s+tôi|cho\s+anh|cho\s+chị|cho\s+em)?)\s+/i, '');
     s = s.replace(/^(?:cái|chiếc|mẫu|loại|dòng|con|bộ)\s+/i, '');
   }
+  s = s.replace(/\s+(?:bảo\s+hành\s+bao\s+lâu|có\s+bảo\s+hành\s+không|bảo\s+hành\s+mấy\s+năm|bảo\s+hành\s+mấy\s+tháng|bảo\s+hành\s+như\s+thế\s+nào|bảo\s+hành|đổi\s+trả|giao\s+hàng|phí\s+ship|vận\s+chuyển)[?!.,;]*$/i, '');
+  s = s.replace(/\s+(?:vậy\s+shop|vậy\s+ad|vậy\s+em|vậy\s+bạn|hả\s+shop|hả\s+em|shop\s+ơi|em\s+ơi)[?!.,;]*$/i, '');
   s = s.replace(/\s+(?:thì\s+có\s+không|thi\s+co\s+khong|thì\s+có|thi\s+co|có\s+không|co\s+khong|giá\s+bao\s+nhiêu|nhiêu\s+tiền|bao\s+nhiêu\s+tiền|bao\s+nhiêu|hết\s+bao\s+nhiêu|không\s+ạ|không|hông|ko|k|vậy|thế|nhỉ|nè|nhé|nha|ạ|ơi|mà|ma|đấy|day|đó|do|hả|ha)[?!.,;]*$/i, '');
   s = s.replace(/[?!.,;]+/g, '').trim();
   return s;
@@ -762,6 +765,20 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   if (qTrim === normProdName || coreTrim === normProdName) return 100;
   if (cleanNormMsg.includes(normProdName)) return 100;
 
+  // Base product name phrase match (stripping weight, volume, size, specs like 160gr, 320gr, 250g, 14.0inch)
+  const normBaseProdName = normProdName
+    .replace(/\b\d{1,4}\s*(?:gr|g|kg|ml|l|lit|inch|in|w|hp)\b/gi, '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/[-_]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  if (normBaseProdName.length >= 6) {
+    if (cleanNormMsg.includes(normBaseProdName) || (normCore && normCore.includes(normBaseProdName))) {
+      return 99;
+    }
+  }
+
   // Substring match: only give high score (>= 90%) if the query contains multiple words
   // and covers a significant portion (>= 45%) of the product name, or at least 3 distinct words.
   // Never give >= 90% for a single-word substring match of a multi-word product (e.g. 'nguyen' in 'bich thuy hoan nguyen')!
@@ -794,6 +811,15 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
   for (const qt of queryTokens) {
     if (prodTokens.includes(qt) || prodTokens.some((pt) => pt === qt || (pt.length >= 4 && qt.length >= 4 && (pt.includes(qt) || qt.includes(pt))))) {
       matchCount++;
+    }
+  }
+
+  // Distinctive base tokens match: if 3+ distinctive tokens of product name are all in query
+  const baseTokens = normBaseProdName.split(/\s+/).filter(t => t.length >= 2 && !STOP_WORDS.has(t) && !UNIT_ONLY_TOKENS.has(t));
+  if (baseTokens.length >= 3) {
+    const allBaseTokensPresent = baseTokens.every(bt => cleanNormMsg.includes(bt) || (normCore && normCore.includes(bt)));
+    if (allBaseTokensPresent) {
+      return 98;
     }
   }
 
@@ -910,8 +936,7 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
     const hasTeaInProd = /\b(tra|che|oolong)\b/i.test(normProdName);
     const hasTeaInField = /\b(tra|che|oolong)\b/i.test(normField);
     if (hasTeaInProd || hasTeaInField) {
-      if (hasTeaInProd) return 96;
-      return 92;
+      return 85; // Điểm nhóm danh mục chung, không đè lên sản phẩm cụ thể
     }
   }
 
@@ -1047,32 +1072,6 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
     };
   }
 
-  // TÌNH HUỐNG HỎI CHÍNH SÁCH BẢO HÀNH / ĐỔI TRẢ / GIAO HÀNG:
-  if (/(chinh sach bao hanh|thoi gian bao hanh|bao hanh bao lau|bao hanh nhu the nao|bao hanh may nam|bao hanh may thang|chinh sach doi tra|doi tra hang|quy dinh doi tra|doi tra nhu the nao|chinh sach giao hang|phi ship|phi van chuyen|giao hang tan noi|ship cod|bao lau nhan duoc hang|chinh sach ship|ship tinh)\b/i.test(normMessage)) {
-    return {
-      tier: 3,
-      similarity: 0,
-      topProduct: null,
-      rankedProducts: [],
-      matchedField: null,
-      missingProductQuery: null,
-      isPolicyInquiry: true
-    };
-  }
-
-  // TÌNH HUỐNG SO SÁNH SẢN PHẨM:
-  if (/(so sanh|khac nhau nhu the nao|khac nhau diem nao|nen chon mau nao|nen mua con nao|loai nao tot hon|mau nao hon)\b/i.test(normMessage)) {
-    return {
-      tier: 3,
-      similarity: 0,
-      topProduct: null,
-      rankedProducts: [],
-      matchedField: null,
-      missingProductQuery: null,
-      isComparison: true
-    };
-  }
-
   // TÌNH HUỐNG KHÁCH HÀNG NÓI TÊN ĐỂ XƯNG HÔ ("Tôi tên Trí", "Em tên Linh", "Anh là Nam"...):
   // Tuyệt đối KHÔNG ĐƯỢC gán là sản phẩm hay tìm kiếm hàng hoá!
   if (isCustomerNameDeclaration(message, normMessage)) {
@@ -1086,6 +1085,10 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
       isNameDeclaration: true
     };
   }
+
+  const isPolicyInquiry = /(?:chinh sach bao hanh|thoi gian bao hanh|bao hanh bao lau|bao hanh nhu the nao|bao hanh may nam|bao hanh may thang|bao hanh co khong|co bao hanh|bao hanh|chinh sach doi tra|doi tra hang|quy dinh doi tra|doi tra nhu the nao|chinh sach giao hang|phi ship|phi van chuyen|giao hang tan noi|ship cod|bao lau nhan duoc hang|chinh sach ship|ship tinh)\b/i.test(normMessage);
+
+  const isComparison = /(?:so sanh|khac nhau nhu the nao|khac nhau diem nao|nen chon mau nao|nen mua con nao|loai nao tot hon|mau nao hon)\b/i.test(normMessage);
 
   const cleanNormMsg = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase();
 
@@ -1181,7 +1184,8 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
     tier = 3;
   }
 
-  const missingProductQuery = (tier === 3 || tier === 2)
+  const hasMatchedProduct = bestSimilarity >= 80;
+  const missingProductQuery = (!hasMatchedProduct && (tier === 3 || tier === 2) && !isPolicyInquiry && !isComparison)
     ? detectMissingProductInquiry(message, normMessage, tier === 1 ? rankedProducts : [], matchedField, allProducts, coreQuery, contextField)
     : null;
 
@@ -1192,7 +1196,9 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
     relatedProduct: (scored[0]?.similarity >= 50 && scored[0]?.product) ? scored[0].product : null,
     rankedProducts,
     matchedField: matchedField || (bestSimilarity >= 80 && topMatch ? topMatch.product.field : null),
-    missingProductQuery
+    missingProductQuery,
+    isPolicyInquiry: Boolean(isPolicyInquiry),
+    isComparison: Boolean(isComparison)
   };
 }
 
@@ -1740,11 +1746,49 @@ function isCustomerNameDeclaration(rawMsg, normMsg) {
   return false;
 }
 
-function getCustomerRef(profile) {
-  if (profile?.pronoun && profile?.name) return `${profile.pronoun} ${profile.name}`;
-  if (profile?.pronoun) return profile.pronoun;
-  if (profile?.name) return `bạn ${profile.name}`;
+export function getCustomerRef(profile) {
+  if (!profile) return 'bạn';
+  const rawName = (profile.name || '').trim();
+  const leadingHonorificMatch = rawName.match(/^(anh|chị|chi|em|bác|bac|chú|chu|cô|co|bạn|ban)(?:\s+|$)/i);
+  const leadingHonorific = leadingHonorificMatch ? leadingHonorificMatch[1] : null;
+  const cleanName = rawName.replace(/^(anh|chị|chi|em|bác|bac|chú|chu|cô|co|bạn|ban)\s+/i, '').trim();
+  const pronoun = (profile.pronoun || leadingHonorific || '').toLowerCase();
+
+  if (pronoun && cleanName) {
+    return `${pronoun} ${cleanName}`;
+  }
+  if (cleanName) {
+    return `bạn ${cleanName}`;
+  }
+  if (pronoun) {
+    return pronoun;
+  }
   return 'bạn';
+}
+
+export function getProductUnit(product) {
+  if (!product) return 'sản phẩm';
+  const nameNorm = removeVietnameseTones(product.name || '').toLowerCase();
+  const fieldNorm = removeVietnameseTones(product.field || '').toLowerCase();
+  if (fieldNorm.includes('tra') || nameNorm.includes('tra') || nameNorm.includes('oolong') || nameNorm.includes('matcha')) {
+    return 'hộp';
+  }
+  if (fieldNorm.includes('ca phe') || nameNorm.includes('ca phe') || nameNorm.includes('coffee')) {
+    return 'gói';
+  }
+  if (fieldNorm.includes('nuoc hoa') || fieldNorm.includes('my pham')) {
+    return 'chai';
+  }
+  if (nameNorm.includes('muc in') || nameNorm.includes('hop muc')) {
+    return 'hộp';
+  }
+  if (fieldNorm.includes('laptop') || nameNorm.includes('laptop') || nameNorm.includes('macbook')) {
+    return 'máy';
+  }
+  if (nameNorm.includes('may dem tien') || nameNorm.includes('may in') || nameNorm.includes('may scan') || nameNorm.includes('may huy')) {
+    return 'máy';
+  }
+  return 'cái';
 }
 
 /**
@@ -3080,12 +3124,14 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       };
     }
 
+    const unit = getProductUnit(targetProd);
+
     // Step 1: Ask quantity first
     if (!flow.quantity) {
       flow.step = 'ask_quantity';
       return {
         orderFlow: flow,
-        reply: `Dạ, tôi đã ghi nhận ${customerRef} quan tâm đặt mua **${flow.productName}** (giá niêm yết **${flow.unitPriceFormatted}**).\n\n👉 ${capRef} dự kiến đặt mua **số lượng bao nhiêu** cái ạ? *(Bạn chỉ cần nhắn số, ví dụ: 1, 2...)*`
+        reply: `Dạ, tôi đã ghi nhận ${customerRef} quan tâm đặt mua **${flow.productName}** (giá niêm yết **${flow.unitPriceFormatted}**).\n\n👉 ${capRef} dự kiến đặt mua **số lượng bao nhiêu ${unit}** ạ? *(Bạn chỉ cần nhắn số, ví dụ: 1, 2...)*`
       };
     }
 
@@ -3096,14 +3142,18 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       flow.step = 'ask_name';
       return {
         orderFlow: flow,
-        reply: `Dạ, tôi đã ghi nhận **${flow.quantity} cái** (**${flow.productName}**${subtotalText}).\n\n👉 Xin lỗi, bạn vui lòng cho tôi biết thông tin (họ tên hoặc cách xưng hô) để tôi thuận tiện xưng hô và ghi đơn ạ?`
+        reply: `Dạ, tôi đã ghi nhận **${flow.quantity} ${unit}** (**${flow.productName}**${subtotalText}).\n\n👉 Xin lỗi, bạn vui lòng cho tôi biết thông tin (họ tên hoặc cách xưng hô) để tôi thuận tiện xưng hô và ghi đơn ạ?`
       };
     }
+
+    const cleanFlowName = (flow.name || '').replace(/^(anh|chị|chi|em|bác|bac|chú|chu|cô|co|bạn|ban)\s+/i, '').trim();
+    const flowHonorificMatch = (flow.name || '').match(/^(anh|chị|chi|em|bác|bac|chú|chu|cô|co|bạn|ban)(?:\s+|$)/i);
+    const effectivePronoun = customerProfile?.pronoun || (flowHonorificMatch ? flowHonorificMatch[1].toLowerCase() : 'bạn');
+    const namedRef = `${effectivePronoun} ${cleanFlowName}`;
 
     // Step 3: Ask phone number
     if (!flow.phone) {
       flow.step = 'ask_phone';
-      const namedRef = customerProfile?.pronoun ? `${customerProfile.pronoun} ${flow.name}` : `bạn ${flow.name}`;
       return {
         orderFlow: flow,
         reply: `Dạ, chào **${namedRef}**!\n\n👉 Bạn vui lòng cho tôi xin **Số điện thoại** (10 chữ số) để **${ownerName}** gọi xác nhận đơn và báo ưu đãi tốt nhất nhé?`
@@ -3116,7 +3166,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     if (!existingLead) {
       const leadId = `lead_${randomUUID().slice(0, 8)}`;
       const orderCustomerName = flow.name
-        ? (customerProfile?.pronoun ? `${capitalizeFirst(customerProfile.pronoun)} ${flow.name}` : flow.name)
+        ? (customerProfile?.pronoun ? `${capitalizeFirst(customerProfile.pronoun)} ${cleanFlowName}` : flow.name)
         : (customerProfile?.name
           ? (customerProfile?.pronoun ? `${capitalizeFirst(customerProfile.pronoun)} ${customerProfile.name}` : customerProfile.name)
           : `Khách ${flow.phone}`);
@@ -3136,7 +3186,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           'Đặt mua ngay',
           convId,
           now,
-          `Đơn đặt hàng từng bước: ${flow.productName} × ${flow.quantity}${subtotalText}.`,
+          `Đơn đặt hàng từng bước: ${flow.productName} × ${flow.quantity} ${unit}${subtotalText}.`,
           now
         ]
       );
@@ -3155,12 +3205,11 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     }
 
     flow.step = 'ask_note';
-    const savedRef = customerProfile?.pronoun ? `${customerProfile.pronoun} ${flow.name}` : `bạn ${flow.name}`;
     return {
       orderFlow: flow,
       leadCreated,
       leadCaptured: Boolean(leadCreated),
-      reply: `Dạ, cảm ơn **${savedRef}**! Tôi đã lưu thông tin đặt hàng vào hệ thống:\n• **Sản phẩm:** ${flow.productName} (SL: **${flow.quantity}**${subtotalText})\n• **Số điện thoại:** **${flow.phone}**\n\n👉 Bạn có muốn nhắn thêm **địa chỉ nhận hàng hoặc ghi chú** gửi **${ownerName}** không ạ? *(Hoặc nhắn "Xong" nếu đã đủ thông tin)*`
+      reply: `Dạ, cảm ơn **${namedRef}**! Tôi đã lưu thông tin đặt hàng vào hệ thống:\n• **Sản phẩm:** ${flow.productName} (SL: **${flow.quantity} ${unit}**${subtotalText})\n• **Số điện thoại:** **${flow.phone}**\n\n👉 Bạn có muốn nhắn thêm **địa chỉ nhận hàng hoặc ghi chú** gửi **${ownerName}** không ạ? *(Hoặc nhắn "Xong" nếu đã đủ thông tin)*`
     };
   }
 
@@ -3225,10 +3274,14 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       if (normMessage.includes('giao hang') || normMessage.includes('phi ship')) {
         return `Dạ, shop có chính sách giao hàng tận nơi trên toàn quốc rất tiện lợi cho bạn ạ:\n\n• **Đồng kiểm:** Bạn được quyền mở kiểm tra hàng và tem niêm phong trước khi thanh toán.\n• **Miễn phí vận chuyển:** Áp dụng cho các đơn hàng máy tính, laptop và thiết bị có giá trị cao trong nội thành.\n• **Giao hàng toàn quốc:** Giao qua chuyển phát nhanh (1 - 3 ngày làm việc).\n\nBạn đang ở khu vực nào để em báo thời gian nhận hàng chính xác nhất nhé ạ!`;
       }
-      const activeProd = activeProduct || conversationActiveProduct || selectedProduct;
-      const isFood = isFoodOrBeverageProduct(activeProd);
-      if (isFood) {
-        return `Dạ, đối với các sản phẩm trà, đồ uống và thực phẩm như **${activeProd.name}**, sản phẩm không áp dụng bảo hành điện tử mà shop cam kết chất lượng tuyệt đối:\n\n• **Chính hãng 100%:** Nguồn gốc xuất xứ rõ ràng, bao bì nguyên vẹn, đảm bảo an toàn vệ sinh thực phẩm.\n• **Hạn sử dụng:** Cam kết Date mới nhất từ nhà sản xuất theo lô hàng.\n• **Chính sách đổi trả:** Hỗ trợ đổi mới 1 đổi 1 trong 7 ngày đầu nếu có lỗi đóng gói do vận chuyển hoặc phát hiện lỗi chất lượng từ nhà sản xuất.\n\nBạn có muốn em hỗ trợ tư vấn thêm thông tin nào về sản phẩm này không ạ?`;
+      const activeProd = activeProduct || conversationActiveProduct || selectedProduct || productMatch?.topProduct;
+      if (activeProd) {
+        const isFood = isFoodOrBeverageProduct(activeProd);
+        if (isFood) {
+          return `Dạ, đối với các sản phẩm trà, đồ uống và thực phẩm như **${activeProd.name}**, sản phẩm không áp dụng bảo hành điện tử mà shop cam kết chất lượng tuyệt đối:\n\n• **Chính hãng 100%:** Nguồn gốc xuất xứ rõ ràng, bao bì nguyên vẹn, đảm bảo an toàn vệ sinh thực phẩm.\n• **Hạn sử dụng:** Cam kết Date mới nhất từ nhà sản xuất theo lô hàng.\n• **Chính sách đổi trả:** Hỗ trợ đổi mới 1 đổi 1 trong 7 ngày đầu nếu có lỗi đóng gói do vận chuyển hoặc phát hiện lỗi chất lượng từ nhà sản xuất.\n\nThông số chi tiết và hình ảnh của sản phẩm đã được mở sẵn ở **Cột 2**, ${customerRef} có thể xem thêm ở Cột 2 nhé ạ!`;
+        }
+        const months = activeProd.warranty_months || 12;
+        return `Dạ, về chính sách bảo hành của sản phẩm **${activeProd.name}**:\n\n• **Thời gian bảo hành:** **${months} tháng** chính hãng theo tiêu chuẩn của nhà sản xuất.\n• **Chính sách đổi mới:** Hỗ trợ **1 đổi 1 trong vòng 7 ngày đầu** nếu máy có lỗi phần cứng do nhà sản xuất.\n• **Hình thức bảo hành:** Tiếp nhận bảo hành tại shop hoặc trung tâm bảo hành ủy quyền của hãng trên toàn quốc.\n\nThông tin chi tiết và cấu hình của máy đã được mở sẵn ở **Cột 2**, ${customerRef} có thể xem thêm ở Cột 2 nhé ạ!`;
       }
       return `Dạ, toàn bộ sản phẩm tại shop đều là hàng chính hãng 100%. Đối với các thiết bị công nghệ, điện tử và máy móc sẽ được bảo hành chính hãng từ nhà sản xuất (từ 12 đến 36 tháng tùy từng model). Riêng các sản phẩm thực phẩm, trà & thức uống thì cam kết Date mới và hỗ trợ 1 đổi 1 trong 7 ngày nếu lỗi từ NSX.\n\n• **Chính sách 1 đổi 1:** Hỗ trợ đổi mới trong 7 ngày đầu nếu có lỗi từ nhà sản xuất.\n• **Bảo hành tận tâm:** Tiếp nhận bảo hành tại shop hoặc trung tâm bảo hành ủy quyền của hãng.\n\nBạn đang quan tâm đến sản phẩm nào để em kiểm tra chính sách bảo hành chính xác nhất của sản phẩm đó nhé ạ!`;
     }

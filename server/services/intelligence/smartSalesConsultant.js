@@ -183,32 +183,48 @@ export class SmartSalesConsultant {
     } = params;
 
     const lower = normMessage.toLowerCase();
-    const isWarranty = /(bao hanh|doi tra|loi doi moi)/i.test(lower);
-    const isShipping = /(giao hang|phi ship|van chuyen|ship cod|nhan hang)/i.test(lower);
-    const isReturn = /(doi tra|tra hang|1 doi 1)/i.test(lower);
+    const cleanLower = (message + ' ' + normMessage)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase();
+    const isWarranty = /(bao hanh|doi tra|loi doi moi)/i.test(cleanLower);
+    const isShipping = /(giao hang|phi ship|van chuyen|ship cod|nhan hang)/i.test(cleanLower);
+    const isReturn = /(doi tra|tra hang|1 doi 1)/i.test(cleanLower);
 
     // Check if customer asked about a specific product in shop
     let specificProd = null;
     for (const p of allProducts) {
-      const pNorm = (p.name || '').toLowerCase();
+      const pNorm = (p.name || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .toLowerCase();
+      const pBase = pNorm.replace(/\b\d{1,4}\s*(?:gr|g|kg|ml|l|lit|inch|in)\b/gi, '').replace(/\(.*?\)/g, '').trim();
       const pSku = (p.sku || '').toLowerCase();
-      if ((pNorm.length > 5 && lower.includes(pNorm)) || (pSku && lower.includes(pSku))) {
+      if ((pBase.length >= 5 && cleanLower.includes(pBase)) || (pNorm.length > 5 && cleanLower.includes(pNorm)) || (pSku && cleanLower.includes(pSku))) {
         specificProd = p;
         break;
       }
     }
 
-    // If specific product not matched by full name, match by prominent keywords (e.g. ThinkPad E14, L6210DW, Neo 50s)
+    // If specific product not matched by full name, match by prominent keywords (e.g. ThinkPad L14, ThinkPad E14, L6210DW, Neo 50s)
     if (!specificProd) {
-      if (/e14|thinkpad\s*e14/i.test(lower)) {
+      if (/l14|thinkpad\s*l14/i.test(cleanLower)) {
+        specificProd = allProducts.find(p => /l14/i.test(p.name)) || null;
+      } else if (/e14|thinkpad\s*e14/i.test(cleanLower)) {
         specificProd = allProducts.find(p => /e14/i.test(p.name)) || null;
-      } else if (/l6210dw|hl-l6210dw/i.test(lower)) {
+      } else if (/l6210dw|hl-l6210dw/i.test(cleanLower)) {
         specificProd = allProducts.find(p => /l6210dw/i.test(p.name)) || null;
-      } else if (/neo\s*50s/i.test(lower)) {
+      } else if (/neo\s*50s/i.test(cleanLower)) {
         specificProd = allProducts.find(p => /neo\s*50s/i.test(p.name)) || null;
-      } else if (/ads\s*4300n/i.test(lower)) {
+      } else if (/ads\s*4300n|4300n/i.test(cleanLower)) {
         specificProd = allProducts.find(p => /4300n/i.test(p.name)) || null;
-      } else if (/brother/i.test(lower)) {
+      } else if (/tn3609|tn-3609/i.test(cleanLower)) {
+        specificProd = allProducts.find(p => /tn3609/i.test(p.name)) || null;
+      } else if (/brother/i.test(cleanLower)) {
         specificProd = allProducts.find(p => /brother/i.test(p.name)) || null;
       }
     }

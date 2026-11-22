@@ -746,10 +746,15 @@ Nguyên tắc:
       recommendedField: salesResult.recommendedField || null,
       recommendedProduct: salesResult.recommendedProduct || null,
       stage: salesResult.stage || 'IDLE',
+      actionType: salesResult.actionType || actionType || null,
+      isResetPrompt: Boolean(salesResult.isResetPrompt),
       requiresInput: salesResult.requiresInput || null,
       suggestedActions: salesResult.suggestedActions || [],
       orderInfo: salesResult.orderInfo || null,
+      orderFlow: salesResult.orderFlow || null,
+      leadCreated: salesResult.leadCreated || null,
       leadCaptured: salesResult.leadCaptured || false,
+      products: salesResult.products || [],
       citations: [],
       toolsUsed
     });

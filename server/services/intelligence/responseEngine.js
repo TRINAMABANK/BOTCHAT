@@ -55,7 +55,10 @@ export class ResponseEngine {
       requiresInput,
       suggestedActions,
       orderInfo,
+      orderFlow: params.orderFlow || null,
+      leadCreated: params.leadCreated || null,
       leadCaptured: Boolean(leadCaptured),
+      products: params.products || [],
       citations,
       toolsUsed
     };
