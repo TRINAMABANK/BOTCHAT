@@ -50,6 +50,8 @@ export class ResponseEngine {
       recommendedField,
       recommendedProduct,
       stage,
+      actionType: params.actionType || null,
+      isResetPrompt: Boolean(params.isResetPrompt),
       requiresInput,
       suggestedActions,
       orderInfo,

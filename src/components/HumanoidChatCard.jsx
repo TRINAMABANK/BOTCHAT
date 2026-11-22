@@ -389,6 +389,52 @@ export const HumanoidChatCard = ({
                         </div>
                       </div>
                     )}
+
+                    {/* Interactive Confirmation Button for Reset Chat */}
+                    {!isUser && (msg.isResetPrompt || msg.metadata?.isResetPrompt || msg.actionType === 'CONFIRM_RESET_CHAT' || msg.metadata?.actionType === 'CONFIRM_RESET_CHAT' || (msg.content && msg.content.includes('Xác nhận Làm mới'))) && (
+                      <div className="mt-3 pt-2.5 border-t border-cyan-500/30 flex flex-wrap gap-2 items-center">
+                        <button
+                          type="button"
+                          onClick={() => (onResetChat ? onResetChat(true) : null)}
+                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium text-xs shadow-lg shadow-cyan-900/40 border border-cyan-400/60 transition-all transform active:scale-95 cursor-pointer"
+                        >
+                          <RotateCcw size={13} className="text-cyan-200 animate-spin-reverse" />
+                          <span>🔄 Xác nhận Làm mới</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Quick Action Chips (e.g. "🧹 Xóa nội dung chat", "Xem sản phẩm", v.v.) */}
+                    {!isUser && isLatest && (msg.suggestedActions || msg.metadata?.suggestedActions) && (msg.suggestedActions || msg.metadata?.suggestedActions).length > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-cyan-500/20 flex flex-wrap gap-1.5 items-center">
+                        {(msg.suggestedActions || msg.metadata?.suggestedActions).map((act, actIdx) => (
+                          <button
+                            key={act.id || actIdx}
+                            type="button"
+                            onClick={() => {
+                              if (act.action === 'reset_chat') {
+                                if (onResetChat) onResetChat(true);
+                              } else if (act.action === 'request_reset_chat') {
+                                if (onQuickPrompt) onQuickPrompt('Xóa nội dung chat');
+                              } else if (act.action === 'cancel_reset') {
+                                if (onQuickPrompt) onQuickPrompt('Tiếp tục trò chuyện');
+                              } else {
+                                if (onQuickPrompt) onQuickPrompt(act.label);
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all transform active:scale-95 flex items-center space-x-1 cursor-pointer ${
+                              act.action === 'reset_chat'
+                                ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-900/50 border border-cyan-400'
+                                : act.action === 'request_reset_chat'
+                                ? 'bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-500/40'
+                                : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-cyan-300 border border-slate-700/80 hover:border-cyan-500/40'
+                            }`}
+                          >
+                            <span>{act.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div

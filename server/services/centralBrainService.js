@@ -227,6 +227,32 @@ export class CentralBrainService {
       });
     }
 
+    // 2A. RESET CHAT INTENT (Làm mới cuộc trò chuyện / Xóa nội dung chat)
+    if (intentResult.primaryIntent === 'RESET_CHAT_REQUEST' || actionType === 'REQUEST_RESET_CHAT') {
+      return ResponseEngine.formatResponse({
+        replyText: 'Dạ, bạn có muốn làm mới cuộc trò chuyện để bắt đầu lại từ đầu không ạ?\n\nBạn có thể nhấn vào nút **"Xác nhận Làm mới"** bên dưới hoặc nút **"Làm mới"** ở góc trên màn hình để xóa nội dung chat nhé!',
+        stage: 'AWAITING_RESET_CONFIRMATION',
+        actionType: 'CONFIRM_RESET_CHAT',
+        isResetPrompt: true,
+        suggestedActions: [
+          { id: 'confirm_reset_chat', label: '🔄 Xác nhận Làm mới', action: 'reset_chat' },
+          { id: 'cancel_reset_chat', label: 'Tiếp tục trò chuyện', action: 'cancel_reset' }
+        ],
+        toolsUsed: ['reset_chat_manager']
+      });
+    }
+
+    if (intentResult.primaryIntent === 'CONFIRM_RESET_CHAT' || actionType === 'CONFIRM_RESET_CHAT') {
+      return ResponseEngine.formatResponse({
+        replyText: 'Dạ, hệ thống đang làm mới cuộc trò chuyện cho bạn ngay bây giờ ạ!',
+        stage: 'CHAT_RESET',
+        actionType: 'RESET_CHAT_NOW',
+        isResetPrompt: true,
+        suggestedActions: [],
+        toolsUsed: ['reset_chat_manager']
+      });
+    }
+
     // 2B. TRÍ AN LEARNING CENTER: Priority 1 Curated Approved Knowledge Lookup
     // Skip if customer explicitly requested staff handoff or greeting
     if (intentResult.primaryIntent !== 'STAFF_HANDOFF' && !SmartSalesConsultant.isStaffHandoff(unaccentedMsg)) {

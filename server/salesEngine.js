@@ -1993,6 +1993,19 @@ export class SalesEngine {
     // 7. Generate Smart Response (Guided Order Flow -> Google Gemini LLM / OpenAI -> Smart Catalog AI Brain)
     let replyText = orderFlowReply || '';
 
+    // Handle Reset Chat query / confirmation
+    const isResetChatQuery = actionType === 'REQUEST_RESET_CHAT' ||
+      /(?:xoa\s+(?:noi\s+dung\s+)?chat|xoa\s+(?:het\s+)?tin\s+nhan|lam\s+moi\s+(?:chat|cuoc\s+tro\s+chuyen|cuoc\s+hoi\s+thoai|noi\s+dung\s+chat)|xoa\s+cuoc\s+(?:tro\s+chuyen|hoi\s+thoai)|xoa\s+lich\s+su\s+chat)\b/i.test(normMessage);
+
+    const isConfirmResetQuery = actionType === 'CONFIRM_RESET_CHAT' ||
+      /(?:xac\s+nhan\s+lam\s+moi|xac\s+nhan\s+xoa\s+chat|dong\s+y\s+lam\s+moi|dong\s+y\s+xoa)\b/i.test(normMessage);
+
+    if (!replyText && isConfirmResetQuery) {
+      replyText = `Dạ, hệ thống đang làm mới cuộc trò chuyện cho bạn ngay bây giờ ạ!`;
+    } else if (!replyText && isResetChatQuery) {
+      replyText = `Dạ, bạn có muốn làm mới cuộc trò chuyện để bắt đầu lại từ đầu không ạ?\n\nBạn có thể nhấn vào nút **"Xác nhận Làm mới"** bên dưới hoặc chọn nút **"Làm mới"** ở góc trên màn hình để xóa nội dung chat nhé!`;
+    }
+
     // Handle customer phone submission immediately
     if (!replyText && (extractedPhone || leadCreated)) {
       const pending = customerProfile.pendingMissingProduct;
@@ -2098,7 +2111,7 @@ export class SalesEngine {
     const hasOpenAiKey = Boolean(openAiKey && !openAiKey.includes('your_') && openAiKey.trim().length > 12);
 
     const provider = settings.llm_provider || 'gemini';
-    const canUseLlm = (hasGeminiKey || hasOpenAiKey) && !detectSecurityViolation(normMessage) && !isHealth && !isName && !isGreeting && !isMissing;
+    const canUseLlm = (hasGeminiKey || hasOpenAiKey) && !detectSecurityViolation(normMessage) && !isHealth && !isName && !isGreeting && !isMissing && !isResetChatQuery && !isConfirmResetQuery;
 
     if (!replyText && canUseLlm) {
       try {
@@ -2547,6 +2560,70 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const targetSavedProduct = activeProduct || productMatch.topProduct || matchedFromText[0] || conversationActiveProduct || selectedProduct || null;
     const targetSavedField = recommendedField || activeScopeField || targetSavedProduct?.field || null;
 
+    // Calculate user message count in this conversation
+    const userMsgCount = history.filter((h) => h.sender_type === 'user').length + 1;
+    const hasCapturedPhone = Boolean(
+      extractedPhone ||
+      customerProfile?.phone ||
+      prevCustomerProfile?.phone ||
+      leadCreated ||
+      (history.some((h) => {
+        try {
+          const meta = JSON.parse(h.metadata_json || '{}');
+          return Boolean(meta.leadCreated || meta.leadCaptured);
+        } catch {
+          return false;
+        }
+      }))
+    );
+    const isOrderActive = Boolean(nextOrderFlow?.active || prevOrderFlow?.active);
+
+    // Proactive hint when customer chats back and forth (>= 4 user turns) without providing phone for CRM lead
+    if (userMsgCount >= 4 && !hasCapturedPhone && !isOrderActive && !isResetChatQuery && !isConfirmResetQuery) {
+      const resetTip = `\n\n💡 **Gợi ý:** Nếu bạn muốn xóa bớt nội dung chat cho gọn gàng, bạn có thể chọn nút **"Làm mới"** ở phía trên nhé. Hoặc bạn có thể nhắn cụm từ **"Xóa nội dung chat"**, hệ thống sẽ hiện nút xác nhận làm mới cho bạn ngay ạ!`;
+      if (!replyText.includes('Làm mới') && !replyText.includes('Xóa nội dung chat')) {
+        replyText += resetTip;
+      }
+    }
+
+    const effectiveActionType = isConfirmResetQuery
+      ? 'RESET_CHAT_NOW'
+      : (isResetChatQuery ? 'CONFIRM_RESET_CHAT' : actionType);
+
+    const isResetPrompt = Boolean(isResetChatQuery || isConfirmResetQuery);
+
+    const isMissingOrCollectingPhone = Boolean(missingProductQuery) && !extractedPhone;
+    if (isMissingOrCollectingPhone) {
+      customerProfile.pendingMissingProduct = missingProductQuery;
+    }
+
+    let finalSuggestedActions = [];
+    if (isResetChatQuery) {
+      finalSuggestedActions = [
+        { id: 'confirm_reset_chat', label: '🔄 Xác nhận Làm mới', action: 'reset_chat' },
+        { id: 'cancel_reset_chat', label: 'Tiếp tục trò chuyện', action: 'cancel_reset' }
+      ];
+    } else if (isMissingOrCollectingPhone) {
+      finalSuggestedActions = [
+        ...(customerProfile.pendingClarification ? [
+          { id: 'clarify_product', label: `Tìm mua ${customerProfile.pendingClarification.term}` },
+          { id: 'clarify_name', label: 'Đây là tên của tôi' }
+        ] : []),
+        { id: 'leave_phone', label: 'Để lại số điện thoại' },
+        { id: 'view_catalog', label: 'Xem sản phẩm Cột 2' }
+      ];
+    }
+
+    if (userMsgCount >= 4 && !hasCapturedPhone && !isOrderActive && !isResetChatQuery && !isConfirmResetQuery) {
+      if (!finalSuggestedActions.some((a) => a.id === 'request_reset_chat')) {
+        finalSuggestedActions.push({
+          id: 'request_reset_chat',
+          label: '🧹 Xóa nội dung chat',
+          action: 'request_reset_chat'
+        });
+      }
+    }
+
     const assistantMsgId = `msg_${randomUUID().slice(0, 8)}`;
     const assistantNow = new Date().toISOString();
     await db.run(
@@ -2558,11 +2635,13 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         replyText,
         JSON.stringify({
           leadCreated,
-      leadCaptured: Boolean(leadCreated),
+          leadCaptured: Boolean(leadCreated),
           activeProduct: targetSavedProduct,
           activeField: targetSavedField,
           recommendedField,
-          actionType,
+          actionType: effectiveActionType,
+          isResetPrompt,
+          suggestedActions: finalSuggestedActions,
           orderFlow: nextOrderFlow,
           customerProfile
         }),
@@ -2586,11 +2665,6 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       specs: parseSpecs(p)
     }));
 
-    const isMissingOrCollectingPhone = Boolean(missingProductQuery) && !extractedPhone;
-    if (isMissingOrCollectingPhone) {
-      customerProfile.pendingMissingProduct = missingProductQuery;
-    }
-
     return {
       success: true,
       conversationId: convId,
@@ -2605,17 +2679,10 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       products: enrichedProducts,
       botState: leadCreated ? 'success' : 'speaking',
       stage: isMissingOrCollectingPhone ? 'COLLECTING_PHONE' : (leadCreated ? 'LEAD_CAPTURED' : 'IDLE'),
+      actionType: effectiveActionType,
+      isResetPrompt,
       requiresInput: isMissingOrCollectingPhone ? 'PHONE' : null,
-      suggestedActions: isMissingOrCollectingPhone
-        ? [
-            ...(customerProfile.pendingClarification ? [
-              { id: 'clarify_product', label: `Tìm mua ${customerProfile.pendingClarification.term}` },
-              { id: 'clarify_name', label: 'Đây là tên của tôi' }
-            ] : []),
-            { id: 'leave_phone', label: 'Để lại số điện thoại' },
-            { id: 'view_catalog', label: 'Xem sản phẩm Cột 2' }
-          ]
-        : []
+      suggestedActions: finalSuggestedActions
     };
   }
 

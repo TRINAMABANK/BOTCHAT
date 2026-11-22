@@ -222,6 +222,14 @@ export const App = () => {
     // Dừng phát âm thanh trước đó nếu đang nói
     stopSpeaking();
 
+    // Khách xác nhận làm mới trực tiếp qua chat
+    const normInput = text.trim().toLowerCase();
+    const isDirectResetConfirm = /(?:^xác nhận làm mới$|^xac nhan lam moi$|^đồng ý làm mới$|^dong y lam moi$|^xác nhận xóa chat$|^xac nhan xoa chat$)/i.test(normInput);
+    if (isDirectResetConfirm) {
+      await handleResetChat(true);
+      return;
+    }
+
     const prodToUse = overrideProduct !== undefined ? overrideProduct : selectedProduct;
 
     // 1. Add User Message
@@ -253,6 +261,13 @@ export const App = () => {
 
       if (!data.success) {
         throw new Error(data.error || 'Lỗi xử lý tin nhắn');
+      }
+
+      if (data.actionType === 'RESET_CHAT_NOW') {
+        setIsThinking(false);
+        setBotState('idle');
+        await handleResetChat(true);
+        return;
       }
 
       setIsThinking(false);
@@ -293,8 +308,14 @@ export const App = () => {
           content: '',
           metadata: {
             leadCreated: data.leadCreated,
-            recommendedProduct: data.recommendedProduct
+            recommendedProduct: data.recommendedProduct,
+            actionType: data.actionType,
+            isResetPrompt: Boolean(data.isResetPrompt),
+            suggestedActions: data.suggestedActions || []
           },
+          actionType: data.actionType,
+          isResetPrompt: Boolean(data.isResetPrompt),
+          suggestedActions: data.suggestedActions || [],
           createdAt: new Date().toISOString()
         }
       ]);
@@ -524,8 +545,8 @@ export const App = () => {
   };
 
   // Reset conversation handler
-  const handleResetChat = async () => {
-    if (window.confirm('Bạn có muốn làm mới cuộc trò chuyện này không?')) {
+  const handleResetChat = async (skipConfirm = false) => {
+    if (skipConfirm || window.confirm('Bạn có muốn làm mới cuộc trò chuyện này không?')) {
       stopSpeaking();
       if (conversationId) {
         try {
