@@ -41,6 +41,8 @@ router.get('/stats', async (req, res) => {
       rejectedRow,
       dupsRow,
       conflictRow,
+      recurringRow,
+      updatedKnowledgeRow,
       topTopics,
       topProducts,
       dailyTrend
@@ -55,6 +57,8 @@ router.get('/stats', async (req, res) => {
       db.get(`SELECT COUNT(*) as count FROM unanswered_questions ${orgFilter ? orgFilter + ' AND' : 'WHERE'} status = 'REJECTED'`, orgParams),
       db.get(`SELECT COUNT(*) as count FROM unanswered_questions ${orgFilter ? orgFilter + ' AND' : 'WHERE'} hit_count > 1`, orgParams),
       db.get(`SELECT COUNT(*) as count FROM learning_knowledge_entries WHERE conflict_flag = 1`),
+      db.get(`SELECT COUNT(*) as count FROM unanswered_questions ${orgFilter ? orgFilter + ' AND' : 'WHERE'} (hit_count >= 2 OR is_recurring = 1)`, orgParams),
+      db.get(`SELECT COUNT(*) as count FROM knowledge_versions ${orgFilter ? orgFilter : ''}`, orgParams),
       db.all(`
         SELECT related_topic as topic, COUNT(*) as count 
         FROM unanswered_questions 
@@ -97,6 +101,11 @@ router.get('/stats', async (req, res) => {
         rejected: rejectedRow?.count || 0,
         duplicates: dupsRow?.count || 0,
         conflicts: conflictRow?.count || 0,
+        recurringErrors: recurringRow?.count || 0,
+        totalUpdatedKnowledge: updatedKnowledgeRow?.count || 0,
+        totalErrorsDetected: total,
+        totalErrorsFixed: resolved,
+        improvementRate: resolutionRate,
         resolutionRate,
         topTopics: topTopics || [],
         topProducts: topProducts || [],
@@ -584,6 +593,117 @@ router.get('/export-excel', async (req, res) => {
     res.send(excelBuffer);
   } catch (err) {
     console.error('[EXPORT EXCEL ERROR]:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 16. POST Auto Learn from Correction (TRÍ AN AUTO LEARNING - GHI NHẬN VÀ HỌC)
+router.post('/auto-learn', async (req, res) => {
+  try {
+    const { questionId, correctedAnswer, relatedTopic, relatedProductName, relatedProductId, runTestNow = true } = req.body;
+    const actor = req.user?.username || req.user?.email || 'Admin';
+    const orgId = req.orgId || 'default';
+
+    if (!correctedAnswer || typeof correctedAnswer !== 'string' || !correctedAnswer.trim()) {
+      return res.status(400).json({ success: false, error: 'Thiếu nội dung câu trả lời chuẩn do quản trị viên cung cấp.' });
+    }
+
+    const result = await LearningIngestionEngine.autoLearnFromCorrection({
+      questionId,
+      correctedAnswer,
+      actor,
+      orgId,
+      relatedTopic,
+      relatedProductName,
+      relatedProductId,
+      runTestNow
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[AUTO LEARN API ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 17. GET Version History for a Knowledge Entry
+router.get('/knowledge/:id/versions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const versions = await LearningIngestionEngine.getKnowledgeVersions(id);
+    res.json({ success: true, versions });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 18. POST Rollback Knowledge to a Specific Previous Version
+router.post('/knowledge/:id/rollback', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { targetVersion } = req.body;
+    const actor = req.user?.username || req.user?.email || 'Admin';
+    const orgId = req.orgId || 'default';
+
+    if (!targetVersion) {
+      return res.status(400).json({ success: false, error: 'Vui lòng chọn phiên bản muốn khôi phục.' });
+    }
+
+    const result = await LearningIngestionEngine.rollbackKnowledgeVersion(id, parseInt(targetVersion, 10), actor, orgId);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[ROLLBACK API ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 19. GET Weakness and Performance Analytics (Tab 7: Báo cáo hiệu quả)
+router.get('/weakness-analytics', async (req, res) => {
+  try {
+    const orgId = req.query.orgId || req.orgId || 'all';
+    const analytics = await LearningCaptureEngine.getWeaknessAnalytics(orgId);
+    res.json({ success: true, analytics });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 20. POST Run Regression Suite on Generated Test Cases
+router.post('/run-regression', async (req, res) => {
+  try {
+    const orgId = req.orgId || 'default';
+    const result = await LearningTestEngine.runRegressionSuite(orgId);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 21. POST Ignore / Skip a Question Gap (Nút BỎ QUA)
+router.post('/questions/:id/ignore', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason = 'Bỏ qua bởi Admin' } = req.body || {};
+    const actor = req.user?.username || req.user?.email || 'Admin';
+    const now = new Date().toISOString();
+
+    await db.run(`
+      UPDATE unanswered_questions
+      SET status = 'REJECTED',
+          test_notes = ?,
+          updated_at = ?
+      WHERE id = ?
+    `, [`Bỏ qua: ${reason}`, now, id]);
+
+    try {
+      await db.run(`
+        INSERT INTO learning_audit_log (id, question_id, action, actor, org_id, details_json, created_at)
+        VALUES (?, ?, 'IGNORE_QUESTION', ?, ?, ?, ?)
+      `, [`audit_${randomUUID().slice(0, 10)}`, id, actor, req.orgId || 'default', JSON.stringify({ reason }), now]);
+    } catch (_) {}
+
+    res.json({ success: true, id, status: 'REJECTED' });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });

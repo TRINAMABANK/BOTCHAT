@@ -345,6 +345,343 @@ export class LearningIngestionEngine {
   }
 
   /**
+   * Analyze textual and semantic differences between old and new response
+   */
+  static analyzeDiff(oldText = '', newText = '') {
+    const oldTokens = (oldText || '').trim().split(/\s+/).filter(Boolean);
+    const newTokens = (newText || '').trim().split(/\s+/).filter(Boolean);
+    const oldSet = new Set(oldTokens.map(t => t.toLowerCase()));
+    const newSet = new Set(newTokens.map(t => t.toLowerCase()));
+
+    const addedWords = newTokens.filter(t => !oldSet.has(t.toLowerCase()));
+    const removedWords = oldTokens.filter(t => !newSet.has(t.toLowerCase()));
+
+    let summary = 'Cập nhật nội dung câu trả lời chuẩn';
+    if (removedWords.length > 0 && addedWords.length > 0) {
+      summary = `Thay thế ${removedWords.length} từ cũ và bổ sung ${addedWords.length} thông tin mới`;
+    } else if (addedWords.length > 0) {
+      summary = `Bổ sung ${addedWords.length} thông tin chi tiết mới vào tri thức`;
+    } else if (removedWords.length > 0) {
+      summary = `Rút gọn và loại bỏ ${removedWords.length} thông tin không chính xác`;
+    }
+
+    return {
+      summary,
+      addedWordsCount: addedWords.length,
+      removedWordsCount: removedWords.length,
+      sampleAdded: addedWords.slice(0, 10).join(' '),
+      sampleRemoved: removedWords.slice(0, 10).join(' '),
+      oldLength: (oldText || '').length,
+      newLength: (newText || '').length,
+      similarityRatio: oldTokens.length > 0 
+        ? Math.round((newTokens.filter(t => oldSet.has(t.toLowerCase())).length / Math.max(oldTokens.length, newTokens.length)) * 100) 
+        : 0
+    };
+  }
+
+  /**
+   * Auto Learn from Admin correction:
+   * Saves old/new answer, editor, edit time, diff analysis, versioning, conflict check, test case generation & automated testing
+   */
+  static async autoLearnFromCorrection(params = {}) {
+    const {
+      questionId = null,
+      correctedAnswer = '',
+      actor = 'Admin',
+      orgId = 'default',
+      relatedTopic = null,
+      relatedProductName = null,
+      relatedProductId = null,
+      runTestNow = true
+    } = params;
+
+    if (!correctedAnswer || typeof correctedAnswer !== 'string' || !correctedAnswer.trim()) {
+      throw new Error('Câu trả lời sửa của quản trị viên không được để trống.');
+    }
+
+    const cleanAnswer = correctedAnswer.trim();
+    const now = new Date().toISOString();
+
+    // 1. Fetch question record
+    let questionRow = null;
+    if (questionId) {
+      questionRow = await db.get(`SELECT * FROM unanswered_questions WHERE id = ?`, [questionId]);
+    }
+    const standardQuestion = questionRow?.original_question || questionRow?.question || 'Câu hỏi tự học';
+    const finalTopic = relatedTopic || questionRow?.related_topic || 'Kiến thức chung';
+    const finalProductName = relatedProductName || questionRow?.related_product_name || null;
+    const finalProductId = relatedProductId || questionRow?.related_product_id || null;
+    const oldAnswer = questionRow?.ai_response || questionRow?.resolved_answer || '';
+
+    // 2. Perform Diff Analysis
+    const diffAnalysis = this.analyzeDiff(oldAnswer, cleanAnswer);
+
+    // 3. Check for duplicates and conflicts
+    let conflictFlag = 0;
+    let conflictNotes = null;
+    const existingKnowledge = await db.all(`
+      SELECT id, standard_question, standard_answer, version
+      FROM learning_knowledge_entries
+      WHERE approval_status = 'APPROVED' AND is_active = 1
+        AND (org_id = ? OR org_id = 'default')
+        AND (related_topic = ? OR (related_product_name IS NOT NULL AND related_product_name = ?))
+    `, [orgId, finalTopic, finalProductName]);
+
+    if (existingKnowledge && existingKnowledge.length > 0) {
+      for (const ex of existingKnowledge) {
+        if (ex.standard_answer && ex.standard_answer.trim() !== cleanAnswer) {
+          conflictFlag = 1;
+          conflictNotes = `Cảnh báo mâu thuẫn: Mục tri thức "${ex.standard_question || ex.id}" có nội dung khác.`;
+          break;
+        }
+      }
+    }
+
+    // 4. Update existing entry or Create new entry
+    let entryId = questionRow?.resolved_knowledge_id;
+    let previousAnswer = oldAnswer;
+    let newVersion = 1;
+
+    let targetEntry = null;
+    if (entryId) {
+      targetEntry = await db.get(`SELECT * FROM learning_knowledge_entries WHERE id = ?`, [entryId]);
+    }
+
+    if (targetEntry) {
+      previousAnswer = targetEntry.standard_answer;
+      newVersion = (targetEntry.version || 1) + 1;
+      await db.run(`
+        UPDATE learning_knowledge_entries
+        SET standard_answer = ?,
+            standard_question = COALESCE(?, standard_question),
+            related_topic = COALESCE(?, related_topic),
+            related_product_name = COALESCE(?, related_product_name),
+            version = ?,
+            approval_status = 'APPROVED',
+            approved_by = ?,
+            approved_at = ?,
+            is_active = 1,
+            conflict_flag = ?,
+            conflict_notes = ?,
+            updated_at = ?
+        WHERE id = ?
+      `, [cleanAnswer, standardQuestion, finalTopic, finalProductName, newVersion, actor, now, conflictFlag, conflictNotes, now, entryId]);
+    } else {
+      entryId = `k_entry_${randomUUID().slice(0, 10)}`;
+      await db.run(`
+        INSERT INTO learning_knowledge_entries (
+          id, unanswered_question_id, entry_type, standard_question, standard_answer,
+          related_topic, related_product_id, related_product_name, org_id,
+          source_type, extracted_content, approval_status, approved_by, approved_at,
+          conflict_flag, conflict_notes, version, is_active, created_at, updated_at
+        ) VALUES (?, ?, 'QA', ?, ?, ?, ?, ?, ?, 'DIRECT_INPUT', ?, 'APPROVED', ?, ?, ?, ?, 1, 1, ?, ?)
+      `, [
+        entryId,
+        questionId,
+        standardQuestion,
+        cleanAnswer,
+        finalTopic,
+        finalProductId,
+        finalProductName,
+        orgId,
+        `[Sửa lỗi tự học do Admin ${actor}]: ${cleanAnswer}`,
+        actor,
+        now,
+        conflictFlag,
+        conflictNotes,
+        now,
+        now
+      ]);
+    }
+
+    // 5. Save record in knowledge_versions
+    const versionId = `kv_${randomUUID().slice(0, 10)}`;
+    await db.run(`
+      INSERT INTO knowledge_versions (
+        id, document_id, version_number, change_summary, approved_by, created_at,
+        entry_id, previous_answer, new_answer, diff_analysis_json, org_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      versionId,
+      entryId,
+      newVersion,
+      diffAnalysis.summary,
+      actor,
+      now,
+      entryId,
+      previousAnswer,
+      cleanAnswer,
+      JSON.stringify(diffAnalysis),
+      orgId
+    ]);
+
+    // 6. Generate Regression Test Case in ai_test_cases
+    const testCaseId = `tc_auto_${randomUUID().slice(0, 10)}`;
+    await db.run(`
+      INSERT INTO ai_test_cases (
+        id, category, test_name, input_prompt, expected_behavior,
+        unanswered_question_id, knowledge_entry_id, org_id, is_active, created_at
+      ) VALUES (?, 'AUTO_LEARNING_REGRESSION', ?, ?, ?, ?, ?, ?, 1, ?)
+    `, [
+      testCaseId,
+      `Kiểm thử ngăn lỗi tái diễn: "${standardQuestion.slice(0, 40)}"`,
+      standardQuestion,
+      `Phải phản hồi đúng nội dung chuẩn: "${cleanAnswer.slice(0, 50)}"`,
+      questionId,
+      entryId,
+      orgId,
+      now
+    ]);
+
+    // 7. Update unanswered_questions
+    if (questionId) {
+      await db.run(`
+        UPDATE unanswered_questions
+        SET status = 'TESTING',
+            resolved_answer = ?,
+            resolved_by = ?,
+            resolved_at = ?,
+            resolved_knowledge_id = ?,
+            last_corrected_at = ?,
+            correction_diff_json = ?,
+            updated_at = ?
+        WHERE id = ?
+      `, [cleanAnswer, actor, now, entryId, now, JSON.stringify(diffAnalysis), now, questionId]);
+    }
+
+    // 8. Run Automated Test if requested
+    let testResult = null;
+    let didRollback = false;
+    if (runTestNow) {
+      try {
+        const { LearningTestEngine } = await import('./learningTestEngine.js');
+        testResult = await LearningTestEngine.runBeforeAfterTest({
+          unansweredQuestionId: questionId,
+          learningKnowledgeId: entryId,
+          customQuery: standardQuestion,
+          orgId,
+          testedBy: actor
+        });
+
+        if (testResult && testResult.passed) {
+          if (questionId) {
+            await db.run(`UPDATE unanswered_questions SET status = 'RESOLVED', updated_at = ? WHERE id = ?`, [now, questionId]);
+          }
+        } else {
+          // Test failed! Trigger automatic rollback to previous version
+          console.warn(`[AUTO LEARNING TEST FAILED] Score: ${testResult?.metrics?.accuracyScore || 0}%. Triggering Rollback!`);
+          await this.rollbackKnowledgeVersion(entryId, Math.max(1, newVersion - 1), 'System_Auto_Rollback', orgId);
+          didRollback = true;
+          if (questionId) {
+            await db.run(`
+              UPDATE unanswered_questions 
+              SET status = 'REVIEWING',
+                  test_notes = 'Kiểm thử sau học không đạt yêu cầu. Đã tự động khôi phục phiên bản trước.',
+                  updated_at = ? 
+              WHERE id = ?
+            `, [now, questionId]);
+          }
+        }
+      } catch (testErr) {
+        console.error('[AUTO LEARNING TEST ERROR]', testErr.message);
+      }
+    }
+
+    // 9. Audit Log
+    try {
+      await db.run(`
+        INSERT INTO learning_audit_log (id, question_id, knowledge_entry_id, action, actor, org_id, details_json, created_at)
+        VALUES (?, ?, ?, 'AUTO_LEARN_CORRECTION', ?, ?, ?, ?)
+      `, [
+        `audit_${randomUUID().slice(0, 10)}`,
+        questionId,
+        entryId,
+        actor,
+        orgId,
+        JSON.stringify({ newVersion, didRollback, diffAnalysis, conflictFlag }),
+        now
+      ]);
+    } catch (_) {}
+
+    return {
+      success: true,
+      entryId,
+      version: newVersion,
+      diffAnalysis,
+      testCaseId,
+      testResult,
+      didRollback,
+      conflictFlag: Boolean(conflictFlag),
+      conflictNotes
+    };
+  }
+
+  /**
+   * Rollback Knowledge Entry to a specific previous version
+   */
+  static async rollbackKnowledgeVersion(entryId, targetVersionNumber, actor = 'Admin', orgId = 'default') {
+    const now = new Date().toISOString();
+    const entry = await db.get(`SELECT * FROM learning_knowledge_entries WHERE id = ?`, [entryId]);
+    if (!entry) throw new Error('Không tìm thấy bản ghi tri thức.');
+
+    const versionRow = await db.get(`
+      SELECT * FROM knowledge_versions 
+      WHERE (entry_id = ? OR document_id = ?) AND version_number = ?
+      ORDER BY created_at DESC LIMIT 1
+    `, [entryId, entryId, targetVersionNumber]);
+
+    if (!versionRow && targetVersionNumber > 1) {
+      throw new Error(`Không tìm thấy phiên bản v${targetVersionNumber} để khôi phục.`);
+    }
+
+    const restoredAnswer = versionRow ? (versionRow.new_answer || versionRow.previous_answer) : entry.standard_answer;
+
+    await db.run(`
+      UPDATE learning_knowledge_entries
+      SET standard_answer = ?,
+          version = ?,
+          approval_status = 'APPROVED',
+          is_active = 1,
+          updated_at = ?
+      WHERE id = ?
+    `, [restoredAnswer, targetVersionNumber, now, entryId]);
+
+    // Audit Log
+    try {
+      await db.run(`
+        INSERT INTO learning_audit_log (id, question_id, knowledge_entry_id, action, actor, org_id, details_json, created_at)
+        VALUES (?, ?, ?, 'ROLLBACK_VERSION', ?, ?, ?, ?)
+      `, [
+        `audit_${randomUUID().slice(0, 10)}`,
+        entry.unanswered_question_id,
+        entryId,
+        actor,
+        orgId,
+        JSON.stringify({ targetVersionNumber, restoredAnswer: (restoredAnswer || '').slice(0, 100) }),
+        now
+      ]);
+    } catch (_) {}
+
+    return {
+      success: true,
+      entryId,
+      restoredVersion: targetVersionNumber,
+      restoredAnswer
+    };
+  }
+
+  /**
+   * Retrieve all versions of a specific knowledge entry
+   */
+  static async getKnowledgeVersions(entryId) {
+    return await db.all(`
+      SELECT * FROM knowledge_versions 
+      WHERE entry_id = ? OR document_id = ?
+      ORDER BY version_number DESC, created_at DESC
+    `, [entryId, entryId]);
+  }
+
+  /**
    * Search approved curated knowledge entries (Priority 1 in Runtime Brain)
    * Scoped by tenant orgId to prevent cross-tenant knowledge leaks!
    */
@@ -396,9 +733,9 @@ export class LearningIngestionEngine {
         continue;
       }
 
-      // Check model code / distinctive entity
+      // Check model code (distinctive entity with digits, e.g. m428fdw, kx-tsc11, 2166)
       const entryTokens = qNorm.split(/\s+/).filter(w => w.length >= 2 && !STOPWORDS.has(w));
-      const modelCode = entryTokens.find(t => /\d/.test(t) || t.length >= 4);
+      const modelCode = entryTokens.find(t => /\d/.test(t));
 
       if (qNorm && (cleanQuery.includes(qNorm) || qNorm.includes(cleanQuery))) {
         return e;

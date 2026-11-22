@@ -84,8 +84,10 @@ export class LearningTestEngine {
 
     // Metric 3: Brand confusion free (e.g. if query is panasonic phone, after response must not confuse with fridge or appliances)
     let brandConfusionFree = 1;
-    if (lowerQuery.includes('panasonic') && (lowerQuery.includes('dien thoai') || lowerQuery.includes('kx-'))) {
-      if (lowerAfter.includes('do gia dung panasonic') || lowerAfter.includes('tu lanh panasonic')) {
+    const normAfter = lowerAfter.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const normQuery = lowerQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (normQuery.includes('panasonic') && (normQuery.includes('dien thoai') || normQuery.includes('kx-'))) {
+      if (normAfter.includes('do gia dung') || normAfter.includes('tu lanh') || normAfter.includes('gia dung panasonic')) {
         brandConfusionFree = 0;
       }
     }
@@ -179,6 +181,44 @@ export class LearningTestEngine {
       passed: Boolean(passed),
       metrics,
       questionStatus: nextStatus
+    };
+  }
+
+  /**
+   * Run automated regression test suite on generated ai_test_cases
+   */
+  static async runRegressionSuite(orgId = 'default') {
+    const testCases = await db.all(`
+      SELECT * FROM ai_test_cases 
+      WHERE is_active = 1 AND (org_id = ? OR org_id = 'default')
+      ORDER BY created_at DESC LIMIT 20
+    `, [orgId]);
+
+    const results = [];
+    for (const tc of testCases) {
+      const runRes = await this.runBeforeAfterTest({
+        unansweredQuestionId: tc.unanswered_question_id,
+        learningKnowledgeId: tc.knowledge_entry_id,
+        customQuery: tc.input_prompt,
+        orgId
+      });
+      results.push({
+        testCaseId: tc.id,
+        testName: tc.test_name,
+        passed: runRes.passed,
+        accuracyScore: runRes.metrics?.accuracyScore || 0,
+        beforeResponse: runRes.beforeResponse,
+        afterResponse: runRes.afterResponse
+      });
+    }
+
+    const passedCount = results.filter(r => r.passed).length;
+    return {
+      total: results.length,
+      passedCount,
+      failedCount: results.length - passedCount,
+      passRate: results.length > 0 ? Math.round((passedCount / results.length) * 100) : 100,
+      results
     };
   }
 }

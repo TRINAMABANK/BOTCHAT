@@ -5,12 +5,13 @@ import {
   Download, RefreshCw, Sparkles, Database, ShieldAlert, Award,
   FileSpreadsheet, Layers, History, CheckCircle2, UserCheck, Tag, 
   ExternalLink, ChevronRight, Eye, Edit3, Plus, SlidersHorizontal,
-  ChevronDown, BarChart2, TrendingUp, AlertCircle, Building2, Bot
+  ChevronDown, BarChart2, TrendingUp, AlertCircle, Building2, Bot,
+  Undo2, GitCommit, SplitSquareVertical, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 
 export default function TriAnLearningCenter() {
-  // 7 Main Tabs as specified in Requirement 10
-  // 'overview' | 'gap_report' | 'waiting_queue' | 'knowledge_entries' | 'uploaded_docs' | 'test_bench' | 'audit_history'
+  // 7 Main Tabs as specified in Master Prompt Section 5
+  // 'overview' | 'gap_report' | 'auto_learning' | 'knowledge_entries' | 'audit_history' | 'test_bench' | 'performance_report'
   const [activeTab, setActiveTab] = useState('overview');
 
   // Stats & KPIs
@@ -58,6 +59,31 @@ export default function TriAnLearningCenter() {
 
   // Tab 7: Audit History
   const [auditLogs, setAuditLogs] = useState([]);
+
+  // Sub-view toggles for combined convenience
+  const [gapReportSubView, setGapReportSubView] = useState('all'); // 'all' | 'waiting'
+  const [knowledgeSubView, setKnowledgeSubView] = useState('curated'); // 'curated' | 'uploaded'
+
+  // Tab 3: TRÍ AN AUTO LEARNING Studio State
+  const [autoLearningActiveQuestion, setAutoLearningActiveQuestion] = useState(null);
+  const [autoLearningCorrectedAnswer, setAutoLearningCorrectedAnswer] = useState('');
+  const [autoLearningRunning, setAutoLearningRunning] = useState(false);
+  const [autoLearningResult, setAutoLearningResult] = useState(null);
+  const [autoLearningFilter, setAutoLearningFilter] = useState('all'); // 'all' | 'needs_review' | 'testing' | 'resolved' | 'recurring'
+  const [autoLearningSearch, setAutoLearningSearch] = useState('');
+
+  // Version History & Rollback Modal State
+  const [showVersionModal, setShowVersionModal] = useState(false);
+  const [activeVersionEntry, setActiveVersionEntry] = useState(null);
+  const [entryVersions, setEntryVersions] = useState([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [rollingBack, setRollingBack] = useState(false);
+
+  // Tab 7: Performance & Weakness Analytics State
+  const [weaknessAnalytics, setWeaknessAnalytics] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [regressionResult, setRegressionResult] = useState(null);
+  const [runningRegression, setRunningRegression] = useState(false);
 
   // Detail Modal State
   const [inspectQuestion, setInspectQuestion] = useState(null);
@@ -199,12 +225,16 @@ export default function TriAnLearningCenter() {
       fetchQuestions();
     } else if (activeTab === 'waiting_queue') {
       fetchQuestions('NEW');
+    } else if (activeTab === 'auto_learning') {
+      fetchQuestions().then(() => {});
     } else if (activeTab === 'knowledge_entries') {
       fetchKnowledgeEntries();
     } else if (activeTab === 'uploaded_docs') {
       fetchUploadedDocs();
     } else if (activeTab === 'audit_history') {
       fetchAuditLog();
+    } else if (activeTab === 'performance_report') {
+      fetchWeaknessAnalytics();
     }
   }, [
     activeTab, 
@@ -219,6 +249,185 @@ export default function TriAnLearningCenter() {
     knowledgeConflictOnly,
     knowledgePagination.page
   ]);
+
+  // Client-side diff computation for instant preview
+  const computeClientDiff = (oldText, newText) => {
+    if (!oldText && !newText) return null;
+    const oldTokens = (oldText || '').trim().split(/\s+/).filter(Boolean);
+    const newTokens = (newText || '').trim().split(/\s+/).filter(Boolean);
+    const oldSet = new Set(oldTokens.map(t => t.toLowerCase()));
+    const newSet = new Set(newTokens.map(t => t.toLowerCase()));
+
+    const added = newTokens.filter(t => !oldSet.has(t.toLowerCase()));
+    const removed = oldTokens.filter(t => !newSet.has(t.toLowerCase()));
+
+    let summary = 'Cập nhật nội dung câu trả lời chuẩn';
+    if (removed.length > 0 && added.length > 0) {
+      summary = `Thay thế ${removed.length} từ cũ và bổ sung ${added.length} thông tin mới`;
+    } else if (added.length > 0) {
+      summary = `Bổ sung ${added.length} thông tin chi tiết mới vào tri thức`;
+    } else if (removed.length > 0) {
+      summary = `Rút gọn và loại bỏ ${removed.length} thông tin không chính xác`;
+    }
+
+    return {
+      summary,
+      addedCount: added.length,
+      removedCount: removed.length,
+      sampleAdded: added.slice(0, 8).join(' '),
+      sampleRemoved: removed.slice(0, 8).join(' '),
+      similarityRatio: oldTokens.length > 0
+        ? Math.round((newTokens.filter(t => oldSet.has(t.toLowerCase())).length / Math.max(oldTokens.length, newTokens.length)) * 100)
+        : 0
+    };
+  };
+
+  // Fetch Weakness Analytics for Tab 7
+  const fetchWeaknessAnalytics = async () => {
+    try {
+      setLoadingAnalytics(true);
+      const res = await fetch(`/api/learning-center/weakness-analytics?orgId=${filterOrgId}`).then(r => r.json());
+      if (res.success) {
+        setWeaknessAnalytics(res.analytics);
+      }
+    } catch (err) {
+      console.error('Lỗi tải báo cáo hiệu quả:', err);
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
+  // Run Regression Suite for Tab 7
+  const handleRunRegression = async () => {
+    try {
+      setRunningRegression(true);
+      const res = await fetch('/api/learning-center/run-regression', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId: filterOrgId })
+      }).then(r => r.json());
+      if (res.success) {
+        setRegressionResult(res);
+      }
+    } catch (err) {
+      console.error('Lỗi chạy regression test:', err);
+    } finally {
+      setRunningRegression(false);
+    }
+  };
+
+  // Auto Learn Submit (GHI NHẬN VÀ HỌC)
+  const handleAutoLearnSubmit = async () => {
+    if (!autoLearningActiveQuestion || !autoLearningCorrectedAnswer.trim()) {
+      alert('Vui lòng chọn câu hỏi và nhập câu trả lời chuẩn do quản trị viên sửa!');
+      return;
+    }
+    try {
+      setAutoLearningRunning(true);
+      const res = await fetch('/api/learning-center/auto-learn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionId: autoLearningActiveQuestion.id,
+          correctedAnswer: autoLearningCorrectedAnswer,
+          relatedTopic: autoLearningActiveQuestion.related_topic,
+          relatedProductName: autoLearningActiveQuestion.related_product_name,
+          relatedProductId: autoLearningActiveQuestion.related_product_id,
+          runTestNow: true
+        })
+      }).then(r => r.json());
+
+      if (res.success) {
+        setAutoLearningResult(res);
+        fetchQuestions();
+        fetchDashboardData();
+        setAutoLearningActiveQuestion(prev => prev ? {
+          ...prev,
+          status: res.didRollback ? 'REVIEWING' : 'RESOLVED',
+          resolved_answer: autoLearningCorrectedAnswer,
+          test_notes: res.didRollback ? 'Kiểm thử không đạt: Tự động khôi phục phiên bản trước.' : 'Kiểm thử đạt yêu cầu (RESOLVED).'
+        } : null);
+      } else {
+        alert('Lỗi tiếp thu tri thức: ' + (res.error || 'Vui lòng kiểm tra lại.'));
+      }
+    } catch (err) {
+      console.error('Lỗi tiếp thu tự học:', err);
+      alert('Lỗi kết nối máy chủ: ' + err.message);
+    } finally {
+      setAutoLearningRunning(false);
+    }
+  };
+
+  // Ignore Question (BỎ QUA)
+  const handleIgnoreQuestion = async (questionId) => {
+    if (!confirm('Bạn có chắc chắn muốn bỏ qua câu hỏi này không? Bản ghi sẽ chuyển sang REJECTED.')) return;
+    try {
+      const res = await fetch(`/api/learning-center/questions/${questionId}/ignore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Bỏ qua trực tiếp bởi Quản trị viên' })
+      }).then(r => r.json());
+
+      if (res.success) {
+        fetchQuestions();
+        fetchDashboardData();
+        if (autoLearningActiveQuestion?.id === questionId) {
+          setAutoLearningActiveQuestion(prev => prev ? { ...prev, status: 'REJECTED' } : null);
+        }
+      }
+    } catch (err) {
+      console.error('Lỗi bỏ qua câu hỏi:', err);
+    }
+  };
+
+  // Open Version History Modal
+  const handleOpenVersions = async (entryOrKnowledgeId) => {
+    try {
+      setLoadingVersions(true);
+      const kId = typeof entryOrKnowledgeId === 'object' ? (entryOrKnowledgeId.id || entryOrKnowledgeId.resolved_knowledge_id) : entryOrKnowledgeId;
+      setActiveVersionEntry(typeof entryOrKnowledgeId === 'object' ? entryOrKnowledgeId : { id: kId });
+      setShowVersionModal(true);
+
+      const res = await fetch(`/api/learning-center/knowledge/${kId}/versions`).then(r => r.json());
+      if (res.success) {
+        setEntryVersions(res.versions || []);
+      }
+    } catch (err) {
+      console.error('Lỗi tải lịch sử phiên bản:', err);
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
+
+  // Rollback to target version
+  const handleRollbackVersion = async (targetVersion) => {
+    if (!activeVersionEntry || !targetVersion) return;
+    if (!confirm(`Bạn có chắc chắn muốn khôi phục tri thức về phiên bản v${targetVersion} không?`)) return;
+    try {
+      setRollingBack(true);
+      const kId = activeVersionEntry.id || activeVersionEntry.resolved_knowledge_id;
+      const res = await fetch(`/api/learning-center/knowledge/${kId}/rollback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetVersion })
+      }).then(r => r.json());
+
+      if (res.success) {
+        alert(`Khôi phục thành công về phiên bản v${targetVersion}!`);
+        handleOpenVersions(kId);
+        fetchKnowledgeEntries();
+        fetchQuestions();
+        fetchDashboardData();
+      } else {
+        alert('Lỗi khôi phục: ' + (res.error || 'Vui lòng thử lại.'));
+      }
+    } catch (err) {
+      console.error('Lỗi khôi phục phiên bản:', err);
+      alert('Lỗi kết nối máy chủ: ' + err.message);
+    } finally {
+      setRollingBack(false);
+    }
+  };
 
   // File Upload to Base64
   const handleFileChange = (e) => {
@@ -548,16 +757,16 @@ export default function TriAnLearningCenter() {
         </div>
       </div>
 
-      {/* 2. Primary 7-Section Sub-Navigation Bar (Section 10) */}
+      {/* 2. Primary 7-Section Sub-Navigation Bar (Master Prompt Section 5) */}
       <div className="flex flex-wrap items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-cyan-500/30 overflow-x-auto">
         {[
-          { id: 'overview', label: '1. Tổng quan học tập', icon: BarChart2 },
-          { id: 'gap_report', label: '2. Báo cáo kiến thức thiếu', icon: AlertTriangle, count: stats.total },
-          { id: 'waiting_queue', label: '3. Câu hỏi chờ bổ sung', icon: Clock, count: stats.waitingKnowledge, badgeColor: 'bg-orange-500' },
-          { id: 'knowledge_entries', label: '4. Quản lý kiến thức', icon: BookOpen, count: stats.readyToTest + stats.resolved },
-          { id: 'uploaded_docs', label: '5. Tài liệu đã tải lên', icon: FileText },
-          { id: 'test_bench', label: '6. Kiểm thử AI', icon: Sparkles },
-          { id: 'audit_history', label: '7. Lịch sử học tập', icon: History }
+          { id: 'overview', label: '1. Tổng quan tự học', icon: BarChart2 },
+          { id: 'gap_report', label: '2. Câu hỏi cần cải thiện', icon: AlertTriangle, count: stats.total },
+          { id: 'auto_learning', label: '3. Sửa lỗi AI', icon: Sparkles, badgeColor: 'bg-rose-500', count: stats.waitingKnowledge },
+          { id: 'knowledge_entries', label: '4. Kiến thức đã tiếp thu', icon: BookOpen, count: stats.totalUpdatedKnowledge || (stats.readyToTest + stats.resolved) },
+          { id: 'audit_history', label: '5. Lịch sử học tập', icon: History },
+          { id: 'test_bench', label: '6. Kiểm thử chất lượng', icon: Award },
+          { id: 'performance_report', label: '7. Báo cáo hiệu quả', icon: TrendingUp }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -586,46 +795,58 @@ export default function TriAnLearningCenter() {
       </div>
 
       {/* ========================================================================= */}
-      {/* SECTION 1: TỔNG QUAN HỌC TẬP (OVERVIEW DASHBOARD) */}
+      {/* SECTION 1: TỔNG QUAN TỰ HỌC (OVERVIEW DASHBOARD) */}
       {/* ========================================================================= */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* KPI Stat Cards (Section 4) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-700/80 shadow-md">
-              <span className="text-[11px] font-bold text-slate-400 block mb-1">Tổng câu hỏi thiếu</span>
-              <div className="text-2xl font-black text-white">{stats.total}</div>
-              <span className="text-[10px] text-slate-500">Được AI phát hiện tự động</span>
+          {/* 8 KPI Stat Cards (Master Prompt Section 5) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+            <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-700/80 shadow-md">
+              <span className="text-[10px] font-bold text-slate-400 block mb-1">Tổng câu hỏi tiếp nhận</span>
+              <div className="text-xl font-black text-white">{stats.total}</div>
+              <span className="text-[9px] text-slate-500">Khách hàng tương tác</span>
             </div>
 
-            <div className="bg-slate-900/90 p-4 rounded-2xl border border-rose-500/40 shadow-md">
-              <span className="text-[11px] font-bold text-rose-300 block mb-1">Mới phát sinh hôm nay</span>
-              <div className="text-2xl font-black text-rose-400">{stats.newToday}</div>
-              <span className="text-[10px] text-rose-400/80">Cần xếp lịch xem xét</span>
+            <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-orange-500/40 shadow-md">
+              <span className="text-[10px] font-bold text-orange-300 block mb-1">Chưa có kiến thức</span>
+              <div className="text-xl font-black text-orange-400">{stats.waitingKnowledge}</div>
+              <span className="text-[9px] text-orange-400/80">Cần bổ sung dữ liệu</span>
             </div>
 
-            <div className="bg-slate-900/90 p-4 rounded-2xl border border-orange-500/40 shadow-md">
-              <span className="text-[11px] font-bold text-orange-300 block mb-1">Chờ bổ sung tri thức</span>
-              <div className="text-2xl font-black text-orange-400">{stats.waitingKnowledge}</div>
-              <span className="text-[10px] text-orange-400/80">Hàng đợi Admin xử lý</span>
+            <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-rose-500/40 shadow-md">
+              <span className="text-[10px] font-bold text-rose-300 block mb-1">Lỗi được phát hiện</span>
+              <div className="text-xl font-black text-rose-400">{stats.totalErrorsDetected || stats.total}</div>
+              <span className="text-[9px] text-rose-400/80">Nhầm lẫn/thiếu căn cứ</span>
             </div>
 
-            <div className="bg-slate-900/90 p-4 rounded-2xl border border-purple-500/40 shadow-md">
-              <span className="text-[11px] font-bold text-purple-300 block mb-1">Đã bổ sung kiến thức</span>
-              <div className="text-2xl font-black text-purple-400">{stats.readyToTest}</div>
-              <span className="text-[10px] text-purple-400/80">Chờ chạy kiểm định</span>
+            <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-emerald-500/40 shadow-md">
+              <span className="text-[10px] font-bold text-emerald-300 block mb-1">Số lỗi đã sửa</span>
+              <div className="text-xl font-black text-emerald-400">{stats.resolved}</div>
+              <span className="text-[9px] text-emerald-400/80">Đã học thành công</span>
             </div>
 
-            <div className="bg-slate-900/90 p-4 rounded-2xl border border-emerald-500/40 shadow-md">
-              <span className="text-[11px] font-bold text-emerald-300 block mb-1">Kiểm thử thành công</span>
-              <div className="text-2xl font-black text-emerald-400">{stats.resolved}</div>
-              <span className="text-[10px] text-emerald-400/80">Đã giải quyết triệt để</span>
+            <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-blue-500/40 shadow-md">
+              <span className="text-[10px] font-bold text-blue-300 block mb-1">Kiến thức cập nhật</span>
+              <div className="text-xl font-black text-blue-400">{stats.totalUpdatedKnowledge || 0}</div>
+              <span className="text-[9px] text-blue-400/80">Có lưu phiên bản</span>
             </div>
 
-            <div className="bg-gradient-to-br from-cyan-950 to-blue-950 p-4 rounded-2xl border border-cyan-500/50 shadow-md">
-              <span className="text-[11px] font-bold text-cyan-300 block mb-1">Tỷ lệ giải quyết</span>
-              <div className="text-2xl font-black text-cyan-200">{stats.resolutionRate}%</div>
-              <span className="text-[10px] text-cyan-400/80">Hiệu quả huấn luyện</span>
+            <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-purple-500/40 shadow-md">
+              <span className="text-[10px] font-bold text-purple-300 block mb-1">Đang kiểm thử</span>
+              <div className="text-xl font-black text-purple-400">{stats.testing}</div>
+              <span className="text-[9px] text-purple-400/80">Đo lường Before/After</span>
+            </div>
+
+            <div className="bg-gradient-to-br from-cyan-950 to-blue-950 p-3.5 rounded-2xl border border-cyan-500/50 shadow-md">
+              <span className="text-[10px] font-bold text-cyan-300 block mb-1">Tỷ lệ cải thiện</span>
+              <div className="text-xl font-black text-cyan-200">{stats.improvementRate || stats.resolutionRate}%</div>
+              <span className="text-[9px] text-cyan-400/80">Chất lượng phản hồi</span>
+            </div>
+
+            <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-red-500/40 shadow-md">
+              <span className="text-[10px] font-bold text-red-300 block mb-1">Số lỗi tái diễn</span>
+              <div className="text-xl font-black text-red-400">{stats.recurringErrors || 0}</div>
+              <span className="text-[9px] text-red-400/80">Lặp lại trên 2 lần</span>
             </div>
           </div>
 
@@ -1080,6 +1301,322 @@ export default function TriAnLearningCenter() {
       )}
 
       {/* ========================================================================= */}
+      {/* SECTION 3: SỬA LỖI AI (TRÍ AN AUTO LEARNING STUDIO) */}
+      {/* ========================================================================= */}
+      {activeTab === 'auto_learning' && (
+        <div className="space-y-4">
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-4 rounded-2xl border border-cyan-500/40 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+            <div>
+              <h3 className="text-base font-black text-cyan-300 uppercase tracking-wider flex items-center space-x-2">
+                <Sparkles className="w-5 h-5 text-cyan-400 animate-pulse" />
+                <span>TRÍ AN AUTO LEARNING – TRUNG TÂM SỬA SAI & TỰ HỌC THÔNG MINH</span>
+              </h3>
+              <p className="text-xs text-slate-300">
+                Anh Trí chỉ cần can thiệp khi TRÍ AN trả lời sai. Hệ thống tự động ghi nhận, phân tích diff, lưu phiên bản và tự kiểm thử ngăn lỗi tái diễn.
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="px-3 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-xl font-bold text-xs">
+                {stats.waitingKnowledge} câu cần xem xét
+              </span>
+              <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-xl font-bold text-xs">
+                {stats.resolved} đã giải quyết
+              </span>
+            </div>
+          </div>
+
+          {/* Two-Pane Workspace */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            {/* Left Pane: Question Queue (4 cols) */}
+            <div className="lg:col-span-4 bg-slate-900/80 rounded-2xl border border-slate-800 p-3 space-y-3 flex flex-col h-[680px]">
+              {/* Filter Tabs */}
+              <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px] overflow-x-auto">
+                {[
+                  { id: 'all', label: 'Tất cả' },
+                  { id: 'needs_review', label: 'Cần sửa' },
+                  { id: 'testing', label: 'Đang test' },
+                  { id: 'resolved', label: 'Đã học' }
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => setAutoLearningFilter(f.id)}
+                    className={`px-2.5 py-1 rounded-lg font-bold whitespace-nowrap transition-all ${
+                      autoLearningFilter === f.id ? 'bg-cyan-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={autoLearningSearch}
+                  onChange={e => setAutoLearningSearch(e.target.value)}
+                  placeholder="Tìm câu hỏi..."
+                  className="w-full bg-slate-950 text-white text-xs pl-8 pr-3 py-2 rounded-xl border border-slate-800 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              {/* Question List Scrollable */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                {(() => {
+                  const filtered = (questions || []).filter(q => {
+                    if (autoLearningSearch.trim()) {
+                      const txt = (q.original_question || q.question || '').toLowerCase();
+                      if (!txt.includes(autoLearningSearch.toLowerCase())) return false;
+                    }
+                    if (autoLearningFilter === 'needs_review') return ['NEW', 'REVIEWING', 'WAITING_KNOWLEDGE'].includes(q.status);
+                    if (autoLearningFilter === 'testing') return q.status === 'TESTING' || q.status === 'READY_TO_TEST';
+                    if (autoLearningFilter === 'resolved') return q.status === 'RESOLVED';
+                    return true;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="text-center py-12 text-slate-500 text-xs">
+                        Không có câu hỏi nào theo bộ lọc.
+                      </div>
+                    );
+                  }
+
+                  return filtered.map(q => {
+                    const isSelected = autoLearningActiveQuestion?.id === q.id;
+                    return (
+                      <div
+                        key={q.id}
+                        onClick={() => {
+                          setAutoLearningActiveQuestion(q);
+                          setAutoLearningCorrectedAnswer(q.resolved_answer || '');
+                          setAutoLearningResult(null);
+                        }}
+                        className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-slate-800/90 border-cyan-400 shadow-[0_0_15px_rgba(0,240,255,0.25)]'
+                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                          <span className="font-mono text-[10px] text-cyan-400 font-bold truncate max-w-[120px]">{q.id}</span>
+                          <div className="flex items-center space-x-1">
+                            {q.hit_count > 1 && (
+                              <span className="px-1.5 py-0.2 bg-red-500/20 text-red-400 border border-red-500/40 rounded text-[9px] font-black">
+                                x{q.hit_count} lần
+                              </span>
+                            )}
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                              q.status === 'RESOLVED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                              q.status === 'TESTING' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                              'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                            }`}>
+                              {q.status === 'RESOLVED' ? 'ĐÃ HỌC' : q.status === 'TESTING' ? 'ĐANG TEST' : 'CẦN XEM XÉT'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs font-semibold text-slate-200 line-clamp-2 mb-1.5">
+                          {q.original_question || q.question}
+                        </p>
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-400">
+                          <span className="truncate max-w-[140px] text-slate-500">{q.related_topic || 'Chung'}</span>
+                          <span className="text-slate-500">{new Date(q.created_at).toLocaleDateString('vi-VN')}</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Right Pane: Correction Studio & Diff Viewer (8 cols) */}
+            <div className="lg:col-span-8 bg-slate-900/80 rounded-2xl border border-slate-800 p-5 space-y-4 h-[680px] overflow-y-auto">
+              {autoLearningActiveQuestion ? (
+                <>
+                  {/* Selected Question Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-xs px-2 py-0.5 bg-slate-800 text-cyan-300 font-bold rounded">
+                        {autoLearningActiveQuestion.id}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-400">
+                        Chủ đề: <strong className="text-white">{autoLearningActiveQuestion.related_topic || 'Chung'}</strong>
+                      </span>
+                      {autoLearningActiveQuestion.related_product_name && (
+                        <span className="text-xs font-semibold text-slate-400">
+                          SP: <strong className="text-cyan-300">{autoLearningActiveQuestion.related_product_name}</strong>
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {renderStatusBadge(autoLearningActiveQuestion.status)}
+                      <button
+                        onClick={() => handleOpenVersions(autoLearningActiveQuestion)}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-bold border border-slate-700 flex items-center space-x-1"
+                        title="Xem lịch sử các lần sửa và khôi phục"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        <span>Xem Lịch Sử</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 1. Customer Original Question */}
+                  <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[10px] font-black uppercase text-cyan-400 flex items-center space-x-1">
+                      <Bot className="w-3.5 h-3.5" />
+                      <span>Câu hỏi của khách hàng:</span>
+                    </span>
+                    <p className="text-sm font-bold text-white">
+                      "{autoLearningActiveQuestion.original_question || autoLearningActiveQuestion.question}"
+                    </p>
+                  </div>
+
+                  {/* 2. TRÍ AN's Initial Answer & Failure Reason */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="bg-slate-950/80 p-3.5 rounded-xl border border-rose-500/30 space-y-1">
+                      <span className="text-[10px] font-black uppercase text-rose-400 flex items-center space-x-1">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Câu trả lời ban đầu của TRÍ AN:</span>
+                      </span>
+                      <p className="text-xs text-slate-300 leading-relaxed max-h-[110px] overflow-y-auto">
+                        {autoLearningActiveQuestion.ai_response || 'Chưa ghi nhận câu trả lời.'}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-950/80 p-3.5 rounded-xl border border-amber-500/30 space-y-2">
+                      <span className="text-[10px] font-black uppercase text-amber-400 flex items-center space-x-1">
+                        <ShieldAlert className="w-3.5 h-3.5" />
+                        <span>Lý do nghi ngờ & Nguồn đã tìm:</span>
+                      </span>
+                      <div className="text-xs text-slate-300 space-y-1">
+                        <div>Lý do: <strong className="text-amber-300">{autoLearningActiveQuestion.failure_reason || 'Chưa có kiến thức phù hợp'}</strong></div>
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          Nguồn tra cứu: {autoLearningActiveQuestion.sources_searched_json || 'Catalog/Brain'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Input Box for Correct Answer */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-emerald-400 flex items-center space-x-1.5">
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Nhập câu trả lời đúng do Quản trị viên cung cấp (Dạy AI):</span>
+                      </label>
+                      <span className="text-[10px] text-slate-500">
+                        {autoLearningCorrectedAnswer.length} ký tự
+                      </span>
+                    </div>
+                    <textarea
+                      rows={4}
+                      value={autoLearningCorrectedAnswer}
+                      onChange={e => setAutoLearningCorrectedAnswer(e.target.value)}
+                      placeholder="Nhập nội dung câu trả lời chuẩn xác, có căn cứ vững chắc để TRÍ AN tiếp thu và trả lời cho mọi khách hàng sau này..."
+                      className="w-full bg-slate-950 text-white text-xs p-3.5 rounded-xl border border-emerald-500/40 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 font-sans leading-relaxed"
+                    />
+                  </div>
+
+                  {/* 4. Real-time Diff Analysis */}
+                  {(() => {
+                    const diff = computeClientDiff(autoLearningActiveQuestion.ai_response, autoLearningCorrectedAnswer);
+                    if (!diff || (!diff.addedCount && !diff.removedCount)) return null;
+                    return (
+                      <div className="p-3 bg-slate-950/90 rounded-xl border border-slate-800 space-y-2 text-xs">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-slate-300 flex items-center space-x-1">
+                            <SplitSquareVertical className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Phân tích khác biệt (Diff): {diff.summary}</span>
+                          </span>
+                          <span className="font-mono text-cyan-300 font-bold">
+                            Độ tương đồng: {diff.similarityRatio}%
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                          {diff.addedCount > 0 && (
+                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-medium">
+                              +{diff.addedCount} từ mới ({diff.sampleAdded}...)
+                            </span>
+                          )}
+                          {diff.removedCount > 0 && (
+                            <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 rounded font-medium">
+                              -{diff.removedCount} từ cũ được loại bỏ
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 5. Action Buttons Bar */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800">
+                    <button
+                      onClick={handleAutoLearnSubmit}
+                      disabled={autoLearningRunning || !autoLearningCorrectedAnswer.trim()}
+                      className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-xl text-xs transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] disabled:opacity-40 flex items-center space-x-2"
+                    >
+                      <CheckCircle className={`w-4 h-4 ${autoLearningRunning ? 'animate-spin' : ''}`} />
+                      <span>{autoLearningRunning ? 'Đang tiếp thu & kiểm thử...' : 'GHI NHẬN VÀ HỌC'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleIgnoreQuestion(autoLearningActiveQuestion.id)}
+                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition-all flex items-center space-x-1.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>BỎ QUA</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleOpenVersions(autoLearningActiveQuestion)}
+                      className="px-4 py-2.5 bg-slate-800/80 hover:bg-slate-700 text-cyan-300 font-bold rounded-xl text-xs border border-slate-700 transition-all flex items-center space-x-1.5"
+                    >
+                      <GitCommit className="w-3.5 h-3.5" />
+                      <span>XEM LỊCH SỬ PHIÊN BẢN</span>
+                    </button>
+                  </div>
+
+                  {/* 6. Test Outcome & Rollback Banner */}
+                  {autoLearningResult && (
+                    <div className={`p-4 rounded-xl border text-xs space-y-2 ${
+                      autoLearningResult.didRollback
+                        ? 'bg-rose-950/40 border-rose-500/60 text-rose-200'
+                        : 'bg-emerald-950/40 border-emerald-500/60 text-emerald-200'
+                    }`}>
+                      <div className="flex items-center justify-between font-bold">
+                        <span>
+                          {autoLearningResult.didRollback
+                            ? '⚠️ BÀI TEST KHÔNG ĐẠT: ĐÃ TỰ ĐỘNG KHÔI PHỤC PHIÊN BẢN TRƯỚC'
+                            : '🎉 TIẾP THU TRI THỨC THÀNH CÔNG & ĐÃ QUA KIỂM THỬ (RESOLVED)'}
+                        </span>
+                        <span className="font-mono text-xs">
+                          Phiên bản v{autoLearningResult.version}
+                        </span>
+                      </div>
+                      <p className="text-[11px] opacity-90 leading-relaxed">
+                        {autoLearningResult.didRollback
+                          ? 'Điểm kiểm thử không đạt tiêu chuẩn an toàn (dưới 80%). Hệ thống đã tự động hoàn tác để không đưa phiên bản lỗi ra phục vụ khách hàng.'
+                          : 'Tri thức mới đã được xác nhận, chỉ mục tìm kiếm được cập nhật và Central Brain sẽ lập tức sử dụng câu trả lời chuẩn này.'}
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-3">
+                  <Bot className="w-12 h-12 text-slate-600" />
+                  <p className="text-xs">Vui lòng chọn một câu hỏi bên danh sách trái để bắt đầu sửa lỗi cho TRÍ AN.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* SECTION 4: QUẢN LÝ KIẾN THỨC (KNOWLEDGE ENTRIES MANAGEMENT) */}
       {/* ========================================================================= */}
       {activeTab === 'knowledge_entries' && (
@@ -1214,6 +1751,14 @@ export default function TriAnLearningCenter() {
                             Từ chối
                           </button>
                         )}
+                        <button
+                          onClick={() => handleOpenVersions(entry)}
+                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 font-bold rounded-lg text-[10px] inline-flex items-center space-x-1"
+                          title="Lịch sử phiên bản & Khôi phục"
+                        >
+                          <GitCommit className="w-3 h-3 inline mr-1" />
+                          <span>v{entry.version || 1}</span>
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -1467,6 +2012,262 @@ export default function TriAnLearningCenter() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SECTION 7: BÁO CÁO HIỆU QUẢ VÀ TỰ CẢI THIỆN THEO THỜI GIAN */}
+      {/* ========================================================================= */}
+      {activeTab === 'performance_report' && (
+        <div className="space-y-6">
+          <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-md">
+            <div>
+              <h3 className="text-sm font-black text-cyan-300 uppercase tracking-wider flex items-center space-x-2">
+                <TrendingUp className="w-4 h-4 text-cyan-400" />
+                <span>BÁO CÁO HIỆU QUẢ TỰ HỌC & ĐỀ XUẤT CẢI THIỆN THEO THỜI GIAN</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Theo dõi các chủ đề hiểu tốt, chủ đề còn yếu, tỷ lệ trích dẫn và các lỗi tái diễn để tối ưu hóa tri thức
+              </p>
+            </div>
+            <button
+              onClick={handleRunRegression}
+              disabled={runningRegression}
+              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white rounded-xl text-xs font-bold transition-all shadow-[0_0_15px_rgba(168,85,247,0.3)] disabled:opacity-40 flex items-center space-x-1.5"
+            >
+              <Award className={`w-4 h-4 ${runningRegression ? 'animate-spin' : ''}`} />
+              <span>{runningRegression ? 'Đang chạy kiểm định hồi quy...' : 'Chạy Kiểm Định Hồi Quy (Regression)'}</span>
+            </button>
+          </div>
+
+          {/* 4 Performance Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+              <span className="text-[11px] font-bold text-slate-400 block mb-1">Tỷ lệ truy xuất tri thức</span>
+              <div className="text-2xl font-black text-cyan-300">{weaknessAnalytics?.retrievalRate || stats.resolutionRate}%</div>
+              <span className="text-[10px] text-slate-500">Khách hỏi có tri thức giải đáp</span>
+            </div>
+
+            <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+              <span className="text-[11px] font-bold text-slate-400 block mb-1">Tỷ lệ trích dẫn nguồn</span>
+              <div className="text-2xl font-black text-emerald-300">{weaknessAnalytics?.citationRate || 95}%</div>
+              <span className="text-[10px] text-slate-500">Có căn cứ xác thực rõ ràng</span>
+            </div>
+
+            <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+              <span className="text-[11px] font-bold text-slate-400 block mb-1">Số lỗi đã khắc phục</span>
+              <div className="text-2xl font-black text-emerald-400">{weaknessAnalytics?.errorsFixed || stats.resolved}</div>
+              <span className="text-[10px] text-emerald-400/80">Khách hỏi lại trả lời đúng</span>
+            </div>
+
+            <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+              <span className="text-[11px] font-bold text-slate-400 block mb-1">Lỗi tái diễn cần chú ý</span>
+              <div className="text-2xl font-black text-rose-400">{weaknessAnalytics?.recurringErrorsCount || stats.recurringErrors || 0}</div>
+              <span className="text-[10px] text-rose-400/80">Lặp lại từ 2 lần trở lên</span>
+            </div>
+          </div>
+
+          {/* Regression Suite Results if run */}
+          {regressionResult && (
+            <div className="bg-slate-950 p-4 rounded-2xl border border-purple-500/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-purple-300 uppercase tracking-wider flex items-center space-x-1.5">
+                  <Award className="w-4 h-4 text-purple-400" />
+                  <span>Kết quả kiểm định hồi quy (Regression Test): {regressionResult.passedCount}/{regressionResult.total} bài test ĐẠT ({regressionResult.passRate}%)</span>
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${regressionResult.failedCount === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                  {regressionResult.failedCount === 0 ? 'HOÀN HẢO' : `${regressionResult.failedCount} lỗi phát sinh`}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto">
+                {regressionResult.results.map((r, i) => (
+                  <div key={i} className="flex items-center justify-between p-2 bg-slate-900 rounded-lg text-xs border border-slate-800">
+                    <span className="text-slate-300 truncate max-w-[260px]">{r.testName}</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.passed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                      {r.passed ? `ĐẠT (${r.accuracyScore}%)` : 'KHÔNG ĐẠT'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 4 Analytics Grid Blocks */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Box 1: Strong Topics */}
+            <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-3">
+              <span className="text-xs font-black text-emerald-300 uppercase tracking-wider flex items-center space-x-2 border-b border-slate-800 pb-2">
+                <ThumbsUp className="w-4 h-4 text-emerald-400" />
+                <span>Những chủ đề TRÍ AN hiểu tốt nhất</span>
+              </span>
+              <div className="space-y-2">
+                {weaknessAnalytics?.strongTopics && weaknessAnalytics.strongTopics.length > 0 ? (
+                  weaknessAnalytics.strongTopics.map((st, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 bg-slate-950/60 rounded-xl border border-slate-800 text-xs">
+                      <span className="font-semibold text-slate-200">{st.topic}</span>
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-bold text-[11px]">
+                        {st.count} tri thức chuẩn
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500 text-center py-4">Đang thu thập dữ liệu chủ đề.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Box 2: Weak Topics */}
+            <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-3">
+              <span className="text-xs font-black text-rose-300 uppercase tracking-wider flex items-center space-x-2 border-b border-slate-800 pb-2">
+                <ThumbsDown className="w-4 h-4 text-rose-400" />
+                <span>Những chủ đề còn yếu (Cần nạp tài liệu)</span>
+              </span>
+              <div className="space-y-2">
+                {weaknessAnalytics?.weakTopics && weaknessAnalytics.weakTopics.length > 0 ? (
+                  weaknessAnalytics.weakTopics.map((wt, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 bg-slate-950/60 rounded-xl border border-slate-800 text-xs">
+                      <span className="font-semibold text-slate-200">{wt.topic}</span>
+                      <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 rounded font-bold text-[11px]">
+                        {wt.total_hits || wt.count} lượt hỏi thiếu
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500 text-center py-4">Tuyệt vời! Không có chủ đề yếu nổi cộm.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Box 3: Recurring Errors */}
+            <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-3">
+              <span className="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center space-x-2 border-b border-slate-800 pb-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                <span>Các câu hỏi thường bị trả lời sai / Tái diễn</span>
+              </span>
+              <div className="space-y-2">
+                {weaknessAnalytics?.recurringQuestions && weaknessAnalytics.recurringQuestions.length > 0 ? (
+                  weaknessAnalytics.recurringQuestions.slice(0, 5).map(rq => (
+                    <div key={rq.id} className="flex items-center justify-between p-2 bg-slate-950/60 rounded-xl border border-slate-800 text-xs">
+                      <div className="truncate max-w-[280px]">
+                        <p className="font-semibold text-slate-200 truncate">{rq.original_question || rq.question}</p>
+                        <span className="text-[10px] text-amber-400">Lý do: {rq.failure_reason}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setAutoLearningActiveQuestion(rq);
+                          setAutoLearningCorrectedAnswer(rq.resolved_answer || '');
+                          setActiveTab('auto_learning');
+                        }}
+                        className="px-2 py-1 bg-cyan-500 text-slate-950 font-bold rounded text-[10px] whitespace-nowrap"
+                      >
+                        Sửa ngay
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500 text-center py-4">Không có lỗi tái diễn nào.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Box 4: AI Recommendations */}
+            <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-3">
+              <span className="text-xs font-black text-cyan-300 uppercase tracking-wider flex items-center space-x-2 border-b border-slate-800 pb-2">
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>Đề xuất tự động từ AI TRÍ AN</span>
+              </span>
+              <div className="space-y-2">
+                {weaknessAnalytics?.suggestedTopics && weaknessAnalytics.suggestedTopics.length > 0 ? (
+                  weaknessAnalytics.suggestedTopics.map((st, i) => (
+                    <div key={i} className="p-2 bg-slate-950/60 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed flex items-start space-x-2">
+                      <ChevronRight className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                      <span>{st.recommendation}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500 text-center py-4">Chưa có đề xuất bổ sung mới.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VERSION HISTORY & ROLLBACK MODAL (MASTER PROMPT REQUIREMENT 3.C & 3.D) */}
+      {/* ========================================================================= */}
+      {showVersionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#0b1b36] border border-cyan-500/40 rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-[0_0_50px_rgba(0,240,255,0.2)] my-8">
+            <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+              <div className="flex items-center space-x-2">
+                <GitCommit className="w-5 h-5 text-cyan-400" />
+                <h3 className="text-base font-black text-white">
+                  LỊCH SỬ PHIÊN BẢN TRI THỨC & KHÔI PHỤC (ROLLBACK)
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowVersionModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {entryVersions && entryVersions.length > 0 ? (
+                entryVersions.map((ver, idx) => (
+                  <div key={ver.id || idx} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 font-bold font-mono rounded text-[11px]">
+                          Phiên bản v{ver.version_number}
+                        </span>
+                        <span className="text-slate-400 text-[11px]">
+                          Sửa bởi: <strong className="text-white">{ver.approved_by || 'Admin'}</strong>
+                        </span>
+                      </div>
+                      <span className="text-slate-500 text-[10px] font-mono">
+                        {new Date(ver.created_at).toLocaleString('vi-VN')}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-300 text-[11px] font-semibold text-cyan-200">
+                      Tóm tắt thay đổi: {ver.change_summary || 'Cập nhật nội dung câu trả lời chuẩn'}
+                    </p>
+
+                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/80 text-[11px] text-slate-300 leading-relaxed max-h-[80px] overflow-y-auto">
+                      {ver.new_answer || ver.previous_answer}
+                    </div>
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        onClick={() => handleRollbackVersion(ver.version_number)}
+                        disabled={rollingBack}
+                        className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg font-bold text-[11px] flex items-center space-x-1 transition-all"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                        <span>Khôi phục phiên bản v{ver.version_number}</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-slate-500 text-xs">
+                  Chưa có lịch sử phiên bản nào được ghi nhận cho tri thức này.
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end border-t border-slate-800 pt-3">
+              <button
+                onClick={() => setShowVersionModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}
