@@ -244,39 +244,63 @@ const CUSTOMER_NAME_BLOCKED_TOKENS = new Set([
   'gi', 'kinh', 'doanh', 'cai', 'mat', 'nganh', 'vuc', 'sao', 'dau',
   'loai', 'mau', 're', 'dat', 'nhat', 'nhi', 'tot', 'hon', 'khac', 'cao', 'thap',
   'chuan', 'nho', 'to', 'lon', 'dep', 'xau', 'moi', 'cu', 'chiec',
+  // Chat control & system commands
+  'chat', 'tin', 'nhan', 'lam', 'moi', 'xoa', 'reset', 'clear', 'bot', 'hoi', 'thoai', 'tro', 'chuyen', 'lich', 'su',
   // Appliances & Electronics (Thiết bị gia dụng & điện lạnh)
   'tu', 'lanh', 'giat', 'say', 'dieu', 'loc', 'nuoc', 'noi', 'com', 'bep', 'lo',
   'vi', 'song', 'hut', 'am', 'bui', 'quat', 'chieu', 'ep', 'xay', 'may',
-  // IT & Tech devices (Công nghệ & tin học)
+  'cay', 'am', 'ui', 'chien', 'hong', 'ngoai', 'rua', 'bat', 'dia',
+  // Popular Appliance & Consumer Brands
+  'kangaroo', 'kangaru', 'sunhouse', 'karofi', 'panasonic', 'daikin', 'toshiba',
+  'casper', 'funiki', 'sanaky', 'aqua', 'electrolux', 'sharp', 'hitachi',
+  'philips', 'philip', 'midea', 'nagakawa', 'comfee', 'gree', 'haier', 'beko',
+  // IT, Tech & Device Brands
   'tivi', 'tv', 'laptop', 'pc', 'cpu', 'case', 'ram', 'ssd', 'hdd', 'man', 'hinh',
   'chuot', 'phim', 'tai', 'nghe', 'loa', 'mic', 'camera', 'webcam', 'sac', 'cap', 'day',
   'the', 'nho', 'usb', 'sim',
-  // Office & Banking equipment (Văn phòng phẩm & Thiết bị ngân hàng)
+  'samsung', 'sony', 'lg', 'apple', 'iphone', 'ipad', 'macbook', 'dell', 'asus',
+  'acer', 'hp', 'lenovo', 'thinkpad', 'xiaomi', 'oppo', 'vivo', 'huawei',
+  'brother', 'canon', 'epson',
+  // Banking Equipment & Security Brands
   'in', 'scan', 'dem', 'bo', 'ket', 'sat', 'photo', 'fax', 'huy',
+  'julong', 'xiudun', 'xinda', 'lidix', 'masu', 'glory', 'modul', 'balion', 'casio',
   // Office Furniture (Nội thất)
   'ghe', 'xoay', 'giam', 'doc', 'hop',
   // Tea, Coffee, Cosmetics (Trà, Cà phê, Mỹ phẩm)
   'tra', 'oolong', 'long', 'ca', 'phe', 'cafe', 'matcha',
   'my', 'pham', 'son', 'kem', 'phan', 'serum',
   // Vehicles & Accessories (Phương tiện & phụ kiện)
-  'xe', 'balo', 'tui', 'xach'
+  'xe', 'balo', 'tui', 'xach', 'vinfast', 'honda', 'yamaha'
 ]);
 
 /**
- * Check if a string represents a product, category or device keyword.
+ * Check if a string represents a product, brand, category, chat control or device keyword.
  */
 export function isProductOrDeviceTerm(str) {
   if (!str || typeof str !== 'string') return false;
   const clean = removeVietnameseTones(str).replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
   if (!clean) return false;
   const phrases = [
+    // Chat control terms (never names or products)
+    'chat', 'dung chat', 'noi dung chat', 'xoa chat', 'lam moi chat', 'lam moi', 'xoa tin nhan', 'tin nhan',
+    // Appliances & Home
     'tu lanh', 'may giat', 'may lanh', 'dieu hoa', 'may loc nuoc', 'loc nuoc',
-    'noi com', 'noi com dien', 'may hut bui', 'robot hut bui', 'may ep', 'may say',
+    'cay nuoc', 'cay nuoc nong lanh', 'binh nong lanh', 'may nuoc nong', 'binh thuy dien', 'am sieu toc',
+    'noi com', 'noi com dien', 'noi chien', 'noi chien khong dau', 'may hut bui', 'robot hut bui', 'may ep', 'may say',
+    'bep tu', 'bep ga', 'bep hong ngoai', 'may rua bat', 'may loc khong khi', 'noi ap suat', 'may hut am',
+    // Office & Tech
     'may in', 'may scan', 'may dem tien', 'may bo tien', 'ket sat',
     'tai nghe', 'loa', 'ban phim', 'chuot', 'tivi', 'tv', 'laptop', 'may tinh',
-    'dien thoai', 'tra', 'ca phe', 'cafe', 'matcha', 'nuoc hoa', 'my pham', 'man hinh', 'bep tu',
+    'dien thoai', 'tra', 'ca phe', 'cafe', 'matcha', 'nuoc hoa', 'my pham', 'man hinh',
     'ban ghe', 'ban lam viec', 'ghe xoay', 'quat', 'o to', 'xe may', 'may chieu', 'tu quan ao',
-    'binh dan', 'chinh hang', 'kem duong'
+    'binh dan', 'chinh hang', 'kem duong',
+    // Brands
+    'kangaroo', 'kangaru', 'sunhouse', 'karofi', 'panasonic', 'daikin', 'toshiba',
+    'casper', 'funiki', 'sanaky', 'aqua', 'electrolux', 'sharp', 'hitachi',
+    'philips', 'philip', 'midea', 'nagakawa', 'comfee', 'gree', 'haier', 'beko',
+    'samsung', 'sony', 'lg', 'apple', 'iphone', 'ipad', 'macbook', 'dell', 'asus',
+    'acer', 'hp', 'lenovo', 'thinkpad', 'xiaomi', 'oppo', 'vivo', 'huawei',
+    'brother', 'canon', 'epson', 'julong', 'xiudun', 'xinda', 'lidix', 'masu'
   ];
   return phrases.some((p) => clean === p || clean.startsWith(p + ' ') || clean.endsWith(' ' + p) || clean.includes(' ' + p + ' '));
 }
@@ -288,7 +312,18 @@ export function hasBlockedNameTokens(str) {
   if (isProductOrDeviceTerm(norm)) return true;
   const words = norm.split(/\s+/).filter(Boolean);
   if (words.length < 1 || words.length > 3) return true;
-  return words.some((w) => CUSTOMER_NAME_BLOCKED_TOKENS.has(w));
+  if (words.some((w) => CUSTOMER_NAME_BLOCKED_TOKENS.has(w))) return true;
+
+  // Check if string contains any brand name
+  const blockedBrands = [
+    'kangaroo', 'kangaru', 'sunhouse', 'karofi', 'panasonic', 'daikin', 'toshiba',
+    'casper', 'funiki', 'sanaky', 'aqua', 'electrolux', 'sharp', 'hitachi',
+    'philips', 'philip', 'midea', 'nagakawa', 'comfee', 'gree', 'haier', 'beko',
+    'samsung', 'sony', 'lg', 'apple', 'iphone', 'ipad', 'macbook', 'dell', 'asus',
+    'acer', 'hp', 'lenovo', 'thinkpad', 'xiaomi', 'oppo', 'vivo', 'huawei',
+    'brother', 'canon', 'epson', 'julong', 'xiudun', 'xinda', 'lidix'
+  ];
+  return blockedBrands.some((b) => norm.includes(b));
 }
 
 /**
@@ -898,6 +933,23 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
     };
   }
 
+  // TÌNH HUỐNG LÀM MỚI / XÓA NỘI DUNG CHAT / THAO TÁC HỆ THỐNG:
+  // Tuyệt đối KHÔNG ĐƯỢC gán là sản phẩm hay tìm kiếm hàng hoá!
+  if (
+    /(?:xoa\s+(?:noi\s+dung\s+)?chat|noi\s+dung\s+chat|dung\s+chat|xoa\s+chat|lam\s+moi|tin\s+nhan|lich\s+su\s+chat|cuoc\s+tro\s+chuyen|clear\s+chat|reset\s+chat)\b/i.test(normMessage)
+  ) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      relatedProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isResetChat: true
+    };
+  }
+
   // TÌNH HUỐNG KHÁCH HÀNG CHÀO HỎI THUẦN TÚY ("hi", "chào", "chào bạn", "hello"...):
   // Tuyệt đối KHÔNG ĐƯỢC gán là sản phẩm hay tìm kiếm hàng hoá!
   if (isGreetingMessage(normMessage)) {
@@ -1434,6 +1486,7 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     normMessage.includes('cho xin so') ||
     normMessage.includes('o dau') ||
     normMessage.includes('dia chi') ||
+    /(?:xoa\s+(?:noi\s+dung\s+)?chat|noi\s+dung\s+chat|dung\s+chat|xoa\s+chat|lam\s+moi|tin\s+nhan|lich\s+su\s+chat|cuoc\s+tro\s+chuyen|clear\s+chat|reset\s+chat)\b/.test(normMessage) ||
     /(?:khong\s+cho|khong\s+can|thoi\s+khoi|bo\s+qua|cu\s+tu\s+van|khong\s+tien|khong\s+noi|chua\s+tien|khong\s+thich|khoi\s+can)\b/.test(normMessage) ||
     /(?:ten\s+la|ten\s+toi|ten\s+minh|ten\s+em|ten\s+anh|ten\s+chi|toi\s+ten|minh\s+ten|em\s+ten|anh\s+ten|chi\s+ten|toi\s+la|minh\s+la|em\s+la|anh\s+la|chi\s+la)\b/.test(normMessage) ||
     /(?:bi\s+sai|lac\s+de|nham\s+roi|khong\s+dung)\b/.test(normMessage)
@@ -1442,6 +1495,7 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
   }
 
   const clean = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
+  const isChatOrSysWord = (str) => /(?:chat|noi\s+dung|dung\s+chat|tin\s+nhan|lam\s+moi|xoa)/i.test(str);
 
   // Pattern 1: Inquiring availability ("có bán X không", "có X không", "shop có X không", "bên bạn có X không", "em bán X không")
   const p1 = clean.match(
@@ -1454,7 +1508,7 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
       'gi', 'nhung gi', 'san pham gi', 'mat hang gi', 'the', 'khong', 'chut', 'thoi gian',
       'ai o day', 'mau nao khac', 'loai nao khac', 'nao khac', 'loai khac', 'mau khac', 'xem them'
     ];
-    if (candidate.length >= 2 && !ignored.includes(normCand)) {
+    if (candidate.length >= 2 && !ignored.includes(normCand) && !isChatOrSysWord(normCand)) {
       return formatMissingProductName(candidate, contextField);
     }
   }
@@ -1465,16 +1519,18 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
   );
   if (p2 && p2[1]) {
     const candidate = p2[1].trim();
-    if (candidate.length >= 2) return formatMissingProductName(candidate, contextField);
+    const normCand = removeVietnameseTones(candidate);
+    if (candidate.length >= 2 && !isChatOrSysWord(normCand)) return formatMissingProductName(candidate, contextField);
   }
 
-  // Pattern 3: Asking about / reiterating a spec / model ("anh hỏi 65 inch mà", "đang hỏi 65 inch")
+  // Pattern 3: Asking about / reiterating a spec / model ("anh hỏi 65 inch mà", "đang nói về 65 inch")
   const p3 = clean.match(
-    /(?:dang\s+hoi\s+ve|dang\s+hoi|hoi\s+ve|hoi|dang\s+noi\s+ve|dang\s+noi|noi\s+ve|noi)\s+(.+?)(?:\s+thi\s+co\s+khong|\s+co\s+khong|\s+ma|\s+day|\s+do|\s+khong|\s+a\s*\?|\s*\?|$)/i
+    /(?:dang\s+hoi\s+ve|dang\s+hoi|hoi\s+ve|dang\s+noi\s+ve|noi\s+ve)\s+(.+?)(?:\s+thi\s+co\s+khong|\s+co\s+khong|\s+ma|\s+day|\s+do|\s+khong|\s+a\s*\?|\s*\?|$)/i
   );
   if (p3 && p3[1]) {
     const candidate = p3[1].trim();
-    if (candidate.length >= 2) return formatMissingProductName(candidate, contextField);
+    const normCand = removeVietnameseTones(candidate);
+    if (candidate.length >= 2 && !isChatOrSysWord(normCand)) return formatMissingProductName(candidate, contextField);
   }
 
   // Pattern 4: Price / quotation inquiry ("giá của X", "báo giá X", "giá X bao nhiêu")
@@ -1483,7 +1539,8 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
   );
   if (p4 && p4[1]) {
     const candidate = p4[1].trim();
-    if (candidate.length >= 2) return formatMissingProductName(candidate, contextField);
+    const normCand = removeVietnameseTones(candidate);
+    if (candidate.length >= 2 && !isChatOrSysWord(normCand)) return formatMissingProductName(candidate, contextField);
   }
 
   // Pattern 5: Direct spec inquiry when no product matched (e.g. "65 inch", "600 lít", "2.5 hp")
@@ -1808,7 +1865,7 @@ export class SalesEngine {
       /(?:hoi|mua|ban|can|muon|tim|lay|gia|xem|tivi|laptop|may|ghe|tra|dem tien|cho|nhan vien)\b/.test(normMessage)
     );
     const allowBareName = Boolean(
-      (prevOrderFlow?.step === 'ask_name' || (prevCustomerProfile?.askedAddressing && !prevCustomerProfile?.name)) &&
+      prevOrderFlow?.step === 'ask_name' &&
       !hasInquiryKeywords &&
       !isProductOrDeviceTerm(normMessage) &&
       !hasBlockedNameTokens(normMessage)
@@ -1995,7 +2052,7 @@ export class SalesEngine {
 
     // Handle Reset Chat query / confirmation
     const isResetChatQuery = actionType === 'REQUEST_RESET_CHAT' ||
-      /(?:xoa\s+(?:noi\s+dung\s+)?chat|xoa\s+(?:het\s+)?tin\s+nhan|lam\s+moi\s+(?:chat|cuoc\s+tro\s+chuyen|cuoc\s+hoi\s+thoai|noi\s+dung\s+chat)|xoa\s+cuoc\s+(?:tro\s+chuyen|hoi\s+thoai)|xoa\s+lich\s+su\s+chat)\b/i.test(normMessage);
+      /(?:xoa\s+(?:noi\s+dung\s+)?chat|noi\s+dung\s+chat|dung\s+chat|xoa\s+(?:het\s+)?tin\s+nhan|lam\s+moi\s+(?:chat|cuoc\s+tro\s+chuyen|cuoc\s+hoi\s+thoai|noi\s+dung\s+chat)|xoa\s+cuoc\s+(?:tro\s+chuyen|hoi\s+thoai)|xoa\s+lich\s+su\s+chat|xoa\s+chat|xoa\s+bot\s+chat|xoa\s+cuoc\s+chat|clear\s+chat|reset\s+chat|^lam\s+moi$|^xoa\s+bot$)\b/i.test(normMessage);
 
     const isConfirmResetQuery = actionType === 'CONFIRM_RESET_CHAT' ||
       /(?:xac\s+nhan\s+lam\s+moi|xac\s+nhan\s+xoa\s+chat|dong\s+y\s+lam\s+moi|dong\s+y\s+xoa)\b/i.test(normMessage);
@@ -2047,6 +2104,7 @@ export class SalesEngine {
       } else {
         // Khách chuyển sang câu hỏi khác hoặc sản phẩm khác -> xóa trạng thái làm rõ và xử lý tiếp bình thường
         customerProfile.pendingClarification = null;
+        customerProfile.name = null;
       }
     }
 
@@ -2087,7 +2145,7 @@ export class SalesEngine {
         const cleanNormMsg = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
         const hasPriceOrFeature = /(?:gia|gia ca|bao nhieu|nhieu tien|may tien|tinh nang|thong so|chuc nang|cong dung|cau hinh|xem gia|bang gia|bao gia)\b/i.test(normMessage);
         const cleanWords = cleanNormMsg.split(/\s+/).filter(Boolean);
-        const isBareOrInitialMissingQuery = !hasPriceOrFeature && !prevCustomerProfile?.name && (cleanWords.length <= 4 || !hasInquiryKeywords);
+        const isBareOrInitialMissingQuery = !hasPriceOrFeature && (cleanWords.length <= 4 || !hasInquiryKeywords);
 
         if (isBareOrInitialMissingQuery) {
           // Khách mới vào ô chat nhắn thẳng sản phẩm mà không nói tên, không hỏi giá/tính năng:

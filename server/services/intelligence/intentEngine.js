@@ -161,7 +161,7 @@ export class IntentEngine {
     }
 
     // 1B. Check Reset Chat Request or Confirm Reset
-    const isResetChatCommand = /(xóa\s+(?:nội\s+dung\s+)?chat|xoa\s+(?:noi\s+dung\s+)?chat|xóa\s+(?:hết\s+)?tin\s+nhắn|xoa\s+(?:het\s+)?tin\s+nhan|làm\s+mới\s+(?:cuộc\s+hội\s+thoại|cuộc\s+trò\s+chuyện|nội\s+dung\s+chat|chat)|lam\s+moi\s+(?:cuoc\s+hoi\s+thoai|cuoc\s+tro\s+chuyen|noi\s+dung\s+chat|chat)|xóa\s+cuộc\s+(?:trò\s+chuyện|hội\s+thoại)|xoa\s+cuoc\s+(?:tro\s+chuyen|hoi\s+thoai)|xóa\s+lịch\s+sử\s+chat|xoa\s+lich\s+su\s+chat)/i.test(norm);
+    const isResetChatCommand = /(xóa\s+(?:nội\s+dung\s+)?chat|xoa\s+(?:noi\s+dung\s+)?chat|nội\s+dung\s+chat|noi\s+dung\s+chat|dung\s+chat|xóa\s+(?:hết\s+)?tin\s+nhắn|xoa\s+(?:het\s+)?tin\s+nhan|làm\s+mới\s+(?:cuộc\s+hội\s+thoại|cuộc\s+trò\s+chuyện|nội\s+dung\s+chat|chat)|lam\s+moi\s+(?:cuoc\s+hoi\s+thoai|cuoc\s+tro\s+chuyen|noi\s+dung\s+chat|chat)|xóa\s+cuộc\s+(?:trò\s+chuyện|hội\s+thoại)|xoa\s+cuoc\s+(?:tro\s+chuyen|hoi\s+thoai)|xóa\s+lịch\s+sử\s+chat|xoa\s+lich\s+su\s+chat|xóa\s+chat|xoa\s+chat|clear\s+chat|reset\s+chat)/i.test(norm);
     const isConfirmResetCommand = /(xác\s+nhận\s+làm\s+mới|xac\s+nhan\s+lam\s+moi|xác\s+nhận\s+xóa\s+chat|xac\s+nhan\s+xoa\s+chat|đồng\s+ý\s+làm\s+mới|dong\s+y\s+lam\s+moi|đồng\s+ý\s+xóa|dong\s+y\s+xoa)/i.test(norm);
 
     if (isConfirmResetCommand) {
