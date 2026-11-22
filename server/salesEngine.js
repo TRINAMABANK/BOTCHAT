@@ -1923,7 +1923,8 @@ export class SalesEngine {
       !hasBlockedNameTokens(normMessage)
     );
     const detectedName = extractCustomerName(message, allowBareName);
-    const rawResolvedName = parsedAddr?.name || detectedName || customerInfo?.name || prevCustomerProfile?.name || null;
+    const prevValidName = prevCustomerProfile?.pendingClarification ? null : prevCustomerProfile?.name;
+    const rawResolvedName = parsedAddr?.name || detectedName || customerInfo?.name || prevValidName || null;
     const resolvedName = rawResolvedName && !hasBlockedNameTokens(rawResolvedName) && !isProductOrDeviceTerm(rawResolvedName) ? rawResolvedName : null;
     const resolvedPronoun = parsedAddr?.pronoun || prevCustomerProfile?.pronoun || null;
 
@@ -2166,28 +2167,49 @@ export class SalesEngine {
     const isName = isCustomerNameDeclaration(message, normMessage);
     const isMissing = Boolean(missingProductQuery) && !extractedPhone;
 
-    // Xử lý phản hồi cho câu hỏi làm rõ: "X là sản phẩm bạn đang tìm kiếm hay là tên của mình?"
+    // 1. Xử lý phản hồi cho câu hỏi làm rõ trước đó: "[X] là sản phẩm bạn đang tìm kiếm hay là tên của mình?"
     if (prevCustomerProfile?.pendingClarification?.type === 'NAME_OR_PRODUCT' && !replyText) {
       const clarifyingTerm = prevCustomerProfile.pendingClarification.term;
-      const isConfirmProduct = /(?:san pham|san pham tim kiem|tim kiem|tim sp|mua|can mua|tim mua|muon mua|tim|dung roi|chinh no|la san pham|do la san pham|san pham nha|san pham do|san pham a|san pham ban oi|hang|mat hang)\b/i.test(normMessage);
-      const isConfirmName = /(?:ten toi|ten minh|ten anh|ten chi|ten em|la ten|day la ten|ten nha|ten a|ten do)\b/i.test(normMessage) || isCustomerNameDeclaration(message, normMessage);
+      const isConfirmProduct =
+        actionType === 'confirm_product' ||
+        /(?:san\s+pham|la\s+san\s+pham|san\s+pham\s+can\s+tim|san\s+pham\s+tim\s+kiem|tim\s+kiem|tim\s+sp|mua|can\s+mua|tim\s+mua|muon\s+mua|tim|do\s+la\s+san\s+pham|san\s+pham\s+nha|san\s+pham\s+do|san\s+pham\s+a|san\s+pham\s+ban\s+oi|hang|mat\s+hang|dung\s+roi,\s*san\s+pham)\b/i.test(normMessage) ||
+        normMessage.trim() === 'san pham' ||
+        normMessage.trim() === 'sp';
+
+      const isConfirmName =
+        actionType === 'confirm_name' ||
+        /(?:la\s+ten|day\s+la\s+ten|ten\s+cua\s+toi|ten\s+toi|ten\s+anh|ten\s+chi|ten\s+em|ten\s+minh|ten\s+tui|la\s+ten\s+minh|chinh\s+la\s+ten|ten\s+nha|ten\s+a|ten\s+do|xung\s+ten)\b/i.test(normMessage) ||
+        normMessage.trim() === 'ten' ||
+        isCustomerNameDeclaration(message, normMessage);
 
       if (isConfirmProduct) {
         customerProfile.name = null;
         customerProfile.pendingClarification = null;
         customerProfile.pendingMissingProduct = clarifyingTerm;
-        replyText = `Dạ em đã ghi nhận bạn đang tìm kiếm sản phẩm **${clarifyingTerm}** ạ.\n\nHiện tại mẫu này chưa có sẵn trong dữ liệu của shop. Bạn vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\nĐồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
+
+        // Check if clarifyingTerm exists in allProducts
+        const matchedInStore = allProducts.find((p) => {
+          const normP = removeVietnameseTones(p.name || '').toLowerCase();
+          const normTerm = removeVietnameseTones(clarifyingTerm).toLowerCase();
+          return normP.includes(normTerm) || normTerm.includes(normP);
+        });
+
+        if (matchedInStore) {
+          replyText = `Dạ em đã ghi nhận bạn đang tìm kiếm sản phẩm **${matchedInStore.name}** (${formatPrice(matchedInStore)}) ạ!\n\nThông tin chi tiết và hình ảnh thực tế đã được mở sẵn ở **Cột 2**, bạn có thể bấm xem chi tiết hoặc nhắn tôi tư vấn sâu hơn nhé!`;
+        } else {
+          replyText = `Dạ em đã ghi nhận bạn đang tìm kiếm sản phẩm **${clarifyingTerm}** ạ.\n\nHiện tại mẫu này chưa có sẵn trong danh mục của shop. Bạn vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\nĐồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
+        }
       } else if (isConfirmName) {
         customerProfile.pendingClarification = null;
         let identifiedName = extractCustomerName(message, false);
-        if (!identifiedName && !hasBlockedNameTokens(clarifyingTerm) && !isProductOrDeviceTerm(clarifyingTerm)) {
+        if (!identifiedName) {
           identifiedName = clarifyingTerm;
         }
-        if (identifiedName && !hasBlockedNameTokens(identifiedName) && !isProductOrDeviceTerm(identifiedName)) {
+        if (identifiedName && !hasBlockedNameTokens(identifiedName)) {
           customerProfile.name = identifiedName;
         }
         const updatedRef = getCustomerRef(customerProfile);
-        replyText = `Dạ em chào **${updatedRef}** ạ! Cảm ơn bạn đã xác nhận. Hôm nay bạn đang quan tâm hoặc cần tìm sản phẩm thuộc lĩnh vực nào để em hỗ trợ mở Cột 2 tư vấn ngay nhé ạ?`;
+        replyText = `Dạ rất hân hạnh được phục vụ **${updatedRef}** ạ! Tôi đã ghi nhận tên để tiện xưng hô rồi nhé.\n\nHôm nay **${updatedRef}** đang quan tâm đến sản phẩm thuộc lĩnh vực nào hoặc cần tìm mẫu nào, tôi sẽ mở bộ sản phẩm ở **Cột 2** tư vấn ngay cho mình nhé ạ!`;
       } else {
         // Khách chuyển sang câu hỏi khác hoặc sản phẩm khác -> xóa trạng thái làm rõ và xử lý tiếp bình thường
         customerProfile.pendingClarification = null;
@@ -2195,7 +2217,45 @@ export class SalesEngine {
       }
     }
 
-    // Xử lý các tình huống có quy tắc chuẩn xác từ khách hàng (hỏi thăm sức khoẻ, chào hỏi, xưng tên, hỏi hàng chưa có)
+    // 2. Kiểm tra lần đầu khi vào chat: khách nhắn 1 đến 3 từ mà chưa rõ là tên hay sản phẩm
+    const rawCleanWords = (message || '').trim().replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').split(/\s+/).filter(Boolean);
+    const isOneToThreeWords = rawCleanWords.length >= 1 && rawCleanWords.length <= 3;
+    const hasQuestionKeywords = /(?:bao\s+nhieu|nhieu\s+tien|may\s+tien|gia\s+ca|gia\s+bao|o\s+dau|co\s+khong|co\s+ban|tinh\s+nang|thong\s+so|chuc\s+nang|cau\s+hinh|bao\s+hanh|chinh\s+sach|the\s+nao|nhu\s+the\s+nao|sao\s+the|la\s+gi|ban\s+gi|kinh\s+doanh\s+gi|co\s+nhung)\b/i.test(normMessage);
+    const isExactCatalogProduct = Boolean(productMatch && productMatch.tier === 1 && productMatch.similarity >= 90 && productMatch.topProduct);
+    const userMsgCount = history.filter((h) => h.sender_type === 'user').length;
+    const isFirstCustomerTurn = userMsgCount <= 1;
+
+    const isFirstTurnAmbiguous1To3Words =
+      isFirstCustomerTurn &&
+      isOneToThreeWords &&
+      !isHealth &&
+      !isGreeting &&
+      !isName &&
+      !hasQuestionKeywords &&
+      !isExactCatalogProduct;
+
+    if (!replyText && isFirstTurnAmbiguous1To3Words) {
+      const candidateTerm = rawCleanWords.join(' ');
+      const displayTerm = candidateTerm
+        .split(/\s+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+
+      replyText = `Dạ xin chào bạn! 👋 Để tôi có thể phục vụ bạn chu đáo và chuẩn xác nhất, cho tôi xin phép hỏi lại một chút nhé ạ:
+
+Từ **"${displayTerm}"** bên trên là **tên của bạn/anh/chị** để tiện xưng hô, hay là **tên sản phẩm** bạn đang cần tìm kiếm ạ?
+
+• Nếu là **tên của bạn**: Bạn xác nhận để tôi xin phép được xưng hô đúng tên mình nhé!
+• Nếu là **sản phẩm cần tìm**: Bạn cho tôi biết để tôi kiểm tra nguồn hàng kho và mở bộ sản phẩm ở Cột 2 tư vấn ngay cho bạn ạ!`;
+
+      customerProfile.name = null;
+      customerProfile.pendingClarification = {
+        term: displayTerm,
+        type: 'NAME_OR_PRODUCT'
+      };
+    }
+
+    // 3. Xử lý các tình huống có quy tắc chuẩn xác từ khách hàng (hỏi thăm sức khoẻ, chào hỏi, xưng tên, hỏi hàng chưa có)
     if (!replyText) {
       if (isHealth) {
         const friendRef = (!customerRef || customerRef === 'Quý khách' || customerRef === 'quý khách') ? 'bạn' : customerRef;
@@ -2235,8 +2295,6 @@ export class SalesEngine {
         const isBareOrInitialMissingQuery = !hasPriceOrFeature && (cleanWords.length <= 4 || !hasInquiryKeywords);
 
         if (isBareOrInitialMissingQuery) {
-          // Khách mới vào ô chat nhắn thẳng sản phẩm mà không nói tên, không hỏi giá/tính năng:
-          // Phân tích không có trong hệ thống và hỏi khách chốt lại: là sản phẩm tìm kiếm hay là tên của mình
           replyText = `Dạ hiện tại bên em chưa tìm thấy sản phẩm **${missingProductQuery}** trong hệ thống của shop ạ.\n\nCho em xin phép hỏi lại một chút để tiện phục vụ: **'${missingProductQuery}'** là sản phẩm bạn/anh/chị đang tìm kiếm hay là tên của mình để em tiện xưng hô ạ?\n\n- Nếu là sản phẩm bạn đang cần tìm: Bạn có thể để lại **Số điện thoại** để shop kiểm tra nguồn hàng kho và báo giá sớm nhất, hoặc tham khảo các danh mục sản phẩm hiện có ở **Cột 2** nhé ạ.\n- Nếu bạn muốn xưng hô tên khác: Bạn cứ nhắn tên để em tiện phục vụ chu đáo nhất nhé ạ!`;
           customerProfile.name = null;
           customerProfile.pendingClarification = {
@@ -2405,6 +2463,8 @@ YÊU CẦU PHONG CÁCH BẮT BUỘC:
       ? `Khách đã cung cấp cách xưng hô: Hãy xưng hô với khách là "${customerRef}".`
       : `Xưng "tôi" và gọi khách là "bạn". TUYỆT ĐỐI KHÔNG tự gọi khách là "anh/chị" khi chưa biết và KHÔNG hỏi lại tên làm phiền khách!`
   }
+  + TUYỆT ĐỐI KHÔNG ĐƯỢC LẤY TÊN SẢN PHẨM/THIẾT BỊ LÀM TÊN KHÁCH:
+    Ví dụ khách nhắn "tủ lạnh", "Kangaroo", "máy giặt", "dung chat", "ti vi"... TUYỆT ĐỐI KHÔNG được gọi khách là "Bạn Tủ Lạnh", "Bạn Kangaroo", "Bạn Kangaru" hay "Bạn Dung Chat"! Nếu chưa biết tên khách thì luôn gọi là "bạn".
 - LUÔN HỎI SỐ TIỀN MUA: Trong mọi tình huống tư vấn sản phẩm, nếu chưa biết ngân sách của khách thì luôn hỏi số tiền dự tính mua để tư vấn đúng tầm giá.
 
 QUY TẮC BẮT BUỘC KHÁC:
@@ -2504,6 +2564,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       !replyText &&
       (justUpdatedAddressing || isNameDecl) &&
       !isProductInquiry &&
+      !isExplicitViewAsk &&
       !missingProductQuery &&
       !matchedField &&
       matchedFromText.length === 0 &&
@@ -2742,7 +2803,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const targetSavedField = recommendedField || activeScopeField || targetSavedProduct?.field || null;
 
     // Calculate user message count in this conversation
-    const userMsgCount = history.filter((h) => h.sender_type === 'user').length + 1;
+    const totalUserTurns = userMsgCount || (history.filter((h) => h.sender_type === 'user').length + 1);
     const hasCapturedPhone = Boolean(
       extractedPhone ||
       customerProfile?.phone ||
@@ -2760,7 +2821,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isOrderActive = Boolean(nextOrderFlow?.active || prevOrderFlow?.active);
 
     // Proactive hint when customer chats back and forth (>= 4 user turns) without providing phone for CRM lead
-    if (userMsgCount >= 4 && !hasCapturedPhone && !isOrderActive && !isResetChatQuery && !isConfirmResetQuery) {
+    if (totalUserTurns >= 4 && !hasCapturedPhone && !isOrderActive && !isResetChatQuery && !isConfirmResetQuery) {
       const resetTip = `\n\n💡 **Gợi ý:** Nếu bạn muốn xóa bớt nội dung chat cho gọn gàng, bạn có thể chọn nút **"Làm mới"** ở phía trên nhé. Hoặc bạn có thể nhắn cụm từ **"Xóa nội dung chat"**, hệ thống sẽ hiện nút xác nhận làm mới cho bạn ngay ạ!`;
       if (!replyText.includes('Làm mới') && !replyText.includes('Xóa nội dung chat')) {
         replyText += resetTip;
@@ -2779,18 +2840,20 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         { id: 'confirm_reset_chat', label: '🔄 Xác nhận Làm mới', action: 'reset_chat' },
         { id: 'cancel_reset_chat', label: 'Tiếp tục trò chuyện', action: 'cancel_reset' }
       ];
+    } else if (customerProfile.pendingClarification?.type === 'NAME_OR_PRODUCT') {
+      const clarifyTerm = customerProfile.pendingClarification.term;
+      finalSuggestedActions = [
+        { id: 'confirm_name', label: `👤 "${clarifyTerm}" là tên của tôi`, action: 'confirm_name' },
+        { id: 'confirm_product', label: `🔍 "${clarifyTerm}" là sản phẩm cần tìm`, action: 'confirm_product' }
+      ];
     } else if (isMissingOrCollectingPhone) {
       finalSuggestedActions = [
-        ...(customerProfile.pendingClarification ? [
-          { id: 'clarify_product', label: `Tìm mua ${customerProfile.pendingClarification.term}` },
-          { id: 'clarify_name', label: 'Đây là tên của tôi' }
-        ] : []),
         { id: 'leave_phone', label: 'Để lại số điện thoại' },
         { id: 'view_catalog', label: 'Xem sản phẩm Cột 2' }
       ];
     }
 
-    if (userMsgCount >= 4 && !hasCapturedPhone && !isOrderActive && !isResetChatQuery && !isConfirmResetQuery) {
+    if (totalUserTurns >= 4 && !hasCapturedPhone && !isOrderActive && !isResetChatQuery && !isConfirmResetQuery) {
       if (!finalSuggestedActions.some((a) => a.id === 'request_reset_chat')) {
         finalSuggestedActions.push({
           id: 'request_reset_chat',
