@@ -567,11 +567,22 @@ function isCatalogOverviewQuery(normMsg) {
   const SPECIFIC_PRODUCT_INDICATORS = [
     'edison', 'xinda', 'sharp', 'daikin', 'samsung', 'sony', 'lg', 'lenovo', 'dell', 'hp', 'asus',
     'julong', 'hang tin', 'hangtin', 'like sys', 'likesys', 'lda', 'xiudun', 'bofa', 'canon', 'apple', 'macbook',
+    'thinkpad', 'thinkcentre', 'ideapad', 'vivobook', 'omnibook', 'legion', 'thinkstation',
     'tivi', 'tv', 'tu lanh', 'may lanh', 'dieu hoa', 'laptop', 'hut am', 'may hut am', 'man hinh',
     'dem tien', 'may dem tien', 'bo tien', 'dong chung tu', 'kiem gia', 'ket sat',
-    'ban giam doc', 'ban lam viec', 'ban hop', 'ghe giam doc', 'ghe van phong', 'ghe gaming', 'tra '
+    'ban giam doc', 'ban lam viec', 'ban hop', 'ghe giam doc', 'ghe van phong', 'ghe gaming',
+    'tra ', 'oolong', 'olong', 'hac tra', 'matcha', 'luc tra', 'hong tra', 'hoang ty', 'nhat minh', 'bich thuy', 'hoan nguyen', 'ngoc trac', 'hao ky', 'huong sa', 'phong mat', 'dai hoang bao', 'tam thanh',
+    'ca phe', 'cafe', 'espresso', 'robusta', 'culi', 'arabica', 'rang moc',
+    'cay nuoc', 'nuoc nong lanh', 'kangaroo', 'kg64a3',
+    'nuoc hoa', 'my pham', 'cindy bloom', 'aroma flower', 'tay te bao chet',
+    'panasonic', 'kx-tsc11', 'kx ts500', 'kx-'
   ];
   if (SPECIFIC_PRODUCT_INDICATORS.some((kw) => clean.includes(kw))) {
+    return false;
+  }
+
+  const modelCodesInClean = extractModelCodes(clean);
+  if (modelCodesInClean && modelCodesInClean.length > 0) {
     return false;
   }
 
@@ -865,9 +876,25 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
 
   // Scenario 1: Model matches + (brand or category or specific token) => 92% - 98%
   if (modelMatch && (brandMatch || hasCategory || prodModels.some((m) => cleanNormMsg.includes(m)))) {
+    const queryGenMatch = cleanNormMsg.match(/\bgen\s*(\d{1,2})\b/i);
+    if (queryGenMatch) {
+      const qGen = queryGenMatch[1];
+      const prodGenMatch = normProdName.match(/\bgen\s*(\d{1,2})\b/i);
+      if (prodGenMatch) {
+        return prodGenMatch[1] === qGen ? 98 : 88;
+      }
+    }
     return 95;
   }
   if (modelMatch) {
+    const queryGenMatch = cleanNormMsg.match(/\bgen\s*(\d{1,2})\b/i);
+    if (queryGenMatch) {
+      const qGen = queryGenMatch[1];
+      const prodGenMatch = normProdName.match(/\bgen\s*(\d{1,2})\b/i);
+      if (prodGenMatch) {
+        return prodGenMatch[1] === qGen ? 96 : 86;
+      }
+    }
     return 92;
   }
 
@@ -2295,7 +2322,7 @@ export class SalesEngine {
     const isOneToThreeWords = rawCleanWords.length >= 1 && rawCleanWords.length <= 3;
     const hasQuestionKeywords = /(?:bao\s+nhieu|nhieu\s+tien|may\s+tien|gia\s+ca|gia\s+bao|o\s+dau|co\s+khong|co\s+ban|tinh\s+nang|thong\s+so|chuc\s+nang|cau\s+hinh|bao\s+hanh|chinh\s+sach|the\s+nao|nhu\s+the\s+nao|sao\s+the|la\s+gi|ban\s+gi|kinh\s+doanh\s+gi|co\s+nhung|cho\s+(?:anh|toi|em|minh)?\s*xem|xem\s+san\s+pham|mua|dat\s+hang|tu\s+van)\b/i.test(normMessage);
     const userMsgCount = history.filter((h) => h.sender_type === 'user').length;
-    const isFirstCustomerTurn = userMsgCount <= 1;
+    const isFirstCustomerTurn = userMsgCount <= 1 || (userMsgCount <= 2 && history.some(h => h.sender_type === 'user' && isGreetingMessage(removeVietnameseTones(h.content))));
 
     // Khi khách xuất phát lần đầu và chỉ nhắn 1 đến 3 từ ngắn (ví dụ: 'nguyên', 'nam', 'tủ lạnh', 'trà', 'bột matcha'):
     // TUYỆT ĐỐI KHÔNG tự ý suy diễn là sản phẩm hay tên của khách, mà BẮT BUỘC phải hỏi lại để khách xác nhận rõ ràng
@@ -2325,6 +2352,8 @@ Từ **"${displayTerm}"** bên trên là **tên của bạn/anh/chị** để ti
       customerProfile.name = null;
       missingProductQuery = null;
       productMatch.topProduct = null;
+      productMatch.relatedProduct = null;
+      productMatch.rankedProducts = [];
       productMatch.tier = 3;
       productMatch.similarity = 0;
       customerProfile.pendingClarification = {
@@ -2761,15 +2790,18 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         matchedField
       });
 
+    const isPendingClarification = Boolean(customerProfile.pendingClarification || prevCustomerProfile?.pendingClarification);
+
     // Automatically reveal Column 2 whenever chat mentions or requests related products,
     // HOẶC khi khách hỏi sản phẩm chưa có (để khách tham khảo các mẫu khác cùng loại ở Cột 2)
     const mentionsRelatedProduct =
-      isMissingProduct ||
+      !isPendingClarification &&
+      (isMissingProduct ||
       isExplicitViewAsk ||
       (!isNonProductIntent &&
         (productMatch.tier === 1 ||
           productMatch.tier === 2 ||
-          (productMatch.tier === 3 && (wantsProducts || Boolean(matchedField) || asksGeneralCatalog || hasBudgetQuery || hasCompareQuery || isAskOtherModels || Boolean(actionType)))));
+          (productMatch.tier === 3 && (wantsProducts || Boolean(matchedField) || asksGeneralCatalog || hasBudgetQuery || hasCompareQuery || isAskOtherModels || Boolean(actionType))))));
 
     const isMissingOrCollectingPhone = Boolean(missingProductQuery) && !extractedPhone;
     if (isMissingOrCollectingPhone) {
