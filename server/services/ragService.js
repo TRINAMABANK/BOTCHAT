@@ -7,6 +7,7 @@
 
 import { randomUUID } from 'crypto';
 import db from '../db.js';
+import MultiDocParser from './parsers/multiDocParser.js';
 
 function removeVietnameseTones(str = '') {
   if (!str) return '';
@@ -199,6 +200,25 @@ export class RagService {
   /**
    * Log verified citation for AI transparency and audit
    */
+  /**
+   * Ingest and parse document from raw buffer (PDF, DOCX, XLSX, TXT)
+   */
+  static async ingestDocumentFromBuffer({ buffer, filename = '', fileType = '', title = '', orgId = 'org_default', scope = 'global' }) {
+    const parsed = await MultiDocParser.parseDocument(buffer, fileType || filename.split('.').pop(), filename);
+    if (!parsed.success && !parsed.text) {
+      throw new Error(parsed.error || 'Không thể trích xuất nội dung từ tệp tài liệu này');
+    }
+    return await this.ingestDocument({
+      title: title || filename || 'Tài liệu tải lên',
+      fileType: parsed.fileType,
+      filePath: filename,
+      content: parsed.text,
+      orgId,
+      scope,
+      pageCount: parsed.pageCount || 1
+    });
+  }
+
   static async logCitations(conversationId, messageId, citations = []) {
     if (!citations || citations.length === 0) return;
     const now = new Date().toISOString();
