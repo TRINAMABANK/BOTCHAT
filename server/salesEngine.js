@@ -2342,7 +2342,7 @@ Từ **"${displayTerm}"** bên trên là **tên của bạn/anh/chị** để ti
         replyText = `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì để tôi hỗ trợ nhé?`;
       } else if (isGreeting) {
         if (!hasAddressingInfo) {
-          replyText = `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang cần tìm sản phẩm hoặc giải pháp gì ạ? Bạn có thể nhắn sản phẩm cần tìm để tôi mở bảng Cột 2 hỗ trợ ngay nhé!`;
+          replyText = `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm gì? Bạn cần tôi giúp gì? Bạn có thể hỏi tôi hoặc tham khảo cột dự liệu bên cạnh. Do tôi là Trợ lý ảo nên Bạn viết câu từ rõ ràng giúp, tôi mới hiểu ý bạn`;
         } else {
           replyText = `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
         }
@@ -3636,7 +3636,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isGreeting = isGreetingMessage(normMessage);
     if (isGreeting) {
       if (!hasAddressingInfo) {
-        return `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang cần tìm sản phẩm hoặc giải pháp gì ạ? Bạn có thể nhắn sản phẩm cần tìm để tôi mở bảng Cột 2 hỗ trợ ngay nhé!`;
+        return `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm gì? Bạn cần tôi giúp gì? Bạn có thể hỏi tôi hoặc tham khảo cột dự liệu bên cạnh. Do tôi là Trợ lý ảo nên Bạn viết câu từ rõ ràng giúp, tôi mới hiểu ý bạn`;
       }
       return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
     }
