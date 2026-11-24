@@ -515,11 +515,11 @@ export class IntentEngine {
     const isExplicitProductKeywords = /(?:bao\s+nhieu\s+tien|gia\s+bao\s+nhieu|may\s+tien|bao\s+gia|mua\s+ngay|dat\s+mua|mua\s+hang|laptop|may\s+in|may\s+scan|tra\s+|ca\s+phe\s+rang|tu\s+lanh|may\s+lanh|man\s+hinh|may\s+dem\s+tien)\b/i.test(unaccented);
 
     // 5. REMINDER INTENT (Nhắc việc, nhắc lịch, nhắc cuộc hẹn)
-    const isReminder = /(?:nhac\s+(?:toi|em|minh|giup|cho|viec|lich|hen)|tao\s+nhac\s+nho|dat\s+nhac\s+nho|len\s+lich\s+nhac|nhac\s+nho)\b/i.test(unaccented);
+    const isReminder = /(?:nhac\s+(?:anh|chi|sep|ong|ba|ban|toi|em|minh|giup|cho|viec|lich|hen)|tao\s+nhac\s+nho|dat\s+nhac\s+nho|len\s+lich\s+nhac|nhac\s+nho|nhac\s+lich)\b/i.test(unaccented);
 
     // 2D. MULTI-INTENT DETECTION: Composite requests (e.g. Sales + Secretary)
     const hasSalesSignals = (isExplicitProductKeywords || !!slots.productName || /(?:bao\s+gia|mua\s+ngay|dat\s+mua|gia\s+bao\s+nhieu)\b/i.test(unaccented)) && !slots.isBroadCategory;
-    const hasSecretarySignals = (isAppointmentExplicit || isReminder || isDraftEmail || isSecretaryCrmSummary);
+    const hasSecretarySignals = (isAppointmentExplicit || isReminder || isDraftEmail || isSecretaryCrmSummary || /(?:hop\b|cuoc\s+hop)/i.test(unaccented));
 
     if (hasSalesSignals && hasSecretarySignals) {
       let salesSub = 'SALES_CONSULTATION';
@@ -620,13 +620,26 @@ export class IntentEngine {
     // 8. GENERAL CHAT / GREETING / SOCIAL INTERACTION
     const isGreeting = /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(norm);
     const isIdentityInquiry = /(bạn là ai|em là ai|robot là ai|tên gì|giới thiệu bản thân)/i.test(norm);
-    const isGeneralSmallTalk = /(?:thời\s+tiết|thoi\s+tiet|buồn\s+quá|buon\s+qua|vui\s+quá|vui\s+qua|kể\s+chuyện|ke\s+chuyen|tâm\s+sự|tam\s+su|hát\s+đi|hat\s+di|người\s+yêu|nguoi\s+yeu|ăn\s+cơm\s+chưa|an\s+com\s+chua|ngủ\s+ngon|ngu\s+ngon|chúc\s+một\s+ngày|chuc\s+mot\s+ngay|bạn\s+thông\s+minh\s+thật|ban\s+thong\s+minh\s+that|tạm\s+biệt|tam\s+biet|bai\s+bai|bye\s+bye|hôm\s+nay\s+thế\s+nào|hom\s+nay\s+the\s+nao)\b/i.test(norm);
+    const isGeneralSmallTalk = /(?:thời\s+tiết\s+(?:đẹp|xấu|hôm\s+nay\s+đẹp)|thoi\s+tiet\s+(?:dep|xau|hom\s+nay\s+dep)|buồn\s+quá|buon\s+qua|vui\s+quá|vui\s+qua|kể\s+chuyện|ke\s+chuyen|tâm\s+sự|tam\s+su|hát\s+đi|hat\s+di|người\s+yêu|nguoi\s+yeu|ăn\s+cơm\s+chưa|an\s+com\s+chua|ngủ\s+ngon|ngu\s+ngon|chúc\s+một\s+ngày|chuc\s+mot\s+ngay|bạn\s+thông\s+minh\s+thật|ban\s+thong\s+minh\s+that|tạm\s+biệt|tam\s+biet|bai\s+bai|bye\s+bye|hôm\s+nay\s+thế\s+nào|hom\s+nay\s+the\s+nao)\b/i.test(norm);
+
+    // If explicit greeting or small talk without product
+    if ((isGreeting || isGeneralSmallTalk) && !slots.productName) {
+      return {
+        primaryIntent: isIdentityInquiry ? 'IDENTITY_INQUIRY' : (isGreeting ? 'GREETING' : 'GENERAL_CHAT'),
+        domain: DOMAIN_INTENTS.CONVERSATION,
+        intentGroup: INTENT_GROUPS.GENERAL_CHAT,
+        confidence: 0.96,
+        slots,
+        flags: { isSales: false, isDoc: false }
+      };
+    }
 
     // 9. WEB SEARCH INTENT
-    const isWebSearch = /(tin tức|tin tuc|thời tiết|thoi tiet|tìm trên mạng|tim tren mang|tra cứu internet|tra cuu mang)/i.test(norm);
+    const isWebSearch = /(tin tức|tin tuc|dự báo thời tiết|du bao thoi tiet|thời tiết hôm nay thế nào|thoi tiet hom nay the nao|thời tiết|thoi tiet|tìm trên mạng|tim tren mang|tra cứu internet|tra cuu mang)/i.test(norm);
     if (isWebSearch && !slots.productName) {
       return {
         primaryIntent: 'INTERNET_SEARCH',
+        domain: DOMAIN_INTENTS.RESEARCH,
         intentGroup: INTENT_GROUPS.GENERAL_CHAT,
         confidence: 0.9,
         slots,
