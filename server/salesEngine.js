@@ -362,7 +362,7 @@ export function hasBlockedNameTokens(str) {
 /**
  * Extract customer name cleanly (supports full intro phrases, casual introductions, and standalone names).
  */
-function extractCustomerName(rawMsg, allowBare = false) {
+export function extractCustomerName(rawMsg, allowBare = false) {
   if (!rawMsg || typeof rawMsg !== 'string') return null;
   let s = rawMsg.trim();
   if (s.includes('?') || s.includes('@')) return null;
@@ -1686,7 +1686,7 @@ function capitalizeFirst(str) {
 /**
  * Extract customer preferred addressing (pronoun + optional name) from natural Vietnamese self-introductions.
  */
-function extractCustomerAddressing(rawMsg) {
+export function extractCustomerAddressing(rawMsg) {
   if (!rawMsg || typeof rawMsg !== 'string') return null;
   const trimmed = rawMsg.trim();
   const norm = removeVietnameseTones(trimmed).toLowerCase();
@@ -1732,7 +1732,7 @@ function extractCustomerAddressing(rawMsg) {
  * Khi khách xưng tên ("Tôi tên Trí", "Mình tên Nam", "Anh là Tuấn", "Em tên Linh"...):
  * Tuyệt đối coi đây là thông tin xưng hô của khách hàng, không bao giờ đối chiếu hay coi là sản phẩm.
  */
-function isCustomerNameDeclaration(rawMsg, normMsg) {
+export function isCustomerNameDeclaration(rawMsg, normMsg) {
   const text = rawMsg || normMsg;
   if (!text || typeof text !== 'string') return false;
   const clean = removeVietnameseTones(text)
@@ -1902,7 +1902,7 @@ export class SalesEngine {
       return acc;
     }, {});
 
-    const botName = settings.bot_name || 'TRÍ AI SALES ROBOT';
+    const botName = settings.bot_name || 'TRÍ AI ULTIMATE ROBOT';
     const ownerName = settings.owner_name || 'Quang Nhựt Trí';
     const rawPhonePrompt = settings.phone_invitation_prompt ||
       'Tôi có thể ghi nhận yêu cầu để shop trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.';
@@ -2392,9 +2392,9 @@ Từ **"${displayTerm}"** bên trên là **tên của bạn/anh/chị** để ti
         replyText = `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì để tôi hỗ trợ nhé?`;
       } else if (isGreeting) {
         if (!hasAddressingInfo) {
-          replyText = `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm gì? Bạn cần tôi giúp gì? Bạn có thể hỏi tôi hoặc tham khảo cột dự liệu bên cạnh. Do tôi là Trợ lý ảo nên Bạn viết câu từ rõ ràng giúp, tôi mới hiểu ý bạn`;
+          replyText = `Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?`;
         } else {
-          replyText = `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
+          replyText = `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
         }
       } else if (isMissing) {
         const capRef = capitalizeFirst(customerRef);
@@ -3676,7 +3676,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('la ai') ||
       normMessage.includes('gioi thieu')
     ) {
-      return `${politeAskBanner}Dạ, tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh. Rất hân hạnh được phục vụ ${customerRef}!\n\n${capRef} đang quan tâm đến sản phẩm nào để tôi gửi thông tin và ưu đãi ạ?`;
+      return `${politeAskBanner}Dạ, em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh. Rất hân hạnh được phục vụ ${customerRef}!\n\n${capRef} đang quan tâm đến sản phẩm nào để em gửi thông tin và ưu đãi ạ?`;
     }
 
     // 11B. Friendly Conversation / Asking Permission ("Tôi hỏi thăm bạn được không?", "Cho tôi hỏi chút", "Hỏi thăm")
@@ -3690,7 +3690,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('khoe khong') ||
       normMessage.includes('co khoe khong')
     ) {
-      return `${politeAskBanner}Dạ cảm ơn ${customerRef} nhiều ạ! Tôi luôn có mặt 24/7 để phục vụ ${customerRef}. ${capRef} cứ thoải mái chia sẻ câu hỏi hoặc nhu cầu nhé!`;
+      return `${politeAskBanner}Dạ cảm ơn ${customerRef} nhiều ạ! Em luôn có mặt 24/7 để phục vụ ${customerRef}. ${capRef} cứ thoải mái chia sẻ câu hỏi hoặc nhu cầu nhé!`;
     }
 
     // 11C. Capabilities / What can you do? ("Bạn giúp được gì?", "Làm được gì?")
@@ -3701,16 +3701,16 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('biet lam gi')
     ) {
       const actionScope = `tìm sản phẩm theo nhu cầu, so sánh thông số & giá bán, mở danh mục trực quan ở Cột 2 và ghi nhận đơn hàng`;
-      return `${politeAskBanner}Dạ, tôi có thể giúp ${customerRef}: ${actionScope}. ${capRef} cần hỗ trợ gì cứ nhắn tôi nhé!`;
+      return `${politeAskBanner}Dạ, em có thể giúp ${customerRef}: ${actionScope}. ${capRef} cần hỗ trợ gì cứ nhắn em nhé!`;
     }
 
     // 11D. Conversational Greeting / Addressing Inquiry / Open-ended Consultation
     const isGreeting = isGreetingMessage(normMessage);
     if (isGreeting) {
       if (!hasAddressingInfo) {
-        return `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm gì? Bạn cần tôi giúp gì? Bạn có thể hỏi tôi hoặc tham khảo cột dự liệu bên cạnh. Do tôi là Trợ lý ảo nên Bạn viết câu từ rõ ràng giúp, tôi mới hiểu ý bạn`;
+        return `Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?`;
       }
-      return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
+      return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
     }
 
     // 12. Intelligent Clarification when request is ambiguous

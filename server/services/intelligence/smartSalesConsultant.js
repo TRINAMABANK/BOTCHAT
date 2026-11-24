@@ -23,6 +23,7 @@ import db from '../../db.js';
 import { randomUUID } from 'crypto';
 import LearningCaptureEngine, { FAILURE_REASONS } from './learningCaptureEngine.js';
 import { CrmLeadService } from '../crmLeadService.js';
+import { UniversalSalesConsultant } from './universalSalesConsultant.js';
 
 export function isFoodOrBeverageProduct(product) {
   if (!product) return false;
@@ -611,6 +612,13 @@ export class SmartSalesConsultant {
       citations: [],
       toolsUsed: ['smart_order_handler']
     };
+  }
+
+  /**
+   * Delegate to UniversalSalesConsultant for 10-step full catalog consulting (Phần V)
+   */
+  static async consultSales(context = {}) {
+    return await UniversalSalesConsultant.consultSales(context);
   }
 }
 

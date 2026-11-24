@@ -1,3 +1,11 @@
+import { ActiveProductContext } from './activeProductContext.js';
+import {
+  extractCustomerName,
+  extractCustomerAddressing,
+  isCustomerNameDeclaration,
+  hasBlockedNameTokens
+} from '../../salesEngine.js';
+
 /**
  * INTENT ENGINE – BỘ MÁY HIỂU Ý ĐỊNH (TRÍ AI SMART INTELLIGENCE 2.0)
  * 
@@ -150,6 +158,8 @@ export function getIntentGroup(primaryIntent = '') {
       return INTENT_GROUPS.REMINDER;
     case 'GREETING':
     case 'IDENTITY_INQUIRY':
+    case 'CUSTOMER_INTRODUCTION':
+    case 'CUSTOMER_DECLINE_NAME':
     case 'GENERAL_CHAT':
     case 'GENERAL_CONVERSATION':
     case 'INTERNET_SEARCH':
@@ -184,6 +194,8 @@ export function getIntentGroup(primaryIntent = '') {
     case 'BROAD_CATEGORY_INQUIRY':
     case 'UNCLEAR_NEEDS':
     case 'SALES_CONSULTATION':
+    case 'PAGINATION_NEXT':
+    case 'VIEW_ALL_PRODUCTS':
     case 'SPEC_SEARCH':
       return INTENT_GROUPS.PRODUCT_INQUIRY;
     case 'MIXED_SALES_SECRETARY':
@@ -211,6 +223,8 @@ export function getDomainIntent(primaryIntent = '') {
     case 'SPEC_SEARCH':
     case 'BROAD_CATEGORY_INQUIRY':
     case 'SALES_CONSULTATION':
+    case 'PAGINATION_NEXT':
+    case 'VIEW_ALL_PRODUCTS':
     case 'LIVE_WEBSITE_SEARCH':
       return DOMAIN_INTENTS.SALES;
 
@@ -314,6 +328,7 @@ export class IntentEngine {
       domain,
       intentGroup,
       confidence: Number(confidence.toFixed(2)),
+      action: result?.action || null,
       needsClarification,
       subIntents: result?.subIntents || [],
       capabilities: result?.capabilities || (
@@ -410,7 +425,7 @@ export class IntentEngine {
     }
 
     // 2. Extract Entities & Slots (with strict non-product exclusions)
-    const slots = this.extractSlots(norm, unaccented);
+    const slots = this.extractSlots(norm, unaccented, context);
 
     // 2B. SECURITY & PRIVACY CHECKS (Anti-Data Leak & Access Protection)
     const isCustomerAskingOtherData = /(?:so\s+dien\s+thoai|sdt|thong\s+tin|danh\s+sach)\s+(?:cua\s+)?(?:khach\s+hang\s+khac|khach\s+khac|nguoi\s+khac|anh\s+tuan|khach\s+mua)/i.test(unaccented) ||
@@ -427,7 +442,11 @@ export class IntentEngine {
     }
 
     // Anti-Impersonation Check: User self-claims to be Anh Trí in chat without verified admin token
-    const isImpersonatingOwner = context.userContext?.isImpersonationAttempt || (!context.userContext?.isOwner && /(?:toi\s+la|anh\s+la|minh\s+la)\s+(?:anh\s+)?(?:tri|quang\s+nhut\s+tri|admin|chu\s+shop)/i.test(unaccented));
+    const isCustomerIntro = slots.isNameDeclaration || /(?:cu\s+goi\s+(?:toi|minh|em|anh|chi)\s+la|ten\s+(?:toi|minh|em|anh|chi)\s+la|(?:toi|minh|em|anh|chi)\s+ten\s+la)\s+/i.test(unaccented);
+    const isImpersonatingOwner = context.userContext?.isImpersonationAttempt || (!context.userContext?.isOwner && !isCustomerIntro && (
+      /(?:toi\s+la|anh\s+la|minh\s+la)\s+(?:admin|chu\s+shop|chu\s+so\s+huu|chu\s+doanh\s+nghiep|quang\s+nhut\s+tri|sep\s+tri)/i.test(unaccented) ||
+      /(?:toi|anh)\s+la\s+anh\s+tri\b/i.test(unaccented)
+    ));
     if (isImpersonatingOwner) {
       return {
         primaryIntent: 'SECURITY_IMPERSONATION_ATTEMPT',
@@ -435,6 +454,29 @@ export class IntentEngine {
         confidence: 0.99,
         slots,
         flags: { isSales: false, isDoc: false, isBlocked: true }
+      };
+    }
+
+    // Check Customer Decline Name
+    const isCustomerDeclineName = /(?:khong\s+muon\s+(?:cho|noi|cung\s+cap)\s+ten|khong\s+can\s+(?:biet|xung|hoi)\s+ten|thoi\s+khong\s+can\s+ten|cu\s+tu\s+van\s+di|goi\s+la\s+khach\s+duoc\s+roi|cu\s+goi\s+(?:toi\s+)?la\s+khach|goi\s+la\s+khach\s+la\s+duoc)/i.test(unaccented);
+    if (isCustomerDeclineName) {
+      return {
+        primaryIntent: 'CUSTOMER_DECLINE_NAME',
+        intentGroup: INTENT_GROUPS.GENERAL_CHAT,
+        confidence: 0.99,
+        slots,
+        flags: { isSales: false, isDoc: false }
+      };
+    }
+
+    // Check Customer Self-Introduction (Khai báo tên / Cách xưng hô)
+    if (slots.isNameDeclaration && slots.customerName && !slots.productName && !slots.isShortQuotationRequest) {
+      return {
+        primaryIntent: 'CUSTOMER_INTRODUCTION',
+        intentGroup: INTENT_GROUPS.GENERAL_CHAT,
+        confidence: 0.99,
+        slots,
+        flags: { isSales: false, isDoc: false }
       };
     }
 
@@ -499,8 +541,9 @@ export class IntentEngine {
       };
     }
 
-    const isOwnerExplicitTask = context.userContext?.isOwner && /(?:nhac\s+toi|ghi\s+nho\s+giup\s+toi|todo|danh\s+sach\s+viec|ke\s+hoach\s+ngay|ke\s+hoach\s+tuan)/i.test(unaccented);
-    if (isOwnerExplicitTask) {
+    const isOwnerExplicitTask = context.userContext?.isOwner && /(?:nhac\s+toi|nhac\s+anh|nhac\s+sep|ghi\s+nho\s+giup\s+toi|ghi\s+nho\s+giup\s+anh|todo|danh\s+sach\s+viec|ke\s+hoach\s+ngay|ke\s+hoach\s+tuan)/i.test(unaccented);
+    const hasSalesSignalsInOwnerTask = /(?:bao\s+gia|mua\s+ngay|dat\s+mua|gia\s+bao\s+nhieu|bao\s+nhieu\s+tien)\b/i.test(unaccented);
+    if (isOwnerExplicitTask && !hasSalesSignalsInOwnerTask) {
       return {
         primaryIntent: 'SECRETARY_TASK',
         intentGroup: INTENT_GROUPS.SECRETARY_TASK,
@@ -523,14 +566,15 @@ export class IntentEngine {
     const hadRecentAppointment = prevHistory.length > 0 && prevHistory.slice(-2).some(h => /(?:hen|lich|ranh|ca phe|di nhau|gap mat|dat ngay)/i.test(this.stripDiacritics(h.content || '')));
 
     // Check if query is explicitly asking price or product specs (Topic switch from appointment to shopping)
-    const isExplicitProductKeywords = /(?:bao\s+nhieu\s+tien|gia\s+bao\s+nhieu|may\s+tien|bao\s+gia|mua\s+ngay|dat\s+mua|mua\s+hang|laptop|may\s+in|may\s+scan|tra\s+|ca\s+phe\s+rang|tu\s+lanh|may\s+lanh|man\s+hinh|may\s+dem\s+tien)\b/i.test(unaccented);
+    const maskedForTea = unaccented.replace(/\b(?:kiem\s+tra|tra\s+cuu|dieu\s+tra|tra\s+loi|tra\s+gop|tra\s+hang|trao\s+doi)\b/gi, '___verb___');
+    const isExplicitProductKeywords = /(?:bao\s+nhieu\s+tien|gia\s+bao\s+nhieu|may\s+tien|bao\s+gia|mua\s+ngay|dat\s+mua|mua\s+hang|laptop|may\s+in|may\s+scan|tra\s+|ca\s+phe\s+rang|tu\s+lanh|may\s+lanh|man\s+hinh|may\s+dem\s+tien)\b/i.test(maskedForTea);
 
     // 5. REMINDER INTENT (Nhắc việc, nhắc lịch, nhắc cuộc hẹn)
     const isReminder = /(?:nhac\s+(?:anh|chi|sep|ong|ba|ban|toi|em|minh|giup|cho|viec|lich|hen)|tao\s+nhac\s+nho|dat\s+nhac\s+nho|len\s+lich\s+nhac|nhac\s+nho|nhac\s+lich)\b/i.test(unaccented);
 
     // 2D. MULTI-INTENT DETECTION: Composite requests (e.g. Sales + Secretary)
     const hasSalesSignals = (isExplicitProductKeywords || !!slots.productName || /(?:bao\s+gia|mua\s+ngay|dat\s+mua|gia\s+bao\s+nhieu)\b/i.test(unaccented)) && !slots.isBroadCategory;
-    const hasSecretarySignals = (isAppointmentExplicit || isReminder || isDraftEmail || isSecretaryCrmSummary || /(?:hop\b|cuoc\s+hop)/i.test(unaccented));
+    const hasSecretarySignals = (isAppointmentExplicit || isReminder || isDraftEmail || isSecretaryCrmSummary || isOwnerExplicitTask || /(?:hop\b|cuoc\s+hop)/i.test(unaccented));
 
     if (hasSalesSignals && hasSecretarySignals) {
       let salesSub = 'SALES_CONSULTATION';
@@ -736,6 +780,33 @@ export class IntentEngine {
       };
     }
 
+    // 10B. CATALOG PAGINATION & VIEW ALL INTENTS (PHẦN V)
+    const isPaginationNext = /(?:gửi\s+tiếp|xem\s+tiếp|tiếp\s+tục|gửi\s+thêm|cho\s+xem\s+tiếp|5\s+mẫu\s+tiếp\s+theo|5\s+sản\s+phẩm\s+tiếp\s+theo|gửi\s+tiếp\s+5\s+mẫu|xem\s+tiếp\s+5\s+sản\s+phẩm|mẫu\s+tiếp|trang\s+sau|trang\s+tiếp|gửi\s+5\s+mẫu\s+tiếp|gửi\s+5\s+mẫu\s+nữa)\b/i.test(norm) ||
+      /(?:gui\s+tiep|xem\s+tiep|tiep\s+tuc|gui\s+them|cho\s+xem\s+tiep|5\s+mau\s+tiep\s+theo|5\s+san\s+pham\s+tiep\s+theo|gui\s+tiep\s+5\s+mau|xem\s+tiep\s+5\s+san\s+pham|mau\s+tiep|trang\s+sau|trang\s+tiep|gui\s+5\s+mau\s+tiep|gui\s+5\s+mau\s+nua)\b/i.test(unaccented);
+
+    if (isPaginationNext) {
+      return {
+        primaryIntent: 'PAGINATION_NEXT',
+        intentGroup: INTENT_GROUPS.PRODUCT_INQUIRY,
+        confidence: 0.96,
+        slots,
+        flags: { isSales: true, isDoc: false, isPagination: true }
+      };
+    }
+
+    const isViewAll = /(?:cho\s+anh\s+xem\s+tất\s+cả|cho\s+tôi\s+xem\s+tất\s+cả|xem\s+tất\s+cả|gửi\s+hết\s+danh\s+sách|gửi\s+hết|có\s+những\s+mẫu\s+nào|tham\s+khảo\s+toàn\s+bộ|xem\s+toàn\s+bộ|xem\s+hết|toàn\s+bộ\s+danh\s+mục)\b/i.test(norm) ||
+      /(?:cho\s+anh\s+xem\s+tat\s+ca|cho\s+toi\s+xem\s+tat\s+ca|xem\s+tat\s+ca|gui\s+het\s+danh\s+sach|gui\s+het|co\s+nhung\s+mau\s+nao|tham\s+khao\s+toan\s+bo|xem\s+toan\s+bo|xem\s+het|toan\s+bo\s+danh\s+muc)\b/i.test(unaccented);
+
+    if (isViewAll) {
+      return {
+        primaryIntent: 'VIEW_ALL_PRODUCTS',
+        intentGroup: INTENT_GROUPS.PRODUCT_INQUIRY,
+        confidence: 0.96,
+        slots,
+        flags: { isSales: true, isDoc: false, isViewAll: true }
+      };
+    }
+
     // Check greeting and general small talk when no product or price query
     if ((isGreeting || isGeneralSmallTalk) && !slots.productName) {
       return {
@@ -770,7 +841,8 @@ export class IntentEngine {
     }
 
     // Explicit product keywords or resolved product name from catalog
-    const isSalesKeywords = /(mua|bán|ban|sản phẩm|san pham|hàng|laptop|máy in|may in|máy scan|may scan|trà|tra|cà phê|cafe|nước hoa|nuoc hoa|màn hình|tivi|tai nghe|bột matcha|cpu|tablet|chuột|bàn phím|điện thoại|dien thoai)/i.test(norm);
+    const normMasked = norm.replace(/\b(?:kiểm\s+tra|kiem\s+tra|tra\s+cứu|tra\s+cuu|điều\s+tra|dieu\s+tra|trả\s+lời|tra\s+loi|trả\s+góp|tra\s+gop|trả\s+hàng|tra\s+hang|trao\s+đổi|trao\s+doi)\b/gi, '___verb___');
+    const isSalesKeywords = /(mua|bán|ban|sản phẩm|san pham|hàng|laptop|máy in|may in|máy scan|may scan|trà|tra|cà phê|cafe|nước hoa|nuoc hoa|màn hình|tivi|tai nghe|bột matcha|cpu|tablet|chuột|bàn phím|điện thoại|dien thoai)/i.test(normMasked);
 
     if (isSalesKeywords || slots.productName) {
       return {
@@ -806,9 +878,50 @@ export class IntentEngine {
   }
 
   /**
-   * Extract slots: product, quantity, budget, brand, modelCode, domain, appointment entities
+   * Extract slots: product, quantity, budget, brand, modelCode, domain, appointment entities, ordinal & quotation context
    */
-  static extractSlots(normText = '', unaccented = '') {
+  static extractSlots(normText = '', unaccented = '', context = {}) {
+    // 0. Ordinal extraction for multi-product selection (e.g. "sản phẩm thứ hai", "máy thứ 2", "con thứ nhất", "sp thứ 3")
+    let targetOrdinal = null;
+    const ordinalMap = {
+      'nhất': 1, 'nhat': 1, 'một': 1, 'mot': 1, '1': 1,
+      'hai': 2, '2': 2,
+      'ba': 3, '3': 3,
+      'bốn': 4, 'bon': 4, 'tư': 4, 'tu': 4, '4': 4,
+      'năm': 5, 'nam': 5, '5': 5
+    };
+    const ordMatch = normText.match(/(?:sản phẩm|san pham|máy|may|con|mẫu|mau|mục|muc|sp)\s+thứ\s+(nhất|nhat|một|mot|1|hai|2|ba|3|bốn|bon|tư|tu|4|năm|nam|5)\b/i) ||
+      normText.match(/\bthứ\s+(nhất|nhat|một|mot|1|hai|2|ba|3|bốn|bon|tư|tu|4|năm|nam|5)\b/i);
+    if (ordMatch && ordMatch[1]) {
+      targetOrdinal = ordinalMap[ordMatch[1].toLowerCase()] || null;
+    }
+
+    // 0B. Customer Name & Addressing extraction
+    let customerName = null;
+    let customerPronoun = null;
+    let customerAddressing = null;
+    let isNameDeclaration = false;
+
+    const rawMessage = context.rawMessage || context.message || normText;
+    const addr = extractCustomerAddressing(rawMessage);
+    const detectedName = extractCustomerName(rawMessage, false);
+    const candidateName = detectedName || addr?.name || null;
+    if (candidateName && !hasBlockedNameTokens(candidateName)) {
+      isNameDeclaration = isCustomerNameDeclaration(rawMessage, normText) ||
+        Boolean(/(?:ten\s+la|ten\s+toi|ten\s+minh|ten\s+em|ten\s+anh|ten\s+chi|toi\s+ten|minh\s+ten|em\s+ten|anh\s+ten|chi\s+ten|toi\s+la|minh\s+la|em\s+la|anh\s+la|chi\s+la|cu\s+goi|goi\s+toi\s+la|goi\s+la|xung\s+la)\b/i.test(unaccented));
+      if (isNameDeclaration) {
+        customerName = candidateName;
+        customerPronoun = addr?.pronoun || null;
+        customerAddressing = customerPronoun ? `${customerPronoun} ${customerName}` : customerName;
+      }
+    }
+
+    const isQuotationKeyword = /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(normText);
+    const isShortQuotationRequest = isQuotationKeyword && (
+      /(?:cho\s+(?:anh|em|tôi|chị|mình)?\s*(?:xin\s+)?(?:báo\s+giá|bảng\s+báo\s+giá)|làm\s+báo\s+giá|gửi\s+(?:anh|em|tôi|chị|mình)?\s*(?:báo\s+giá|bảng\s+báo\s+giá)|báo\s+giá\s+(?:sản\s+phẩm|máy|con)?\s*(?:này|đó)?|xin\s+báo\s+giá)\b/i.test(normText) ||
+      normText.split(/\s+/).length <= 6
+    );
+
     // 1. Quantity extraction
     const qtyMatch = normText.match(/\b(\d+)\s*(máy|cái|chiếc|bộ|sp|sản phẩm|hộp|chai|gói)?\b/i);
     const quantity = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
@@ -854,8 +967,14 @@ export class IntentEngine {
     // 5. Category Domain Identification
     let categoryDomain = null;
     let categoryDomainName = null;
+    const unaccentedCleanCategory = unaccented.replace(/\b(?:kiem\s+tra|tra\s+cuu|dieu\s+tra|tra\s+loi|tra\s+gop|tra\s+hang|trao\s+doi)\b/gi, '___verb___');
     for (const [domKey, domObj] of Object.entries(DOMAIN_CATEGORIES)) {
-      if (domObj.keywords.some(kw => normText.includes(kw) || unaccented.includes(kw))) {
+      if (domObj.keywords.some(kw => {
+        if (kw === 'tra' || kw === 'trà') {
+          return new RegExp(`(^|\\s)${kw}(\\s|$)`, 'i').test(unaccentedCleanCategory);
+        }
+        return normText.includes(kw) || unaccentedCleanCategory.includes(kw);
+      })) {
         categoryDomain = domKey;
         categoryDomainName = domObj.name;
         break;
@@ -890,7 +1009,7 @@ export class IntentEngine {
 
     // 8. Strict Product Name Candidate Cleaning (Excludes all non-product appointment, schedule, meta terms)
     const cleanedQuery = normText
-      .replace(/(cho tôi|cho em|cho e|tôi|mình|minh|em|anh|chị|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|mua|bán|có sẵn|tư vấn|tìm|hỏi|dưới|khoảng|tầm giá|\b\d+\b|triệu|tr|k|nghìn|máy|cái|chiếc|bộ|sản phẩm|có hàng không|co hang khong)/gi, ' ')
+      .replace(/(cho tôi|cho em|cho e|tôi|mình|minh|em|anh|chị|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|mua|bán|có sẵn|tư vấn|tìm|hỏi|dưới|khoảng|tầm giá|\b\d+\b|triệu|tr|k|nghìn|máy|cái|chiếc|bộ|sản phẩm|có hàng không|co hang khong|số lượng|so luong|sl)/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -899,17 +1018,40 @@ export class IntentEngine {
     // Blacklist non-product verbs, fillers, conversational particles
     const NON_PRODUCT_TERMS = /(?:hen|gap|nhau|ca phe|cafe|uong|an trua|an toi|di an|lich|ranh|trong|nhac|nho|ban|noi chuyen|tam su|thoi tiet|khieu nai|dia chi|bao hanh|giao hang|doi tra|phi ship|gap nhan vien|nguoi that|chuyen vien|so sanh|khac nhau|ho tro truc tiep|cong viec|cuoc hen|ngay nao|thu sau|thu hai|thu ba|thu tu|thu nam|thu bay|chu nhat|tuan nay|ngay mai|hom nay|tuan toi|dat ngay do|chot lich|dat lich|nguoi yeu|ban gai|ban trai|thong minh|danh sach viec|viec can lam|ke hoach|todo|to do|bao cao|doanh thu|de xem|de coi|thu xem|thu coi|xem sao|biet dau|khong ro|chua ro|the nao|ra sao|sao cung duoc|u de xem|uh|um|u|sao|co gi|khong co|chua|roi|thoi|vay|nhi|the|a|ha|day|kia)/i;
 
-    const hasProductSignal = !!matchedBrand || !!extractedModelCode || !!categoryDomain || /(?:laptop|may in|may scan|may dem tien|may lanh|tu lanh|man hinh|tivi|dien thoai|tai nghe|chuot|ban phim|tra\b|ca phe|nuoc hoa|muc in|giay in)/i.test(unaccentedClean);
+    const unaccentedMasked = unaccentedClean.replace(/\b(?:kiem\s+tra|tra\s+cuu|dieu\s+tra|tra\s+loi|tra\s+gop|tra\s+hang|trao\s+doi)\b/gi, '___verb___');
+    const hasProductSignal = !!matchedBrand || !!extractedModelCode || !!categoryDomain || /(?:laptop|may in|may scan|may dem tien|may lanh|tu lanh|man hinh|tivi|dien thoai|tai nghe|chuot|ban phim|tra\b|ca phe|nuoc hoa|muc in|giay in)/i.test(unaccentedMasked);
 
     const isNonProductPhrase = NON_PRODUCT_TERMS.test(unaccentedClean) || (!hasProductSignal && unaccentedClean.split(' ').length <= 2);
-    // If it has non-product terms and no verified hardware model code, resolvedProductName MUST be null!
-    const resolvedProductName = (isNonProductPhrase || isBroadCategory) && !extractedModelCode ? null : (cleanedQuery || null);
+    // If it has non-product terms, name declaration, or broad category, resolvedProductName MUST be null!
+    let resolvedProductName = (isNonProductPhrase || isBroadCategory || (isNameDeclaration && !extractedModelCode)) && !extractedModelCode ? null : (cleanedQuery || null);
+
+    // Context continuity: If quotation request without explicit product, inherit active product
+    const convId = context.conversationId || context.conversation_id;
+    let activeProdContext = null;
+    if (convId && ActiveProductContext) {
+      activeProdContext = ActiveProductContext.getContext(convId);
+    }
+    if (!activeProdContext && context.selectedProduct) {
+      activeProdContext = context.selectedProduct;
+    }
+
+    if (isQuotationKeyword && !resolvedProductName && !targetOrdinal && activeProdContext) {
+      resolvedProductName = activeProdContext.active_product_name || activeProdContext.name || null;
+    }
 
     const extractedPhone = normText.match(/(0\d{9})\b/)?.[1] || null;
 
     return {
       productName: resolvedProductName,
+      customerName,
+      customerPronoun,
+      customerAddressing,
+      isNameDeclaration,
       quantity,
+      targetOrdinal,
+      ordinal: targetOrdinal,
+      isShortQuotationRequest,
+      activeProduct: activeProdContext,
       budget: budgetMax,
       budgetMax,
       budgetMin,

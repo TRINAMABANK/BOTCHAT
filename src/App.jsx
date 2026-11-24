@@ -25,13 +25,19 @@ import {
   VoiceRecognizer
 } from './utils/speech';
 
-const createWelcomeMessage = () => ({
-  id: `msg_welcome_${Date.now()}`,
-  senderType: 'assistant',
-  content:
-    'Dạ xin chào bạn! 👋 Tôi là **TRÍ AI SALES ROBOT**, trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm gì? Bạn cần tôi giúp gì? Bạn có thể hỏi tôi hoặc tham khảo cột dự liệu bên cạnh. Do tôi là Trợ lý ảo nên Bạn viết câu từ rõ ràng giúp, tôi mới hiểu ý bạn',
-  createdAt: new Date().toISOString()
-});
+const createWelcomeMessage = (customerName = null, pronoun = null) => {
+  let greeting = 'Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?';
+  if (customerName) {
+    const addressing = pronoun ? `${pronoun} ${customerName}` : customerName;
+    greeting = `Xin chào ${addressing}! Em là **TRÍ AI ULTIMATE ROBOT** – rất vui được gặp lại ${pronoun || 'anh/chị'}. Hôm nay ${pronoun || 'anh/chị'} cần em hỗ trợ gì ạ?`;
+  }
+  return {
+    id: `msg_welcome_${Date.now()}`,
+    senderType: 'assistant',
+    content: greeting,
+    createdAt: new Date().toISOString()
+  };
+};
 
 export const App = () => {
   // Chat & Conversation States
@@ -98,7 +104,7 @@ export const App = () => {
 
   // Bot & System Settings
   const [settings, setSettings] = useState({
-    bot_name: 'TRÍ AI SALES ROBOT',
+    bot_name: 'TRÍ AI ULTIMATE ROBOT',
     owner_name: 'Quang Nhựt Trí',
     hotline: '0982441446',
     show_hotline: '1'

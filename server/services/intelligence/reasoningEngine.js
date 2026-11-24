@@ -244,7 +244,8 @@ export class ReasoningEngine {
 
     if (primaryIntent === 'FORMAL_QUOTATION') {
       plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
-      if (!slots.productName && !selectedProduct) {
+      const hasProductContext = slots.productName || selectedProduct || slots.targetOrdinal || slots.ordinal || context.activeProductContext;
+      if (!hasProductContext) {
         plan.dataSufficient = false;
         plan.complexity = 'NEEDS_CLARIFICATION';
         plan.clarificationQuestion = 'Dạ, bạn muốn lập bảng báo giá cho sản phẩm hoặc dòng máy cụ thể nào ạ?';
@@ -260,7 +261,7 @@ export class ReasoningEngine {
         'FORMAT_MARKDOWN_QUOTATION'
       ];
       plan.targetSources = ['crawled_products', 'products', 'quotationService'];
-      plan.internalReasoningLog = `Formal quotation planned for product "${slots.productName || selectedProduct.name}" (Quantity: ${slots.quantity}).`;
+      plan.internalReasoningLog = `Formal quotation planned for product "${slots.productName || selectedProduct?.name || (slots.targetOrdinal ? `Sản phẩm thứ ${slots.targetOrdinal}` : 'Sản phẩm')}" (Quantity: ${slots.quantity}).`;
       return plan;
     }
 

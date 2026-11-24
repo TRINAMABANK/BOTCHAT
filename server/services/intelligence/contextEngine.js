@@ -23,6 +23,9 @@ export class ContextEngine {
    * NEVER from chat text claim ("Tôi là anh Trí").
    */
   static resolveUserContext(params = {}) {
+    if (params.userContext && (params.userContext.role || params.userContext.isOwner !== undefined)) {
+      return params.userContext;
+    }
     const { customerInfo = {}, user = null, authenticatedUser = null, message = '' } = params;
     const authUser = user || authenticatedUser;
 
@@ -53,8 +56,12 @@ export class ContextEngine {
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/đ/g, 'd');
 
-      const claimsOwner = /(?:toi|anh|minh|em)\s+la\s+(?:anh\s+)?(?:tri|quang\s+nhut\s+tri|admin|chu\s+shop|sep\s+tri)\b/i.test(unaccented) ||
-                         /(?:toi|anh)\s+la\s+chu\s+(?:so\s+huu|nhan|doanh\s+nghiep)\b/i.test(unaccented);
+      const isCasualNameIntro = /(?:cu\s+goi\s+(?:toi|minh|em|anh|chi)\s+la|ten\s+(?:toi|minh|em|anh|chi)\s+la|(?:toi|minh|em|anh|chi)\s+ten\s+la)\s+/i.test(unaccented);
+      const claimsOwner = !isCasualNameIntro && (
+        /(?:toi|anh|minh|em)\s+la\s+(?:admin|chu\s+shop|chu\s+so\s+huu|chu\s+doanh\s+nghiep|quang\s+nhut\s+tri|sep\s+tri)\b/i.test(unaccented) ||
+        /(?:toi|anh)\s+la\s+(?:chu\s+so\s+huu|chu\s+nhan|chu\s+doanh\s+nghiep)\b/i.test(unaccented) ||
+        /(?:toi|anh)\s+la\s+anh\s+tri\s*(?:chu\s+shop|day|ne)?\b/i.test(unaccented)
+      );
       if (claimsOwner) {
         isImpersonationAttempt = true;
       }

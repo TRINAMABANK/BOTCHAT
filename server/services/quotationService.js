@@ -122,6 +122,9 @@ export class QuotationService {
       subtotal += lineTotal;
 
       const priceType = it.priceType || it.price_type || 'REFERENCE_ONLY';
+      if (unitPrice <= 0 && priceType === 'UNVERIFIED') {
+        throw new Error(`Đơn giá sản phẩm "${it.productName || it.product_name}" chưa được xác thực hoặc không hợp lệ.`);
+      }
       if (priceType === 'REFERENCE_ONLY') {
         hasReferencePrice = true;
       }

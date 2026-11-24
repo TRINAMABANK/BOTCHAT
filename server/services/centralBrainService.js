@@ -29,11 +29,14 @@ import { ToolOrchestrator } from './intelligence/toolOrchestrator.js';
 import { LearningCaptureEngine } from './intelligence/learningCaptureEngine.js';
 import { LearningIngestionEngine } from './intelligence/learningIngestionEngine.js';
 import { SmartSalesConsultant } from './intelligence/smartSalesConsultant.js';
+import { UniversalSalesConsultant } from './intelligence/universalSalesConsultant.js';
 import { AppointmentHandler } from './intelligence/appointmentHandler.js';
 import { ContextEngine } from './intelligence/contextEngine.js';
 import { SecretaryHandler } from './intelligence/secretaryHandler.js';
 import { HumanMemoryEngine } from './intelligence/humanMemoryEngine.js';
 import { PlanningEngine } from './intelligence/planningEngine.js';
+import { ActiveProductContext } from './intelligence/activeProductContext.js';
+import { CrmLeadService } from './crmLeadService.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -191,10 +194,66 @@ export const CENTRAL_BRAIN_TOOLS = [
 
 export class CentralBrainService {
   /**
-   * Main entry point for One Brain conversation processing
+   * Main entry point for One Brain conversation processing (with persistence & active context tracking)
    */
   static async processChat(params = {}) {
-    const {
+    const res = await this._processChatInternal(params);
+    if (res && res.reply && params.conversationId) {
+      await this._persistAssistantMessage(params.conversationId, res.reply, res.recommendedProduct);
+    }
+    return res;
+  }
+
+  /**
+   * Helper to persist assistant response to SQLite messages table for multi-turn history
+   */
+  static async _persistAssistantMessage(conversationId, content, recommendedProduct = null) {
+    if (!conversationId || !content) return;
+    try {
+      const now = new Date().toISOString();
+      await db.run(
+        `INSERT OR IGNORE INTO users (id, email, password_hash, full_name, role, plan, is_active, created_at, updated_at)
+         VALUES ('usr_anonymous', 'anonymous@triai.vn', 'hash', 'Khách Vãng Lai', 'customer', 'free', 1, ?, ?)`,
+        [now, now]
+      );
+      await db.run(
+        `INSERT OR IGNORE INTO conversations (id, user_id, title, is_archived, created_at, updated_at)
+         VALUES (?, 'usr_anonymous', 'Cuộc hội thoại', 0, ?, ?)`,
+        [conversationId, now, now]
+      );
+      const msgId = `msg_a_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      await db.run(
+        `INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, metadata_json, created_at)
+         VALUES (?, ?, 'assistant', 'central_brain', ?, ?, ?)`,
+        [msgId, conversationId, content, JSON.stringify({ recommendedProduct }), now]
+      );
+
+      // If recommendedProduct exists, only update active product if it doesn't conflict with customer's explicit inquiry
+      if (recommendedProduct && (recommendedProduct.name || recommendedProduct.active_product_name)) {
+        const curActive = ActiveProductContext.getContext(conversationId);
+        if (!curActive || !curActive.active_product_name) {
+          ActiveProductContext.setActiveProduct(conversationId, recommendedProduct);
+        } else {
+          const recName = (recommendedProduct.name || recommendedProduct.active_product_name).toLowerCase();
+          const actName = curActive.active_product_name.toLowerCase();
+          const actModels = CrmLeadService.extractModelCodes(actName);
+          const recModels = CrmLeadService.extractModelCodes(recName);
+          // Only overwrite if customer didn't specify an explicit hardware model or if models match
+          if (actModels.length === 0 || recModels.some(m => actModels.includes(m))) {
+            ActiveProductContext.setActiveProduct(conversationId, recommendedProduct);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[CENTRAL BRAIN] Assistant message persist warning:', e.message);
+    }
+  }
+
+  /**
+   * Internal One Brain conversation processing
+   */
+  static async _processChatInternal(params = {}) {
+    let {
       conversationId = `conv_${randomUUID()}`,
       message = '',
       selectedProduct = null,
@@ -209,7 +268,7 @@ export class CentralBrainService {
     if (!trimmedMsg) {
       return {
         success: true,
-        reply: 'Dạ, tôi là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện. Tôi có thể giúp gì cho bạn hôm nay ạ?',
+        reply: 'Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?',
         citations: [],
         toolsUsed: []
       };
@@ -219,6 +278,57 @@ export class CentralBrainService {
     const userContext = ContextEngine.resolveUserContext(params);
     params.userContext = userContext;
     params.conversationHistory = await ContextEngine.getConversationHistory(conversationId, 6);
+
+    // Persist incoming user message into SQLite messages table for multi-turn continuity
+    const userMsgId = `msg_u_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    try {
+      const now = new Date().toISOString();
+      await db.run(
+        `INSERT OR IGNORE INTO users (id, email, password_hash, full_name, role, plan, is_active, created_at, updated_at)
+         VALUES ('usr_anonymous', 'anonymous@triai.vn', 'hash', 'Khách Vãng Lai', 'customer', 'free', 1, ?, ?)`,
+        [now, now]
+      );
+      const effectiveDbUserId = (userId && typeof userId === 'string' && userId.startsWith('usr_')) ? userId : 'usr_anonymous';
+      if (effectiveDbUserId !== 'usr_anonymous') {
+        await db.run(
+          `INSERT OR IGNORE INTO users (id, email, password_hash, full_name, role, plan, is_active, created_at, updated_at)
+           VALUES (?, ?, 'hash', 'Khách hàng', 'customer', 'free', 1, ?, ?)`,
+          [effectiveDbUserId, `${effectiveDbUserId}@customer.triai.vn`, now, now]
+        );
+      }
+      await db.run(
+        `INSERT OR IGNORE INTO conversations (id, user_id, title, is_archived, created_at, updated_at)
+         VALUES (?, ?, 'Cuộc hội thoại', 0, ?, ?)`,
+        [conversationId, effectiveDbUserId, now, now]
+      );
+      await db.run(
+        `INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, metadata_json, created_at)
+         VALUES (?, ?, 'user', ?, ?, ?, ?)`,
+        [userMsgId, conversationId, effectiveDbUserId, trimmedMsg, JSON.stringify({ actionType, clientDevice }), now]
+      );
+    } catch (e) {
+      console.warn('[CENTRAL BRAIN] User message persist warning:', e.message);
+    }
+
+    // Active Product Context Resolution (BotChat Brain 2.1)
+    let activeProdContext = ActiveProductContext.getContext(conversationId);
+    if (!activeProdContext && conversationId) {
+      activeProdContext = await ActiveProductContext.resolveFromHistory(conversationId, db);
+    }
+    if (selectedProduct) {
+      activeProdContext = ActiveProductContext.setActiveProduct(conversationId, selectedProduct, { customerId: userId });
+    }
+
+    // Check if customer explicitly mentions a new or switch product in the current message
+    const isQuotationPrompt = /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(trimmedMsg);
+    const isShortQuote = isQuotationPrompt && trimmedMsg.split(/\s+/).length <= 6;
+    if (!isShortQuote) {
+      const userDiscussedProd = ActiveProductContext.extractProductFromText(trimmedMsg);
+      if (userDiscussedProd) {
+        activeProdContext = ActiveProductContext.setActiveProduct(conversationId, userDiscussedProd, { customerId: userId });
+      }
+    }
+    params.activeProductContext = activeProdContext;
 
     const coRef = ContextEngine.resolveCoReferences(trimmedMsg, conversationId, params);
     if (coRef.resolvedTimeSpec && !params.timeSpec) {
@@ -233,11 +343,249 @@ export class CentralBrainService {
     const intentResult = IntentEngine.analyzeIntent(trimmedMsg, params);
     const unaccentedMsg = IntentEngine.stripDiacritics(trimmedMsg).toLowerCase();
 
-    // Resolve user ID with priority on explicit phone entity
-    const effectiveUserId = intentResult.slots?.phone || customerInfo?.phone || customerInfo?.id || userId;
+    // Resolve stable customer identity
+    const isAuthenticated = userContext?.isAuthenticated || Boolean(params.user || params.authenticatedUser);
+    const verifiedCustomerId = customerInfo?.customerId || (isAuthenticated ? userContext.userId : null);
+    const isExplicitUser = userId && userId !== 'usr_anonymous';
+    const effectiveUserId = verifiedCustomerId || (isExplicitUser ? userId : (conversationId ? `session_${conversationId}` : 'usr_anonymous'));
+    const callerRole = userContext?.isOwner ? 'owner' : (userContext?.isStaff ? 'staff' : 'customer');
 
-    // 2. MEMORY ENGINE: Check for memory commands or customer preference facts
+    // 0C. RETRIEVE STORED CUSTOMER PROFILE (From MemoryEngine & HumanMemoryEngine)
+    let effectiveCustomerName = customerInfo?.name || null;
+    let effectiveCustomerPronoun = customerInfo?.pronoun || null;
+    let effectiveCustomerAddressing = customerInfo?.addressing || null;
+
+    if (!effectiveCustomerName || effectiveCustomerName === 'Quý Khách' || effectiveCustomerName === 'Quý khách') {
+      try {
+        const storedKv = await MemoryEngine.getCustomerMemory(effectiveUserId, orgId);
+        const nameKv = storedKv.find(m => m.key === 'customer_name')?.value;
+        const pronounKv = storedKv.find(m => m.key === 'customer_pronoun')?.value;
+        const addrKv = storedKv.find(m => m.key === 'customer_addressing')?.value;
+        if (nameKv) {
+          effectiveCustomerName = nameKv;
+          effectiveCustomerPronoun = pronounKv || effectiveCustomerPronoun;
+          effectiveCustomerAddressing = addrKv || (effectiveCustomerPronoun ? `${effectiveCustomerPronoun} ${effectiveCustomerName}` : effectiveCustomerName);
+        }
+      } catch {}
+    }
+
+    // Attach resolved customer profile to params & customerInfo for downstream engines
+    if (effectiveCustomerName && (!customerInfo?.name || customerInfo.name === 'Quý Khách' || customerInfo.name === 'Quý khách')) {
+      customerInfo = {
+        ...(customerInfo || {}),
+        name: effectiveCustomerName,
+        pronoun: effectiveCustomerPronoun,
+        addressing: effectiveCustomerAddressing
+      };
+      params.customerInfo = customerInfo;
+    }
+
+    // Remember customer name & addressing in MemoryEngine & HumanMemoryEngine
+    if (intentResult.slots?.customerName) {
+      const cName = intentResult.slots.customerName;
+      const cPronoun = intentResult.slots.customerPronoun || null;
+      const cAddressing = intentResult.slots.customerAddressing || (cPronoun ? `${cPronoun} ${cName}` : cName);
+
+      effectiveCustomerName = cName;
+      effectiveCustomerPronoun = cPronoun;
+      effectiveCustomerAddressing = cAddressing;
+
+      customerInfo = {
+        ...(customerInfo || {}),
+        name: cName,
+        pronoun: cPronoun,
+        addressing: cAddressing
+      };
+      params.customerInfo = customerInfo;
+
+      await MemoryEngine.rememberCustomerFact({
+        userId: effectiveUserId,
+        orgId,
+        memoryType: 'PROFILE',
+        key: 'customer_name',
+        value: cName,
+        confidence: 0.98
+      });
+      if (cPronoun) {
+        await MemoryEngine.rememberCustomerFact({
+          userId: effectiveUserId,
+          orgId,
+          memoryType: 'PROFILE',
+          key: 'customer_pronoun',
+          value: cPronoun,
+          confidence: 0.95
+        });
+      }
+      await MemoryEngine.rememberCustomerFact({
+        userId: effectiveUserId,
+        orgId,
+        memoryType: 'PROFILE',
+        key: 'customer_addressing',
+        value: cAddressing,
+        confidence: 0.98
+      });
+
+      await HumanMemoryEngine.remember({
+        memoryType: 'SEMANTIC',
+        content: `Tên khách hàng: ${cName}`,
+        subject: 'customer_name',
+        entityId: effectiveUserId,
+        source: 'USER_CHAT',
+        confidence: 0.98,
+        tenantId: orgId,
+        sensitivity: 'INTERNAL',
+        extraData: {
+          customerName: cName,
+          pronoun: cPronoun,
+          addressing: cAddressing
+        }
+      });
+      if (cPronoun) {
+        await HumanMemoryEngine.remember({
+          memoryType: 'SEMANTIC',
+          content: `Cách xưng hô: ${cPronoun}`,
+          subject: 'customer_pronoun',
+          entityId: effectiveUserId,
+          source: 'USER_CHAT',
+          confidence: 0.95,
+          tenantId: orgId,
+          sensitivity: 'INTERNAL'
+        });
+      }
+
+      if (conversationId) {
+        try {
+          await db.run(
+            "UPDATE leads SET customer_name = ?, updated_at = ? WHERE conversation_id = ? AND (customer_name LIKE 'Khách%' OR customer_name = 'Quý Khách' OR customer_name = 'Quý khách' OR customer_name = '' OR customer_name IS NULL)",
+            [cAddressing, new Date().toISOString(), conversationId]
+          );
+        } catch {}
+      }
+    }
+
+    // 2. CUSTOMER IDENTITY & GREETING INTENTS
+    if (intentResult.primaryIntent === 'CUSTOMER_INTRODUCTION') {
+      const cName = intentResult.slots?.customerName || effectiveCustomerName || 'bạn';
+      const cPronoun = intentResult.slots?.customerPronoun || effectiveCustomerPronoun || null;
+      const addressing = cPronoun ? `${cPronoun} ${cName}` : cName;
+      const ref = cPronoun || 'anh/chị';
+      const replyText = `Dạ, em chào ${addressing}! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, rất vui được hỗ trợ ${ref} hôm nay ạ. Hôm nay ${ref} đang quan tâm đến sản phẩm nào để em tư vấn cho ${ref} ạ?`;
+
+      return ResponseEngine.formatResponse({
+        replyText,
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'CUSTOMER_GREETED',
+        requiresInput: 'TEXT_PROMPT',
+        suggestedActions: [
+          { id: 'view_catalog', label: 'Xem danh mục sản phẩm', action: 'view_catalog' },
+          { id: 'consult_product', label: 'Tư vấn sản phẩm', action: 'consult_product' }
+        ],
+        citations: [],
+        toolsUsed: ['identity_handler', 'memory_engine', 'human_memory_engine']
+      });
+    }
+
+    if (intentResult.primaryIntent === 'CUSTOMER_DECLINE_NAME') {
+      return ResponseEngine.formatResponse({
+        replyText: 'Dạ không sao ạ! Em rất hân hạnh được phục vụ Quý khách. Hôm nay Quý khách đang quan tâm đến dòng sản phẩm nào hoặc cần em hỗ trợ thông tin gì ạ?',
+        revealCatalog: false,
+        stage: 'DECLINE_NAME_ACKNOWLEDGED',
+        requiresInput: 'TEXT_PROMPT',
+        suggestedActions: [
+          { id: 'view_catalog', label: 'Xem danh mục sản phẩm', action: 'view_catalog' }
+        ],
+        citations: [],
+        toolsUsed: ['identity_handler']
+      });
+    }
+
+    // 2. MEMORY ENGINE: Check for memory commands (VIEW, SAVE, FORGET)
     if (intentResult.primaryIntent === 'MEMORY_COMMAND') {
+      const memoryAction = intentResult.action || 'FORGET';
+
+      if (memoryAction === 'VIEW') {
+        const storedMemories = await HumanMemoryEngine.retrieve({
+          entityId: effectiveUserId,
+          userRole: callerRole,
+          requestingUserId: userId,
+          tenantId: orgId,
+          limit: 10
+        });
+        const kvMemories = await MemoryEngine.getCustomerMemory(effectiveUserId, orgId);
+
+        const facts = [];
+        const nameVal = kvMemories.find(m => m.key === 'customer_name')?.value ||
+          storedMemories.find(m => m.subject === 'customer_name')?.content?.replace('Tên khách hàng: ', '');
+        const addrVal = kvMemories.find(m => m.key === 'customer_addressing')?.value;
+        const phoneVal = kvMemories.find(m => m.key === 'phone')?.value ||
+          storedMemories.find(m => m.subject === 'phone')?.content?.replace('Số điện thoại liên hệ: ', '');
+        const budgetVal = kvMemories.find(m => m.key === 'target_budget')?.value ||
+          storedMemories.find(m => m.subject === 'budget')?.content?.replace('Ngân sách dự kiến: ', '');
+
+        if (nameVal) facts.push(`- **Tên khách hàng:** ${nameVal}`);
+        if (addrVal) facts.push(`- **Cách xưng hô:** ${addrVal}`);
+        if (phoneVal) facts.push(`- **Số điện thoại:** ${phoneVal}`);
+        if (budgetVal) {
+          const numBudget = parseInt(budgetVal, 10);
+          facts.push(`- **Ngân sách quan tâm:** ${!isNaN(numBudget) ? numBudget.toLocaleString('vi-VN') + 'đ' : budgetVal}`);
+        }
+
+        let replyText = '';
+        if (facts.length > 0) {
+          replyText = `Dạ, hệ thống đang lưu các thông tin hỗ trợ của bạn gồm:\n\n${facts.join('\n')}\n\nBạn có thể yêu cầu cập nhật hoặc yêu cầu xóa bất kỳ lúc nào để đảm bảo quyền riêng tư tuyệt đối ạ.`;
+        } else {
+          replyText = `Dạ hiện tại hệ thống chưa lưu thông tin cá nhân nào của bạn ạ.`;
+        }
+
+        return ResponseEngine.formatResponse({
+          replyText,
+          stage: 'MEMORY_VIEWED',
+          toolsUsed: ['memory_engine', 'human_memory_engine']
+        });
+      }
+
+      if (memoryAction === 'SAVE') {
+        const savedDetails = [];
+        if (intentResult.slots?.customerName) {
+          savedDetails.push(`Tên: ${intentResult.slots.customerName}`);
+        }
+        if (intentResult.slots?.phone) {
+          savedDetails.push(`SĐT: ${intentResult.slots.phone}`);
+        }
+        if (intentResult.slots?.budget) {
+          savedDetails.push(`Ngân sách: ${intentResult.slots.budget}`);
+        }
+
+        // If user says "Lưu thông tin này" with a custom note, save it as semantic note
+        const noteContent = trimmedMsg.replace(/(?:lưu\s+thông\s+tin\s+này|lưu\s+thông\s+tin|ghi\s+nhớ\s+giúp\s+tôi)/gi, '').trim();
+        if (noteContent && noteContent.length > 3) {
+          await HumanMemoryEngine.remember({
+            memoryType: 'SEMANTIC',
+            content: noteContent,
+            subject: 'NOTE',
+            entityId: effectiveUserId,
+            source: 'USER_CHAT',
+            confidence: 1.0,
+            tenantId: orgId,
+            sensitivity: 'INTERNAL'
+          });
+          savedDetails.push(`Ghi chú: "${noteContent}"`);
+        }
+
+        const replyText = savedDetails.length > 0
+          ? `Dạ, em đã ghi nhận và lưu thông tin (${savedDetails.join(', ')}) của bạn vào hệ thống rồi nhé ạ!`
+          : `Dạ, em đã lưu lại các thông tin bạn vừa cung cấp vào hệ thống để phục vụ tư vấn chu đáo nhất rồi ạ!`;
+
+        return ResponseEngine.formatResponse({
+          replyText,
+          stage: 'MEMORY_SAVED',
+          toolsUsed: ['memory_engine', 'human_memory_engine']
+        });
+      }
+
+      // Default FORGET action
       await MemoryEngine.forgetCustomer(effectiveUserId, orgId);
       await HumanMemoryEngine.forget({ entityId: effectiveUserId, tenantId: orgId });
       return ResponseEngine.formatResponse({
@@ -334,7 +682,6 @@ export class CentralBrainService {
     }
 
     // Retrieve active Human Memories for this user / entity
-    const callerRole = userContext?.isOwner ? 'owner' : (userContext?.isStaff ? 'staff' : 'customer');
     const relevantMemories = await HumanMemoryEngine.retrieve({
       entityId: effectiveUserId,
       userRole: callerRole,
@@ -355,6 +702,7 @@ export class CentralBrainService {
     // Context enriched with Intent & Plan
     const enrichedContext = {
       ...params,
+      userContext,
       message: trimmedMsg,
       conversationId,
       intentResult,
@@ -418,6 +766,11 @@ export class CentralBrainService {
       return res;
     }
     if (intentResult.primaryIntent === 'REMINDER') {
+      if (enrichedContext.userContext?.isOwner) {
+        const res = await SecretaryHandler.handleOwnerTask(enrichedContext);
+        ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_TASK', lastTimeSpec: intentResult.slots?.timeSpec });
+        return res;
+      }
       const res = await AppointmentHandler.handleReminder(enrichedContext);
       ContextEngine.updateSessionContext(conversationId, { lastIntent: 'REMINDER', lastTimeSpec: intentResult.slots?.timeSpec });
       return res;
@@ -425,7 +778,7 @@ export class CentralBrainService {
     if (intentResult.primaryIntent === 'COMPANY_INFO' || intentResult.primaryIntent === 'COMPLAINT') {
       return await AppointmentHandler.handleBusinessSupport(enrichedContext);
     }
-    if (intentResult.primaryIntent === 'GENERAL_CHAT') {
+    if (intentResult.primaryIntent === 'GENERAL_CHAT' || intentResult.primaryIntent === 'GREETING' || intentResult.primaryIntent === 'IDENTITY_INQUIRY') {
       return await AppointmentHandler.handleGeneralChat(enrichedContext);
     }
 
@@ -485,6 +838,7 @@ export class CentralBrainService {
       const quoteRes = await ToolOrchestrator.executeQuotation({
         productName: intentResult.slots?.productName || 'máy in',
         quantity: intentResult.slots?.quantity || 1,
+        conversationId,
         orgId: context.orgId
       });
       salesResponse = {
@@ -539,7 +893,7 @@ export class CentralBrainService {
    * Smart Orchestrator Fallback Engine
    */
   static async runSmartOrchestratorFallback(context) {
-    const { message, conversationId, selectedProduct, actionType, customerInfo, clientDevice, orgId, intentResult, plan } = context;
+    const { message, conversationId, selectedProduct, actionType, customerInfo, clientDevice, orgId, intentResult, plan, userContext = context.userContext || {} } = context;
     const toolsUsed = [];
     let uiDirectives = {};
     const citations = [];
@@ -638,21 +992,44 @@ export class CentralBrainService {
       const qtyMatch = message.match(/\b(\d+)\s*(máy|cái|chiếc|bộ|sp|sản phẩm)?/i);
       const qty = slots.quantity || (qtyMatch ? parseInt(qtyMatch[1]) : 1);
 
-      const cleanedQuery = (slots.productName || message)
-        .replace(/(cho tôi|cho em|cho e|tôi|mình|minh|em|anh|chị|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|\b\d+\b|máy|cái|chiếc|bộ)/gi, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
       const quoteExec = await ToolOrchestrator.executeQuotation({
-        productName: cleanedQuery || 'máy',
+        productName: slots.productName,
+        ordinal: slots.targetOrdinal || slots.ordinal,
         quantity: qty,
         customerInfo,
-        conversationId
+        conversationId,
+        selectedProduct,
+        db
       });
 
-      if (quoteExec.status === 'SUCCESS' && quoteExec.result?.quote) {
-        const { product: primaryProd, quote } = quoteExec.result;
-        return ResponseEngine.formatResponse({
+      if (quoteExec?.status === 'NEED_CLARIFICATION' || quoteExec?.result?.status === 'NEED_CLARIFICATION') {
+        const clarMsg = quoteExec.result?.message || quoteExec.message;
+        const resp = ResponseEngine.formatResponse({
+          replyText: clarMsg,
+          stage: 'CONSULTING',
+          toolsUsed,
+          confidenceTag: 'CLARIFICATION_REQUIRED'
+        });
+        await this._persistAssistantMessage(conversationId, resp.reply, null);
+        return resp;
+      }
+
+      if (quoteExec?.status === 'PRICE_UNVERIFIED' || quoteExec?.result?.status === 'PRICE_UNVERIFIED') {
+        const unverifiedMsg = quoteExec.result?.message || quoteExec.message;
+        const resp = ResponseEngine.formatResponse({
+          replyText: unverifiedMsg,
+          stage: 'CONSULTING',
+          toolsUsed,
+          confidenceTag: 'PRICE_UNVERIFIED'
+        });
+        await this._persistAssistantMessage(conversationId, resp.reply, null);
+        return resp;
+      }
+
+      if (quoteExec?.status === 'SUCCESS' && (quoteExec.result?.quote || quoteExec.quote)) {
+        const primaryProd = quoteExec.result?.product || quoteExec.product;
+        const quote = quoteExec.result?.quote || quoteExec.quote;
+        const resp = ResponseEngine.formatResponse({
           replyText: `Dạ em xin gửi bảng báo giá chính thức cho **${primaryProd.name}** (Số lượng: ${qty} ${primaryProd.unit || 'cái'}) theo thông tin từ kho nhà cung cấp ạ:\n\n${quote.markdown}`,
           revealCatalog: true,
           recommendedField: primaryProd.category || null,
@@ -667,8 +1044,11 @@ export class CentralBrainService {
             source: 'quotation_engine',
             label: `[Mã báo giá: ${quote.quoteCode}]`
           }],
-          toolsUsed
+          toolsUsed,
+          confidenceTag: 'FORMAL_QUOTATION_GENERATED'
         });
+        await this._persistAssistantMessage(conversationId, resp.reply, primaryProd);
+        return resp;
       }
     }
 
@@ -696,13 +1076,13 @@ export class CentralBrainService {
         });
       }
 
-      const docInstruction = `Bạn là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện hỗ trợ tra cứu tài liệu quy chuẩn và quy trình nội bộ.
+      const docInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh hỗ trợ tra cứu tài liệu quy chuẩn và quy trình nội bộ.
 Nguyên tắc:
 - Dựa vào nội dung tài liệu trích dẫn để giải đáp chính xác, khách quan.
 - Dẫn kèm nguồn trích dẫn theo nhãn [Nguồn: ...].
 - Nếu tài liệu không có thông tin về câu hỏi của người dùng, trả lời trung thực rằng tài liệu hiện có chưa có quy định về nội dung này.
 - Tuyệt đối không đề cập đến việc bán hàng hay sản phẩm thương mại khi đang trả lời về văn bản nội bộ.
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AN.`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AI ULTIMATE ROBOT.`;
 
       const prompt = `${docInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -746,12 +1126,12 @@ Nguyên tắc:
         });
       }
 
-      const excelInstruction = `Bạn là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện hỗ trợ tính toán và phân tích bảng tính Excel.
+      const excelInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh hỗ trợ tính toán và phân tích bảng tính Excel.
 Nguyên tắc:
 - Dựa trên dữ liệu bảng tính trích xuất để trả lời chính xác, mạch lạc.
 - Dẫn kèm nguồn trích dẫn theo nhãn [Bảng tính: ...].
 - Tuyệt đối không bịa đặt số liệu tài chính.
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AN.`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AI ULTIMATE ROBOT.`;
 
       const prompt = `${excelInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -790,12 +1170,12 @@ Nguyên tắc:
         });
       }
 
-      const webInstruction = `Bạn là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện tra cứu thông tin Internet.
+      const webInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh tra cứu thông tin Internet.
 Nguyên tắc:
 - Trả lời bằng tiếng Việt lịch sự, thông minh, chuyên nghiệp, súc tích.
 - Khi có dữ liệu trích dẫn được cung cấp, hãy tổng hợp câu trả lời chính xác và dẫn kèm nguồn theo nhãn [Nguồn: ...].
 - Tuyệt đối không dẫn nguồn duckduckgo hoặc các đường link tìm kiếm rác.
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AN.`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AI ULTIMATE ROBOT.`;
 
       const prompt = `${webInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -882,6 +1262,27 @@ Nguyên tắc:
         message,
         normMessage: unaccentedMsg,
         allProducts: allActiveProds
+      });
+    }
+
+    // 3B.5C. UNIVERSAL SALES CONSULTANT: PAGINATION & VIEW ALL (PHẦN V)
+    const isPaginationReq = primaryIntent === 'PAGINATION_NEXT' ||
+      /(?:gui\s+tiep|xem\s+tiep|tiep\s+tuc|gui\s+them|cho\s+xem\s+tiep|5\s+mau\s+tiep\s+theo|5\s+san\s+pham\s+tiep\s+theo|gui\s+tiep\s+5\s+mau|xem\s+tiep\s+5\s+san\s+pham|mau\s+tiep|trang\s+sau|trang\s+tiep|gui\s+5\s+mau\s+tiep|gui\s+5\s+mau\s+nua|ok\s+gui\s+tiep|dong\s+y\s+gui\s+tiep)\b/i.test(unaccentedMsg);
+
+    const isViewAllReq = primaryIntent === 'VIEW_ALL_PRODUCTS' ||
+      /(?:cho\s+anh\s+xem\s+tat\s+ca|cho\s+toi\s+xem\s+tat\s+ca|xem\s+tat\s+ca|gui\s+het\s+danh\s+sach|gui\s+het|co\s+nhung\s+mau\s+nao|tham\s+khao\s+toan\s+bo|xem\s+toan\s+bo|xem\s+het|toan\s+bo\s+danh\s+muc)\b/i.test(unaccentedMsg);
+
+    if (isPaginationReq || isViewAllReq) {
+      toolsUsed.push('universal_sales_consultant_pagination');
+      return await UniversalSalesConsultant.consultSales({
+        message,
+        conversationId,
+        userContext,
+        slots,
+        intentResult,
+        customerInfo,
+        selectedProduct,
+        orgId
       });
     }
 
@@ -1037,7 +1438,7 @@ Nguyên tắc:
 
     const isDocExplicitQuery = /(tài liệu|tai lieu|quy trình|quy trinh|chính sách|chinh sach|hướng dẫn|huong dan|quy chế|quy che|quyết định|quyet dinh|điều chuyển|dieu chuyen|nam a bank|namabank|thủ tục|thu tuc|công văn|cong van|văn bản|van ban|nội bộ|noi bo|sổ tay|so tay|quy định|quy dinh|hồ sơ|ho so)/i.test(message);
 
-    const systemPrompt = `Bạn là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện.
+    const systemPrompt = `Bạn là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh & bán hàng toàn năng.
 Bạn có quyền truy cập các công cụ:
 1. consult_sales_engine: Tư vấn sản phẩm, tồn kho, kiểm tra danh mục và chốt đơn mua hàng.
 2. lookup_supplier_products: Tra cứu sản phẩm, thông số kỹ thuật và đơn giá từ kho nhà cung cấp đã thu thập và kiểm duyệt.
@@ -1047,7 +1448,7 @@ ${isDocExplicitQuery ? '5. search_knowledge_base: Tra cứu kho tài liệu quy 
 7. search_web_internet: Tra cứu thông tin trên Internet khi được yêu cầu.
 QUY TẮC BẮT BUỘC:
 - Khi khách hàng tìm hiểu, hỏi mua sản phẩm, hỏi giá, báo giá hoặc trò chuyện mua sắm, BÁN HÀNG LÀ ƯU TIÊN DUY NHẤT. TUYỆT ĐỐI KHÔNG lôi kéo nội dung tài liệu nội bộ (như quy chế ngân hàng, văn bản công văn) vào câu trả lời bán hàng!
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ tự xưng là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện.`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ tự xưng là TRÍ AI ULTIMATE ROBOT.`;
 
     const historyTurns = (await ContextEngine.getConversationHistory(conversationId, 6))
       .map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content }));
@@ -1150,64 +1551,55 @@ QUY TẮC BẮT BUỘC:
             }
           }
         } else if (fnName === 'generate_formal_quotation') {
-          let matchedProds = await QuotationService.searchSupplierCatalog({ query: args.product_name, limit: 1 });
-          let unitPrice = 0;
-          let prodId = null;
-          let sku = '';
-          let unit = 'cái';
-          let priceType = 'REFERENCE_ONLY';
+          const resolvedProd = await ActiveProductContext.resolveForQuotation({
+            conversationId,
+            explicitProductName: args.product_name,
+            requestedQuantity: args.quantity || 1,
+            selectedProduct,
+            database: db
+          });
 
-          if (matchedProds.length > 0) {
-            const p = matchedProds[0];
-            unitPrice = p.salePrice;
-            prodId = p.id;
-            sku = p.sku;
-            unit = p.unit;
-            priceType = p.priceConfirmationLevel || 'REFERENCE_ONLY';
+          if (resolvedProd.status === 'NEED_CLARIFICATION' || resolvedProd.status === 'PRICE_UNVERIFIED') {
+            toolResultStr = JSON.stringify({
+              status: resolvedProd.status,
+              message: resolvedProd.message,
+              quoteCode: null
+            });
+          } else {
+            const p = resolvedProd.product;
+            const qRes = await QuotationService.createQuotation({
+              customerName: args.customer_name || customerInfo?.name || 'Quý Khách Hàng',
+              customerPhone: args.customer_phone || customerInfo?.phone || '',
+              customerCompany: customerInfo?.company || '',
+              conversationId,
+              items: [{
+                productId: p.id,
+                productName: p.name,
+                sku: p.sku || '',
+                specsSnippet: p.configuration || '',
+                quantity: p.quantity || args.quantity || 1,
+                unit: p.unit || 'cái',
+                unitPrice: p.price,
+                priceType: p.priceType || 'REFERENCE_ONLY'
+              }],
+              vatPercent: 10
+            });
+
             uiDirectives.revealCatalog = true;
             uiDirectives.recommendedProduct = p;
-            uiDirectives.recommendedField = p.category;
-          } else {
-            const dbP = await db.get('SELECT * FROM products WHERE is_active = 1 AND is_approved = 1 AND name LIKE ?', [`%${args.product_name}%`]);
-            if (dbP) {
-              unitPrice = dbP.price;
-              prodId = dbP.id;
-              sku = dbP.sku;
-              priceType = 'SUPPLIER_VERIFIED';
-              uiDirectives.revealCatalog = true;
-              uiDirectives.recommendedProduct = dbP;
-              uiDirectives.recommendedField = dbP.field;
-            }
+            citations.push({
+              source: 'quotation_engine',
+              label: `[Mã báo giá: ${qRes.quoteCode}]`
+            });
+            toolResultStr = JSON.stringify({
+              quoteCode: qRes.quoteCode,
+              totalAmount: qRes.subtotal,
+              vatAmount: qRes.vatAmount,
+              finalAmount: qRes.finalAmount,
+              validUntil: qRes.validUntil,
+              markdownTable: qRes.markdown
+            });
           }
-
-          const qRes = await QuotationService.createQuotation({
-            customerName: args.customer_name || customerInfo?.name || 'Quý Khách Hàng',
-            customerPhone: args.customer_phone || customerInfo?.phone || '',
-            conversationId,
-            items: [{
-              productId: prodId,
-              productName: args.product_name,
-              sku,
-              quantity: args.quantity || 1,
-              unit,
-              unitPrice,
-              priceType
-            }],
-            vatPercent: 10
-          });
-
-          citations.push({
-            source: 'quotation_engine',
-            label: `[Mã báo giá: ${qRes.quoteCode}]`
-          });
-          toolResultStr = JSON.stringify({
-            quoteCode: qRes.quoteCode,
-            totalAmount: qRes.subtotal,
-            vatAmount: qRes.vatAmount,
-            finalAmount: qRes.finalAmount,
-            validUntil: qRes.validUntil,
-            markdownTable: qRes.markdown
-          });
         } else if (fnName === 'query_excel_data') {
           const xResults = await ExcelParser.queryData(args);
           toolResultStr = JSON.stringify(xResults);
