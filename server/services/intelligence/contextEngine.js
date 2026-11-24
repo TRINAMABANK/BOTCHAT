@@ -161,6 +161,11 @@ export class ContextEngine {
   static resolveCoReferences(message = '', conversationId = null, extraContext = {}) {
     const session = this.getSessionContext(conversationId);
     const lower = message.toLowerCase();
+    const unaccented = lower
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd');
+
     const resolved = {
       originalMessage: message,
       resolvedTimeSpec: null,
@@ -171,17 +176,17 @@ export class ContextEngine {
     };
 
     // 5A. Time reference resolution ("ngày đó", "hôm đó", "lúc đó", "giờ đó")
-    if (/(?:ngày\s+đó|ngay\s+do|hôm\s+đó|hom\s+do|lúc\s+đó|luc\s+do|giờ\s+đó|gio\s+do|bữa\s+đó|bua\s+do)\b/i.test(lower)) {
+    if (/(?:ngay\s+do|hom\s+do|luc\s+do|gio\s+do|bua\s+do)\b/i.test(unaccented)) {
       resolved.resolvedTimeSpec = session.lastTimeSpec || extraContext.timeSpec || null;
     }
 
-    // 5B. Product reference resolution ("máy này", "sản phẩm này", "loại này", "mẫu này", "chiếc này")
-    if (/(?:máy\s+này|may\s+nay|sản\s+phẩm\s+này|san\s+pham\s+nay|loại\s+này|loai\s+nay|mẫu\s+này|mau\s+nay|chiếc\s+này|chiec\s+nay|hộp\s+này|hop\s+nay)\b/i.test(lower)) {
+    // 5B. Product reference resolution ("máy này", "sản phẩm này", "loại này", "mẫu này", "chiếc này", "nó", "con này")
+    if (/(?:may\s+nay|san\s+pham\s+nay|loai\s+nay|mau\s+nay|chiec\s+nay|hop\s+nay|con\s+nay|cai\s+nay|mon\s+nay|\bno\b)\b/i.test(unaccented)) {
       resolved.resolvedProduct = session.lastProduct || extraContext.selectedProduct || null;
     }
 
     // 5C. Person reference resolution ("anh ấy", "người ấy", "sếp ấy")
-    if (/(?:anh\s+ấy|anh\s+ay|người\s+ấy|nguoi\s+ay|sếp\s+ấy|sep\s+ay|ông\s+ấy|ong\s+ay)\b/i.test(lower)) {
+    if (/(?:anh\s+ay|nguoi\s+ay|sep\s+ay|ong\s+ay)\b/i.test(unaccented)) {
       resolved.resolvedPerson = session.lastTargetPerson || 'anh Trí';
     }
 

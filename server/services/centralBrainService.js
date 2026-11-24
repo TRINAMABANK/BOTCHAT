@@ -404,13 +404,13 @@ export class CentralBrainService {
     const openAiApiKey = process.env.OPENAI_API_KEY;
     const hasOpenAi = openAiApiKey && openAiApiKey.length > 10 && !openAiApiKey.includes('your_');
 
+    let finalResult = null;
     if (hasOpenAi) {
       // -----------------------------------------------------------------------
       // PATH A: Native OpenAI Tool Calling (Central Brain)
       // -----------------------------------------------------------------------
       try {
-        const brainResult = await this.runOpenAiCentralBrain(enrichedContext);
-        return brainResult;
+        finalResult = await this.runOpenAiCentralBrain(enrichedContext);
       } catch (err) {
         console.warn('[CENTRAL BRAIN] OpenAI call failed, falling back to Smart Orchestrator:', err.message);
       }
@@ -419,7 +419,19 @@ export class CentralBrainService {
     // -------------------------------------------------------------------------
     // PATH B: Smart Tool Orchestrator with Gemini / Fallback Engine
     // -------------------------------------------------------------------------
-    return await this.runSmartOrchestratorFallback(enrichedContext);
+    if (!finalResult) {
+      finalResult = await this.runSmartOrchestratorFallback(enrichedContext);
+    }
+
+    // Preserve active product & intent in session context across turns
+    if (finalResult?.recommendedProduct || selectedProduct) {
+      ContextEngine.updateSessionContext(conversationId, {
+        lastProduct: finalResult?.recommendedProduct || selectedProduct,
+        lastIntent: intentResult?.primaryIntent
+      });
+    }
+
+    return finalResult;
   }
 
   /**
