@@ -44,6 +44,16 @@ export class SecretaryHandler {
       value: `[${timeSpec}] ${cleanTask}`
     });
 
+    try {
+      const nowIso = new Date().toISOString();
+      await db.run(`
+        INSERT INTO owner_tasks (id, user_id, title, time_spec, priority, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'NORMAL', 'PENDING', ?, ?)
+      `, [`task_${Date.now()}`, userContext.userId || 'owner_tri', cleanTask, timeSpec, nowIso, nowIso]);
+    } catch (err) {
+      // Non-blocking persistence
+    }
+
     const reply = `Dạ thưa Anh Trí, em đã ghi nhận nhiệm vụ vào danh sách việc cần xử lý của anh rồi ạ:\n\n` +
       `📌 **Nội dung:** ${cleanTask}\n` +
       `⏰ **Thời gian:** ${timeSpec}\n` +
@@ -248,8 +258,16 @@ Kính chúc Quý khách sức khỏe, thành công và phát triển thịnh vư
    * 4. Chốt chặn Bảo mật & Quyền riêng tư (Security Access Gate)
    * Từ chối truy cập vượt quyền một cách lịch sự, kiên quyết
    */
-  static handleUnauthorizedAccess(context, reasonCode) {
+  static handleUnauthorizedAccess(context = {}, reasonCode = 'UNSPECIFIED') {
     const { userContext = {} } = context;
+
+    try {
+      const nowIso = new Date().toISOString();
+      db.run(`
+        INSERT INTO ai_security_audit_logs (id, conversation_id, user_id, attempted_action, blocked_reason, created_at)
+        VALUES (?, ?, ?, 'UNAUTHORIZED_ACCESS_ATTEMPT', ?, ?)
+      `, [`audit_${Date.now()}`, context?.conversationId || 'conv_general', userContext?.userId || 'usr_anonymous', reasonCode, nowIso]).catch(() => {});
+    } catch (err) {}
 
     if (reasonCode === 'OWNER_PRIVATE_SCHEDULE') {
       return ResponseEngine.formatResponse({
