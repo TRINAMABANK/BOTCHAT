@@ -9,6 +9,7 @@ import { runIntelligence2Migration } from './migrations/schema_phase_intelligenc
 import { runLearningCenterMigration } from './migrations/schema_phase_learning_center.js';
 import { runBrain21Migration } from './migrations/schema_phase_brain_2_1.js';
 import { runCrmLeadsMigration } from './migrations/schema_phase_crm_leads.js';
+import { runHumanBrainMemoryMigration } from './migrations/schema_phase_human_brain_memory.js';
 import { CrmLeadService } from './services/crmLeadService.js';
 
 dotenv.config();
@@ -882,6 +883,13 @@ export async function initDatabase() {
     await CrmLeadService.backfillExistingLeads(db);
   } catch (err) {
     console.error('[MIGRATION ERROR] CRM Leads migration error:', err);
+  }
+
+  // 15. TRÍ AI HUMAN BRAIN - 5-Tier Memory Engine Schema Extensions
+  try {
+    await runHumanBrainMemoryMigration(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Human Brain Memory migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');

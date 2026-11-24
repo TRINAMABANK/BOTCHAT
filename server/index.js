@@ -11,6 +11,7 @@ import knowledgeRoutes from './routes/knowledgeRoutes.js';
 import supplierWebsiteRoutes from './routes/supplierWebsiteRoutes.js';
 import centralBrainRoutes from './routes/centralBrainRoutes.js';
 import learningRoutes from './routes/learningRoutes.js';
+import memoryRoutes from './routes/memoryRoutes.js';
 const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 import { requireAdmin, optionalAuth } from './middleware/authMiddleware.js';
@@ -80,6 +81,9 @@ app.use('/api/central-brain', centralBrainRoutes);
 
 // Mount TRÍ AN Learning Center APIs
 app.use('/api/learning-center', learningRoutes);
+
+// Mount TRÍ AI Human Brain 5-Tier Memory & Planning APIs
+app.use('/api/memory', memoryRoutes);
 
 // Anti-tamper & Security headers
 app.use((req, res, next) => {

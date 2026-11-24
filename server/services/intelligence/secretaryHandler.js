@@ -14,6 +14,7 @@
 import { db } from '../../db.js';
 import ResponseEngine from './responseEngine.js';
 import MemoryEngine from './memoryEngine.js';
+import HumanMemoryEngine from './humanMemoryEngine.js';
 
 export class SecretaryHandler {
   /**
@@ -42,6 +43,25 @@ export class SecretaryHandler {
       memoryType: 'OWNER_TASK',
       key: `task_${Date.now()}`,
       value: `[${timeSpec}] ${cleanTask}`
+    });
+
+    // Lưu vào Prospective Memory của TRÍ AI Human Brain
+    await HumanMemoryEngine.remember({
+      memoryType: 'PROSPECTIVE',
+      content: `[${timeSpec}] ${cleanTask}`,
+      subject: 'OWNER_TASK',
+      entityId: userContext.userId || 'owner_tri',
+      source: 'USER_CHAT',
+      confidence: 1.0,
+      ownerId: userContext.userId || 'owner_tri',
+      tenantId: userContext.orgId || 'org_default',
+      sensitivity: 'RESTRICTED',
+      extraData: {
+        taskTitle: cleanTask,
+        targetUserId: userContext.userId || 'owner_tri',
+        triggerTime: new Date().toISOString(),
+        priority: 'NORMAL'
+      }
     });
 
     try {
@@ -84,14 +104,28 @@ export class SecretaryHandler {
     }
 
     try {
-      const tasks = await db.all(`
+      const dbTasks = await db.all(`
+        SELECT title, time_spec, priority, status
+        FROM owner_tasks
+        WHERE user_id = ? AND status IN ('PENDING', 'IN_PROGRESS')
+        ORDER BY created_at DESC LIMIT 10
+      `, [userContext.userId || 'owner_tri']);
+
+      const legacyTasks = await db.all(`
         SELECT key, value, created_at, updated_at 
         FROM ai_customer_memory 
         WHERE user_id = ? AND memory_type = 'OWNER_TASK' 
         ORDER BY updated_at DESC LIMIT 10
       `, [userContext.userId || 'owner_tri']);
 
-      if (!tasks || tasks.length === 0) {
+      const allTaskItems = [];
+      if (dbTasks && dbTasks.length > 0) {
+        dbTasks.forEach(t => allTaskItems.push(`[${t.time_spec || 'Cần xử lý'}] ${t.title} (${t.status === 'IN_PROGRESS' ? 'Đang làm' : 'Chưa xử lý'})`));
+      } else if (legacyTasks && legacyTasks.length > 0) {
+        legacyTasks.forEach(t => allTaskItems.push(t.value));
+      }
+
+      if (allTaskItems.length === 0) {
         return ResponseEngine.formatResponse({
           replyText: `Dạ thưa Anh Trí, hiện tại danh sách việc cần làm (To-do List) của anh chưa có mục nào tồn đọng ạ.\n\nAnh có muốn em ghi nhận thêm công việc hoặc lịch nhắc nào mới cho anh không ạ?`,
           revealCatalog: false,
@@ -100,7 +134,7 @@ export class SecretaryHandler {
         });
       }
 
-      const taskLines = tasks.map((t, idx) => `${idx + 1}. ${t.value}`).join('\n');
+      const taskLines = allTaskItems.map((t, idx) => `${idx + 1}. ${t}`).join('\n');
 
       const reply = `Dạ thưa Anh Trí, em xin phép báo cáo danh sách công việc và kế hoạch đã ghi nhận của anh ạ:\n\n` +
         `### 📋 TO-DO LIST & LỊCH TRÌNH CÁ NHÂN CỦA ANH TRÍ:\n${taskLines}\n\n` +

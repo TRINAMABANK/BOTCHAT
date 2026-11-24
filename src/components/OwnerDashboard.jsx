@@ -38,12 +38,14 @@ import {
   Pencil,
   BookOpen,
   Package,
-  Eye
+  Eye,
+  Brain
 } from 'lucide-react';
 import KnowledgeCenter from './admin/KnowledgeCenter';
 import SupplierWebsiteCenter from './admin/SupplierWebsiteCenter';
 import CentralBrainManagement from './admin/CentralBrainManagement';
 import TriAnLearningCenter from './admin/TriAnLearningCenter';
+import HumanBrainMemoryCenter from './admin/HumanBrainMemoryCenter';
 
 export const OwnerDashboard = ({
   isOpen = false,
@@ -933,6 +935,18 @@ export const OwnerDashboard = ({
             <Sparkles size={16} />
             <span>TRÍ AN – Trung Tâm Học Hỏi</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('human_brain_memory')}
+            className={`flex items-center space-x-2 px-5 py-3 rounded-t-2xl font-bold transition-all text-xs sm:text-sm ${
+              activeTab === 'human_brain_memory'
+                ? 'bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400 text-slate-950 shadow-[0_0_20px_rgba(45,212,191,0.5)]'
+                : 'text-cyan-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Brain size={16} />
+            <span>TRÍ AI – Trí Nhớ 5 Tầng</span>
+          </button>
         </div>
 
         {/* 4. TAB CONTENT BODY */}
@@ -1811,6 +1825,11 @@ export const OwnerDashboard = ({
           {/* TAB 7: TRÍ AN LEARNING CENTER */}
           {activeTab === 'learning_center' && (
             <TriAnLearningCenter />
+          )}
+
+          {/* TAB 8: TRÍ AI HUMAN BRAIN 5-TIER MEMORY CENTER */}
+          {activeTab === 'human_brain_memory' && (
+            <HumanBrainMemoryCenter />
           )}
         </div>
       </div>

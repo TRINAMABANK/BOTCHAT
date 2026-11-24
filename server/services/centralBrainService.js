@@ -32,6 +32,8 @@ import { SmartSalesConsultant } from './intelligence/smartSalesConsultant.js';
 import { AppointmentHandler } from './intelligence/appointmentHandler.js';
 import { ContextEngine } from './intelligence/contextEngine.js';
 import { SecretaryHandler } from './intelligence/secretaryHandler.js';
+import { HumanMemoryEngine } from './intelligence/humanMemoryEngine.js';
+import { PlanningEngine } from './intelligence/planningEngine.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -237,10 +239,11 @@ export class CentralBrainService {
     // 2. MEMORY ENGINE: Check for memory commands or customer preference facts
     if (intentResult.primaryIntent === 'MEMORY_COMMAND') {
       await MemoryEngine.forgetCustomer(effectiveUserId, orgId);
+      await HumanMemoryEngine.forget({ entityId: effectiveUserId, tenantId: orgId });
       return ResponseEngine.formatResponse({
         replyText: 'Dạ, tôi đã xóa toàn bộ thông tin ghi nhớ cá nhân của bạn trong hệ thống theo yêu cầu để đảm bảo quyền riêng tư tuyệt đối.',
         stage: 'MEMORY_UPDATED',
-        toolsUsed: ['memory_engine']
+        toolsUsed: ['memory_engine', 'human_memory_engine']
       });
     }
 
@@ -290,7 +293,7 @@ export class CentralBrainService {
       }
     }
 
-    // Remember customer phone or budget if stated
+    // Remember customer phone or budget in Human Memory Engine
     if (intentResult.slots?.phone) {
       await MemoryEngine.rememberCustomerFact({
         userId: effectiveUserId,
@@ -298,6 +301,16 @@ export class CentralBrainService {
         memoryType: 'PROFILE',
         key: 'phone',
         value: intentResult.slots.phone
+      });
+      await HumanMemoryEngine.remember({
+        memoryType: 'SEMANTIC',
+        content: `Số điện thoại liên hệ: ${intentResult.slots.phone}`,
+        subject: 'phone',
+        entityId: effectiveUserId,
+        source: 'USER_CHAT',
+        confidence: 1.0,
+        tenantId: orgId,
+        sensitivity: 'INTERNAL'
       });
     }
     if (intentResult.slots?.budget) {
@@ -308,10 +321,33 @@ export class CentralBrainService {
         key: 'target_budget',
         value: String(intentResult.slots.budget)
       });
+      await HumanMemoryEngine.remember({
+        memoryType: 'SEMANTIC',
+        content: `Ngân sách dự kiến: ${intentResult.slots.budget}`,
+        subject: 'budget',
+        entityId: effectiveUserId,
+        source: 'USER_CHAT',
+        confidence: 0.9,
+        tenantId: orgId,
+        sensitivity: 'INTERNAL'
+      });
     }
 
+    // Retrieve active Human Memories for this user / entity
+    const callerRole = userContext?.isOwner ? 'owner' : (userContext?.isStaff ? 'staff' : 'customer');
+    const relevantMemories = await HumanMemoryEngine.retrieve({
+      entityId: effectiveUserId,
+      userRole: callerRole,
+      requestingUserId: userId,
+      tenantId: orgId,
+      limit: 10
+    });
+
     // 3. REASONING ENGINE: Assess complexity & data sufficiency
-    const plan = ReasoningEngine.planExecution(intentResult, params);
+    const plan = ReasoningEngine.planExecution(intentResult, {
+      ...params,
+      memories: relevantMemories
+    });
     if (!plan.dataSufficient && plan.clarificationQuestion) {
       return ResponseEngine.formatClarification(plan.clarificationQuestion);
     }
