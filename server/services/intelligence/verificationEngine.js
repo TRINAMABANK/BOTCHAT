@@ -162,6 +162,15 @@ export class VerificationEngine {
         if (intentGroup === 'SCHEDULE_QUERY' || primaryIntent === 'SCHEDULE_QUERY') {
           return `Dạ hiện tại hệ thống chưa kết nối với Google Calendar cá nhân nên em chưa thể tra cứu chính xác lịch làm việc hay ngày rảnh của anh Trí ạ. Bạn có thể để lại số điện thoại và thời gian mong muốn để anh Trí liên hệ lại nhé!`;
         }
+        if (intentGroup === 'SECRETARY_TASK' || primaryIntent === 'SECRETARY_TASK') {
+          return `Dạ thưa Anh Trí, em đã ghi nhận công việc vào to-do list cá nhân của anh rồi ạ!`;
+        }
+        if (intentGroup === 'OFFICE_TASK' || primaryIntent === 'EMAIL_TASK') {
+          return `Dạ em đã hoàn thiện bản thảo văn bản/email cho anh/chị rồi ạ.`;
+        }
+        if (intentGroup === 'SECURITY_BLOCKED' || primaryIntent.startsWith('SECURITY_')) {
+          return `Dạ em xin phép từ chối yêu cầu này theo đúng quy định bảo mật và an toàn dữ liệu cá nhân của hệ thống ạ.`;
+        }
         if (intentGroup === 'GENERAL_CHAT') {
           return `Dạ em chào bạn! Em là TRÍ AN — Trợ lý AI Thông minh & Toàn diện. Em có thể hỗ trợ gì cho bạn hôm nay ạ?`;
         }

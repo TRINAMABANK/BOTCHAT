@@ -30,6 +30,8 @@ import { LearningCaptureEngine } from './intelligence/learningCaptureEngine.js';
 import { LearningIngestionEngine } from './intelligence/learningIngestionEngine.js';
 import { SmartSalesConsultant } from './intelligence/smartSalesConsultant.js';
 import { AppointmentHandler } from './intelligence/appointmentHandler.js';
+import { ContextEngine } from './intelligence/contextEngine.js';
+import { SecretaryHandler } from './intelligence/secretaryHandler.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -211,6 +213,20 @@ export class CentralBrainService {
       };
     }
 
+    // 0. CONTEXT ENGINE: Resolve user & role context (OWNER vs STAFF vs CUSTOMER) & Co-references
+    const userContext = ContextEngine.resolveUserContext(params);
+    params.userContext = userContext;
+    params.conversationHistory = await ContextEngine.getConversationHistory(conversationId, 6);
+
+    const coRef = ContextEngine.resolveCoReferences(trimmedMsg, conversationId, params);
+    if (coRef.resolvedTimeSpec && !params.timeSpec) {
+      params.timeSpec = coRef.resolvedTimeSpec;
+    }
+    if (coRef.resolvedProduct && !selectedProduct) {
+      selectedProduct = coRef.resolvedProduct;
+      params.selectedProduct = selectedProduct;
+    }
+
     // 1. INTENT ENGINE: Natural language analysis, slang normalization, entity & intent extraction
     const intentResult = IntentEngine.analyzeIntent(trimmedMsg, params);
     const unaccentedMsg = IntentEngine.stripDiacritics(trimmedMsg).toLowerCase();
@@ -312,17 +328,58 @@ export class CentralBrainService {
     };
 
     // -------------------------------------------------------------------------
-    // 2C. SMART CONVERSATION & APPOINTMENT ROUTING (BOTCHAT BRAIN 2.1)
+    // 2B. SECURITY ACCESS GATES & ANTI-DATA LEAK (DUAL-ROLE PROTECTION)
+    // -------------------------------------------------------------------------
+    if (intentResult.primaryIntent === 'SECURITY_OTHER_CUSTOMER_DATA') {
+      return SecretaryHandler.handleUnauthorizedAccess(enrichedContext, 'OTHER_CUSTOMER_DATA');
+    }
+    if (intentResult.primaryIntent === 'SECURITY_OWNER_PRIVATE_SCHEDULE') {
+      return SecretaryHandler.handleUnauthorizedAccess(enrichedContext, 'OWNER_PRIVATE_SCHEDULE');
+    }
+    if (intentResult.primaryIntent === 'SECURITY_STAFF_UNAUTHORIZED_REPORT') {
+      return SecretaryHandler.handleUnauthorizedAccess(enrichedContext, 'STAFF_UNAUTHORIZED_REPORT');
+    }
+    if (intentResult.primaryIntent === 'SECURITY_IMPERSONATION_ATTEMPT') {
+      return SecretaryHandler.handleUnauthorizedAccess(enrichedContext, 'IMPERSONATION_ATTEMPT');
+    }
+
+    // -------------------------------------------------------------------------
+    // 2C. DUAL ROLE: AI SECRETARY (THƯ KÝ RIÊNG CỦA ANH TRÍ)
+    // -------------------------------------------------------------------------
+    if (intentResult.primaryIntent === 'SECRETARY_TASK') {
+      const res = await SecretaryHandler.handleOwnerTask(enrichedContext);
+      ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_TASK', lastTimeSpec: intentResult.slots?.timeSpec });
+      return res;
+    }
+    if (intentResult.primaryIntent === 'SECRETARY_CRM_SUMMARY') {
+      const res = await SecretaryHandler.handleCrmSummary(enrichedContext);
+      ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_CRM_SUMMARY' });
+      return res;
+    }
+    if (intentResult.primaryIntent === 'EMAIL_TASK') {
+      const res = await SecretaryHandler.handleDraftEmail(enrichedContext);
+      ContextEngine.updateSessionContext(conversationId, { lastIntent: 'EMAIL_TASK' });
+      return res;
+    }
+
+    // -------------------------------------------------------------------------
+    // 2D. SMART CONVERSATION & APPOINTMENT ROUTING (BOTCHAT BRAIN 2.1)
     // Non-product intents are handled directly; NEVER leak into Sales Engine!
     // -------------------------------------------------------------------------
     if (intentResult.primaryIntent === 'APPOINTMENT') {
-      return await AppointmentHandler.handleAppointment(enrichedContext);
+      const res = await AppointmentHandler.handleAppointment(enrichedContext);
+      ContextEngine.updateSessionContext(conversationId, { lastIntent: 'APPOINTMENT', lastTimeSpec: intentResult.slots?.timeSpec });
+      return res;
     }
     if (intentResult.primaryIntent === 'SCHEDULE_QUERY') {
-      return await AppointmentHandler.handleScheduleQuery(enrichedContext);
+      const res = await AppointmentHandler.handleScheduleQuery(enrichedContext);
+      ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SCHEDULE_QUERY', lastTimeSpec: intentResult.slots?.timeSpec });
+      return res;
     }
     if (intentResult.primaryIntent === 'REMINDER') {
-      return await AppointmentHandler.handleReminder(enrichedContext);
+      const res = await AppointmentHandler.handleReminder(enrichedContext);
+      ContextEngine.updateSessionContext(conversationId, { lastIntent: 'REMINDER', lastTimeSpec: intentResult.slots?.timeSpec });
+      return res;
     }
     if (intentResult.primaryIntent === 'COMPANY_INFO' || intentResult.primaryIntent === 'COMPLAINT') {
       return await AppointmentHandler.handleBusinessSupport(enrichedContext);
@@ -374,7 +431,32 @@ export class CentralBrainService {
     const isQuotationRequest = primaryIntent === 'FORMAL_QUOTATION' || /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(message);
     const isLiveWebSearch = primaryIntent === 'LIVE_WEBSITE_SEARCH' || lower.includes('website') || lower.includes('web nha cung cap');
 
-    // 0A. Appointment & Schedule & Reminder & Support Routing (Defense-in-depth)
+    // 0A. Security Access Gates & Anti-Data Leak (Defense-in-depth)
+    if (primaryIntent === 'SECURITY_OTHER_CUSTOMER_DATA') {
+      return SecretaryHandler.handleUnauthorizedAccess(context, 'OTHER_CUSTOMER_DATA');
+    }
+    if (primaryIntent === 'SECURITY_OWNER_PRIVATE_SCHEDULE') {
+      return SecretaryHandler.handleUnauthorizedAccess(context, 'OWNER_PRIVATE_SCHEDULE');
+    }
+    if (primaryIntent === 'SECURITY_STAFF_UNAUTHORIZED_REPORT') {
+      return SecretaryHandler.handleUnauthorizedAccess(context, 'STAFF_UNAUTHORIZED_REPORT');
+    }
+    if (primaryIntent === 'SECURITY_IMPERSONATION_ATTEMPT') {
+      return SecretaryHandler.handleUnauthorizedAccess(context, 'IMPERSONATION_ATTEMPT');
+    }
+
+    // 0B. AI Secretary Tasks (Defense-in-depth)
+    if (primaryIntent === 'SECRETARY_TASK') {
+      return await SecretaryHandler.handleOwnerTask(context);
+    }
+    if (primaryIntent === 'SECRETARY_CRM_SUMMARY') {
+      return await SecretaryHandler.handleCrmSummary(context);
+    }
+    if (primaryIntent === 'EMAIL_TASK') {
+      return await SecretaryHandler.handleDraftEmail(context);
+    }
+
+    // 0C. Appointment & Schedule & Reminder & Support Routing (Defense-in-depth)
     if (primaryIntent === 'APPOINTMENT') {
       return await AppointmentHandler.handleAppointment(context);
     }
@@ -839,8 +921,12 @@ QUY TẮC BẮT BUỘC:
 - Khi khách hàng tìm hiểu, hỏi mua sản phẩm, hỏi giá, báo giá hoặc trò chuyện mua sắm, BÁN HÀNG LÀ ƯU TIÊN DUY NHẤT. TUYỆT ĐỐI KHÔNG lôi kéo nội dung tài liệu nội bộ (như quy chế ngân hàng, văn bản công văn) vào câu trả lời bán hàng!
 - Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ tự xưng là TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện.`;
 
+    const historyTurns = (await ContextEngine.getConversationHistory(conversationId, 6))
+      .map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content }));
+
     const messages = [
       { role: 'system', content: systemPrompt },
+      ...historyTurns,
       { role: 'user', content: message }
     ];
 

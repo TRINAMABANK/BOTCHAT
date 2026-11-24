@@ -39,7 +39,7 @@ const VIETNAMESE_SLANG_MAP = {
 };
 
 /**
- * 7 Canonical Intent Groups for TRÍ AI Brain 2.1
+ * Canonical Intent Groups for TRÍ AI Brain 2.1 (Dual Role AI Employee)
  */
 export const INTENT_GROUPS = {
   GENERAL_CHAT: 'GENERAL_CHAT',
@@ -48,6 +48,9 @@ export const INTENT_GROUPS = {
   SCHEDULE_QUERY: 'SCHEDULE_QUERY',
   REMINDER: 'REMINDER',
   BUSINESS_SUPPORT: 'BUSINESS_SUPPORT',
+  SECRETARY_TASK: 'SECRETARY_TASK',
+  OFFICE_TASK: 'OFFICE_TASK',
+  SECURITY_BLOCKED: 'SECURITY_BLOCKED',
   UNKNOWN: 'UNKNOWN'
 };
 
@@ -144,6 +147,19 @@ export function getIntentGroup(primaryIntent = '') {
     case 'COMPLAINT':
     case 'MEMORY_COMMAND':
       return INTENT_GROUPS.BUSINESS_SUPPORT;
+    case 'SECRETARY_CRM_SUMMARY':
+    case 'SECRETARY_TASK':
+    case 'OWNER_DAILY_PLAN':
+      return INTENT_GROUPS.SECRETARY_TASK;
+    case 'EMAIL_TASK':
+    case 'OFFICE_TASK':
+      return INTENT_GROUPS.OFFICE_TASK;
+    case 'SECURITY_OTHER_CUSTOMER_DATA':
+    case 'SECURITY_OWNER_PRIVATE_SCHEDULE':
+    case 'SECURITY_STAFF_UNAUTHORIZED_REPORT':
+    case 'SECURITY_IMPERSONATION_ATTEMPT':
+    case 'SECURITY_BLOCKED':
+      return INTENT_GROUPS.SECURITY_BLOCKED;
     case 'PRICE_INQUIRY':
     case 'FORMAL_QUOTATION':
     case 'ORDER_REQUEST':
@@ -256,6 +272,93 @@ export class IntentEngine {
 
     // 2. Extract Entities & Slots (with strict non-product exclusions)
     const slots = this.extractSlots(norm, unaccented);
+
+    // 2B. SECURITY & PRIVACY CHECKS (Anti-Data Leak & Access Protection)
+    const isCustomerAskingOtherData = /(?:so\s+dien\s+thoai|sdt|thong\s+tin|danh\s+sach)\s+(?:cua\s+)?(?:khach\s+hang\s+khac|khach\s+khac|nguoi\s+khac|anh\s+tuan|khach\s+mua)/i.test(unaccented) ||
+      /(?:cho\s+toi\s+xem|xem)\s+(?:danh\s+sach\s+so\s+dien\s+thoai|so\s+dien\s+thoai\s+cac\s+khach)/i.test(unaccented);
+
+    if (isCustomerAskingOtherData) {
+      return {
+        primaryIntent: 'SECURITY_OTHER_CUSTOMER_DATA',
+        intentGroup: INTENT_GROUPS.SECURITY_BLOCKED,
+        confidence: 0.99,
+        slots,
+        flags: { isSales: false, isDoc: false, isBlocked: true }
+      };
+    }
+
+    // Anti-Impersonation Check: User self-claims to be Anh Trí in chat without verified admin token
+    const isImpersonatingOwner = context.userContext?.isImpersonationAttempt || (!context.userContext?.isOwner && /(?:toi\s+la|anh\s+la|minh\s+la)\s+(?:anh\s+)?(?:tri|quang\s+nhut\s+tri|admin|chu\s+shop)/i.test(unaccented));
+    if (isImpersonatingOwner) {
+      return {
+        primaryIntent: 'SECURITY_IMPERSONATION_ATTEMPT',
+        intentGroup: INTENT_GROUPS.SECURITY_BLOCKED,
+        confidence: 0.99,
+        slots,
+        flags: { isSales: false, isDoc: false, isBlocked: true }
+      };
+    }
+
+    const isAskingOwnerPrivateSchedule = /(?:cho\s+toi\s+xem|xem\s+lich|kiem\s+tra\s+lich|xem)\s+(?:lich|lich\s+trinh)?.*(?:rieng|chi\s+tiet|ca\s+nhan).*(?:anh\s+tri|sep\s+tri)/i.test(unaccented) ||
+      /(?:anh\s+tri|sep\s+tri)\s+.*(?:cho\s+toi\s+xem\s+lich|xem\s+lich\s+rieng|lich\s+rieng)/i.test(unaccented) ||
+      /(?:lich\s+rieng\s+chi\s+tiet|lich\s+rieng)\s+cua\s+(?:anh\s+tri|sep\s+tri)/i.test(unaccented);
+
+    if (isAskingOwnerPrivateSchedule && !context.userContext?.isOwner) {
+      return {
+        primaryIntent: 'SECURITY_OWNER_PRIVATE_SCHEDULE',
+        intentGroup: INTENT_GROUPS.SECURITY_BLOCKED,
+        confidence: 0.99,
+        slots,
+        flags: { isSales: false, isDoc: false, isBlocked: true }
+      };
+    }
+
+    const isAskingConfidentialReports = /(?:xuat\s+toan\s+bo|xem|bao\s+cao)\s+(?:doanh\s+thu|doanh\s+so|loi\s+nhuan|tai\s+chinh)\s+(?:mat|thang\s+nay|nam\s+nay)/i.test(unaccented);
+    if (isAskingConfidentialReports && !context.userContext?.isOwner) {
+      return {
+        primaryIntent: 'SECURITY_STAFF_UNAUTHORIZED_REPORT',
+        intentGroup: INTENT_GROUPS.SECURITY_BLOCKED,
+        confidence: 0.99,
+        slots,
+        flags: { isSales: false, isDoc: false, isBlocked: true }
+      };
+    }
+
+    // 2C. AI SECRETARY TASKS (Owner Specific or Administrative)
+    const isSecretaryCrmSummary = /(?:tong\s+hop|thong\s+ke|bao\s+cao|danh\s+sach)\s+(?:cac\s+)?(?:khach\s+hang|leads|khach)\s+(?:dang\s+)?(?:cho\s+bao\s+gia|cho\s+chot|tiem\s+nang|moi)/i.test(unaccented);
+    if (isSecretaryCrmSummary) {
+      return {
+        primaryIntent: 'SECRETARY_CRM_SUMMARY',
+        intentGroup: INTENT_GROUPS.SECRETARY_TASK,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isSecretary: true }
+      };
+    }
+
+    const isDraftEmail = /(?:soan|viet|lap|gui)\s+(?:giup\s+toi\s+)?(?:email|thu|thu\s+dien\s+tu)\s+(?:gui|cho|den|cam\s+on|bao\s+gia|cham\s+soc)/i.test(unaccented) ||
+      /(?:soan\s+giup\s+toi\s+email|soan\s+email)/i.test(unaccented);
+    if (isDraftEmail) {
+      return {
+        primaryIntent: 'EMAIL_TASK',
+        intentGroup: INTENT_GROUPS.OFFICE_TASK,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isOffice: true }
+      };
+    }
+
+    // Owner personal task or reminder
+    const isOwnerExplicitTask = context.userContext?.isOwner && /(?:nhac\s+toi|ghi\s+nho\s+giup\s+toi|todo|danh\s+sach\s+viec|ke\s+hoach\s+ngay|ke\s+hoach\s+tuan)/i.test(unaccented);
+    if (isOwnerExplicitTask) {
+      return {
+        primaryIntent: 'SECRETARY_TASK',
+        intentGroup: INTENT_GROUPS.SECRETARY_TASK,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isSecretary: true }
+      };
+    }
 
     // 3. APPOINTMENT INTENT (Hẹn gặp, đặt lịch, hẹn ăn uống, cà phê, đi nhậu, công việc)
     const isAppointmentExplicit = /(?:can\s+|muon\s+|xin\s+)?(?:hen\b|dat\s+lich|sap\s+xep\s+cuoc\s+hen|gap\s+mat|hen\s+gap|gap\s+anh|gap\s+chi|di\s+nhau|di\s+ca\s+phe|di\s+cafe|uong\s+ca\s+phe|an\s+trua|an\s+toi|di\s+an|hen\s+ho|ban\s+cong\s+viec|hop\s+mat|trao\s+doi\s+cong\s+viec|noi\s+chuyen\s+cong\s+viec)\b/i.test(unaccented);
@@ -588,7 +691,7 @@ export class IntentEngine {
     const unaccentedClean = this.stripDiacritics(cleanedQuery);
 
     // Blacklist non-product verbs and nouns
-    const NON_PRODUCT_TERMS = /(?:hen|gap|nhau|ca phe|cafe|uong|an trua|an toi|di an|lich|ranh|trong|nhac|nho|ban|noi chuyen|tam su|thoi tiet|khieu nai|dia chi|bao hanh|giao hang|doi tra|phi ship|gap nhan vien|nguoi that|chuyen vien|so sanh|khac nhau|ho tro truc tiep|cong viec|cuoc hen|ngay nao|thu sau|thu hai|thu ba|thu tu|thu nam|thu bay|chu nhat|tuan nay|ngay mai|hom nay|tuan toi|dat ngay do|chot lich|dat lich|nguoi yeu|ban gai|ban trai|thong minh)/i;
+    const NON_PRODUCT_TERMS = /(?:hen|gap|nhau|ca phe|cafe|uong|an trua|an toi|di an|lich|ranh|trong|nhac|nho|ban|noi chuyen|tam su|thoi tiet|khieu nai|dia chi|bao hanh|giao hang|doi tra|phi ship|gap nhan vien|nguoi that|chuyen vien|so sanh|khac nhau|ho tro truc tiep|cong viec|cuoc hen|ngay nao|thu sau|thu hai|thu ba|thu tu|thu nam|thu bay|chu nhat|tuan nay|ngay mai|hom nay|tuan toi|dat ngay do|chot lich|dat lich|nguoi yeu|ban gai|ban trai|thong minh|danh sach viec|viec can lam|ke hoach|todo|to do|bao cao|doanh thu)/i;
 
     const isNonProductPhrase = NON_PRODUCT_TERMS.test(unaccentedClean);
     // If it has non-product terms and no verified hardware model code, resolvedProductName MUST be null!
