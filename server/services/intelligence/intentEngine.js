@@ -438,9 +438,9 @@ export class IntentEngine {
       };
     }
 
-    const isAskingOwnerPrivateSchedule = /(?:cho\s+toi\s+xem|xem\s+lich|kiem\s+tra\s+lich|xem)\s+(?:lich|lich\s+trinh)?.*(?:rieng|chi\s+tiet|ca\s+nhan).*(?:anh\s+tri|sep\s+tri)/i.test(unaccented) ||
-      /(?:anh\s+tri|sep\s+tri)\s+.*(?:cho\s+toi\s+xem\s+lich|xem\s+lich\s+rieng|lich\s+rieng)/i.test(unaccented) ||
-      /(?:lich\s+rieng\s+chi\s+tiet|lich\s+rieng)\s+cua\s+(?:anh\s+tri|sep\s+tri)/i.test(unaccented);
+    const isAskingOwnerPrivateSchedule = /(?:cho\s+toi\s+xem|xem\s+lich|kiem\s+tra\s+lich|xem|kiem\s+tra)\s+(?:lich|lich\s+trinh|danh\s+sach\s+viec|viec\s+can\s+lam|ke\s+hoach|todo)?.*(?:rieng|chi\s+tiet|ca\s+nhan|danh\s+sach\s+viec|viec\s+can\s+lam|ke\s+hoach|todo).*(?:anh\s+tri|sep\s+tri)/i.test(unaccented) ||
+      /(?:anh\s+tri|sep\s+tri)\s+.*(?:cho\s+toi\s+xem\s+lich|xem\s+lich\s+rieng|lich\s+rieng|danh\s+sach\s+viec|viec\s+can\s+lam)/i.test(unaccented) ||
+      /(?:lich\s+rieng\s+chi\s+tiet|lich\s+rieng|danh\s+sach\s+viec\s+can\s+lam|danh\s+sach\s+viec|viec\s+can\s+lam)\s+cua\s+(?:anh\s+tri|sep\s+tri)/i.test(unaccented);
 
     if (isAskingOwnerPrivateSchedule && !context.userContext?.isOwner) {
       return {
@@ -487,7 +487,18 @@ export class IntentEngine {
       };
     }
 
-    // Owner personal task or reminder
+    // Owner personal agenda view vs task recording
+    const isOwnerAgendaQuery = context.userContext?.isOwner && /(?:xem|cho\s+toi\s+xem|kiem\s+tra)\s+(?:danh\s+sach\s+viec|viec\s+can\s+lam|ke\s+hoach|todo|lich\s+trinh|nhiem\s+vu)/i.test(unaccented);
+    if (isOwnerAgendaQuery) {
+      return {
+        primaryIntent: 'OWNER_DAILY_PLAN',
+        intentGroup: INTENT_GROUPS.SECRETARY_TASK,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isSecretary: true }
+      };
+    }
+
     const isOwnerExplicitTask = context.userContext?.isOwner && /(?:nhac\s+toi|ghi\s+nho\s+giup\s+toi|todo|danh\s+sach\s+viec|ke\s+hoach\s+ngay|ke\s+hoach\s+tuan)/i.test(unaccented);
     if (isOwnerExplicitTask) {
       return {

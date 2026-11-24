@@ -65,6 +65,54 @@ export class SecretaryHandler {
   }
 
   /**
+   * 1B. Xem Lịch trình & Danh sách việc cần làm của Anh Trí (OWNER Agenda)
+   */
+  static async handleOwnerAgenda(context) {
+    const { userContext = {} } = context;
+    if (!userContext.isOwner) {
+      return this.handleUnauthorizedAccess(context, 'OWNER_TASK_ACCESS');
+    }
+
+    try {
+      const tasks = await db.all(`
+        SELECT key, value, created_at, updated_at 
+        FROM ai_customer_memory 
+        WHERE user_id = ? AND memory_type = 'OWNER_TASK' 
+        ORDER BY updated_at DESC LIMIT 10
+      `, [userContext.userId || 'owner_tri']);
+
+      if (!tasks || tasks.length === 0) {
+        return ResponseEngine.formatResponse({
+          replyText: `Dạ thưa Anh Trí, hiện tại danh sách việc cần làm (To-do List) của anh chưa có mục nào tồn đọng ạ.\n\nAnh có muốn em ghi nhận thêm công việc hoặc lịch nhắc nào mới cho anh không ạ?`,
+          revealCatalog: false,
+          stage: 'OWNER_AGENDA_VIEW',
+          toolsUsed: ['secretary_task_manager']
+        });
+      }
+
+      const taskLines = tasks.map((t, idx) => `${idx + 1}. ${t.value}`).join('\n');
+
+      const reply = `Dạ thưa Anh Trí, em xin phép báo cáo danh sách công việc và kế hoạch đã ghi nhận của anh ạ:\n\n` +
+        `### 📋 TO-DO LIST & LỊCH TRÌNH CÁ NHÂN CỦA ANH TRÍ:\n${taskLines}\n\n` +
+        `Anh có muốn em cập nhật trạng thái đã hoàn thành cho việc nào hoặc lên lịch nhắc tiếp theo không ạ?`;
+
+      return ResponseEngine.formatResponse({
+        replyText: reply,
+        revealCatalog: false,
+        stage: 'OWNER_AGENDA_VIEW',
+        toolsUsed: ['secretary_task_manager']
+      });
+    } catch (err) {
+      console.error('[SECRETARY AGENDA ERROR]', err);
+      return ResponseEngine.formatResponse({
+        replyText: `Dạ thưa Anh Trí, hệ thống gặp chút gián đoạn khi đọc lịch trình: ${err.message}. Em sẽ kiểm tra lại ngay ạ.`,
+        revealCatalog: false,
+        stage: 'OWNER_AGENDA_VIEW'
+      });
+    }
+  }
+
+  /**
    * 2. Tổng hợp Báo cáo Khách hàng & CRM dành riêng cho OWNER
    * e.g. "Tổng hợp các khách hàng đang chờ báo giá hôm nay"
    */

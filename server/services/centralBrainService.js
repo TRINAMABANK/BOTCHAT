@@ -351,6 +351,11 @@ export class CentralBrainService {
       ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_TASK', lastTimeSpec: intentResult.slots?.timeSpec });
       return res;
     }
+    if (intentResult.primaryIntent === 'OWNER_DAILY_PLAN') {
+      const res = await SecretaryHandler.handleOwnerAgenda(enrichedContext);
+      ContextEngine.updateSessionContext(conversationId, { lastIntent: 'OWNER_DAILY_PLAN' });
+      return res;
+    }
     if (intentResult.primaryIntent === 'SECRETARY_CRM_SUMMARY') {
       const res = await SecretaryHandler.handleCrmSummary(enrichedContext);
       ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_CRM_SUMMARY' });
