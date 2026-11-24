@@ -388,6 +388,13 @@ export class CentralBrainService {
       return await AppointmentHandler.handleGeneralChat(enrichedContext);
     }
 
+    // -------------------------------------------------------------------------
+    // 2E. MULTI-INTENT COMPOSITE ORCHESTRATION: MIXED_SALES_SECRETARY
+    // -------------------------------------------------------------------------
+    if (intentResult.primaryIntent === 'MIXED_SALES_SECRETARY' || intentResult.domain === 'MIXED') {
+      return await this.handleMixedSalesSecretary(enrichedContext);
+    }
+
     // Check if OpenAI Key is configured
     const openAiApiKey = process.env.OPENAI_API_KEY;
     const hasOpenAi = openAiApiKey && openAiApiKey.length > 10 && !openAiApiKey.includes('your_');
@@ -408,6 +415,71 @@ export class CentralBrainService {
     // PATH B: Smart Tool Orchestrator with Gemini / Fallback Engine
     // -------------------------------------------------------------------------
     return await this.runSmartOrchestratorFallback(enrichedContext);
+  }
+
+  /**
+   * Handle Composite Request: Mixed Sales & Secretary / Appointment (BOTCHAT BRAIN 2.1)
+   */
+  static async handleMixedSalesSecretary(context) {
+    const { intentResult, conversationId } = context;
+    const subIntents = intentResult.subIntents || ['SALES_CONSULTATION', 'REMINDER'];
+
+    // Step 1: Execute Sales Subtask
+    const salesSubIntent = subIntents.find(s => ['FORMAL_QUOTATION', 'PRICE_INQUIRY', 'ORDER_REQUEST', 'SALES_CONSULTATION'].includes(s)) || 'SALES_CONSULTATION';
+
+    let salesResponse = null;
+    if (salesSubIntent === 'FORMAL_QUOTATION') {
+      const quoteRes = await ToolOrchestrator.executeQuotation({
+        productName: intentResult.slots?.productName || 'máy in',
+        quantity: intentResult.slots?.quantity || 1,
+        orgId: context.orgId
+      });
+      salesResponse = {
+        reply: quoteRes.result?.quotationMarkdown || 'Dạ em đã tra cứu thông tin sản phẩm theo yêu cầu.',
+        recommendedProduct: quoteRes.result?.productCandidate || null
+      };
+    } else {
+      salesResponse = await SmartSalesConsultant.consultSales(context);
+    }
+
+    // Step 2: Execute Secretary / Appointment Subtask
+    const secSubIntent = subIntents.find(s => ['REMINDER', 'APPOINTMENT', 'EMAIL_TASK', 'SECRETARY_TASK', 'SECRETARY_CRM_SUMMARY'].includes(s)) || 'APPOINTMENT';
+
+    let secResponse = null;
+    if (secSubIntent === 'APPOINTMENT' || secSubIntent === 'SCHEDULE_QUERY') {
+      secResponse = await AppointmentHandler.handleAppointment(context);
+    } else if (secSubIntent === 'REMINDER') {
+      secResponse = await AppointmentHandler.handleReminder(context);
+    } else if (secSubIntent === 'EMAIL_TASK') {
+      secResponse = await SecretaryHandler.handleDraftEmail(context);
+    } else {
+      secResponse = await SecretaryHandler.handleOwnerTask(context);
+    }
+
+    // Step 3: Synthesize Unified Dual-Role Response
+    const salesText = salesResponse?.reply || salesResponse?.content || '';
+    const secText = secResponse?.reply || secResponse?.replyText || '';
+
+    const combinedText = `Dạ, em xin phép hỗ trợ trọn vẹn cả 2 nội dung theo yêu cầu của bạn như sau ạ:\n\n` +
+      `### 1. 💼 TƯ VẤN SẢN PHẨM & KINH DOANH (AI SALES):\n` +
+      `${salesText}\n\n` +
+      `---\n\n` +
+      `### 2. 🗓️ LỊCH TRÌNH & THƯ KÝ (AI SECRETARY):\n` +
+      `${secText}`;
+
+    ContextEngine.updateSessionContext(conversationId, {
+      lastIntent: 'MIXED_SALES_SECRETARY',
+      lastProduct: salesResponse?.recommendedProduct || null,
+      lastTimeSpec: intentResult.slots?.timeSpec || null
+    });
+
+    return ResponseEngine.formatResponse({
+      replyText: combinedText,
+      revealCatalog: true,
+      recommendedProduct: salesResponse?.recommendedProduct || null,
+      stage: 'MIXED_SALES_SECRETARY_PROCESSED',
+      toolsUsed: ['smartSalesConsultant', 'secretaryHandler', 'appointmentHandler']
+    });
   }
 
   /**
@@ -471,6 +543,9 @@ export class CentralBrainService {
     }
     if (primaryIntent === 'GENERAL_CHAT') {
       return await AppointmentHandler.handleGeneralChat(context);
+    }
+    if (primaryIntent === 'MIXED_SALES_SECRETARY') {
+      return await this.handleMixedSalesSecretary(context);
     }
 
     // 0B. Greeting & Conversational Routing (Polite Personal Assistant)
