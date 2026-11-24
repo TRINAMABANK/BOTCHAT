@@ -51,7 +51,22 @@ export const INTENT_GROUPS = {
   SECRETARY_TASK: 'SECRETARY_TASK',
   OFFICE_TASK: 'OFFICE_TASK',
   SECURITY_BLOCKED: 'SECURITY_BLOCKED',
+  MIXED: 'MIXED',
   UNKNOWN: 'UNKNOWN'
+};
+
+/**
+ * 8 Core Domain Categories (Giai đoạn 1 - Controlled Upgrade)
+ */
+export const DOMAIN_INTENTS = {
+  SALES: 'SALES',
+  SECRETARY: 'SECRETARY',
+  DOCUMENT: 'DOCUMENT',
+  DATA: 'DATA',
+  RESEARCH: 'RESEARCH',
+  KNOWLEDGE: 'KNOWLEDGE',
+  CONVERSATION: 'CONVERSATION',
+  MIXED: 'MIXED'
 };
 
 export const DOMAIN_CATEGORIES = {
@@ -171,11 +186,74 @@ export function getIntentGroup(primaryIntent = '') {
     case 'SALES_CONSULTATION':
     case 'SPEC_SEARCH':
       return INTENT_GROUPS.PRODUCT_INQUIRY;
+    case 'MIXED_SALES_SECRETARY':
+    case 'MIXED':
+      return INTENT_GROUPS.MIXED;
     case 'UNKNOWN':
     case 'RESET_CHAT_REQUEST':
     case 'CONFIRM_RESET_CHAT':
     default:
       return INTENT_GROUPS.UNKNOWN;
+  }
+}
+
+/**
+ * Resolve 8 Canonical Domain Intent Categories (Giai đoạn 1)
+ */
+export function getDomainIntent(primaryIntent = '') {
+  switch (primaryIntent) {
+    case 'PRODUCT_INQUIRY':
+    case 'PRICE_INQUIRY':
+    case 'TECH_SPECS':
+    case 'PRODUCT_COMPARISON':
+    case 'ORDER_REQUEST':
+    case 'FORMAL_QUOTATION':
+    case 'SPEC_SEARCH':
+    case 'BROAD_CATEGORY_INQUIRY':
+    case 'SALES_CONSULTATION':
+    case 'LIVE_WEBSITE_SEARCH':
+      return DOMAIN_INTENTS.SALES;
+
+    case 'SECRETARY_TASK':
+    case 'SECRETARY_CRM_SUMMARY':
+    case 'OWNER_DAILY_PLAN':
+    case 'APPOINTMENT':
+    case 'SCHEDULE_QUERY':
+    case 'REMINDER':
+      return DOMAIN_INTENTS.SECRETARY;
+
+    case 'INTERNAL_DOCUMENT_RAG':
+    case 'DOCUMENT_TASK':
+    case 'OFFICE_TASK':
+    case 'EMAIL_TASK':
+      return DOMAIN_INTENTS.DOCUMENT;
+
+    case 'EXCEL_CALCULATION':
+    case 'DATA_ANALYSIS':
+      return DOMAIN_INTENTS.DATA;
+
+    case 'INTERNET_SEARCH':
+    case 'WEB_RESEARCH':
+      return DOMAIN_INTENTS.RESEARCH;
+
+    case 'KNOWLEDGE_QUERY':
+    case 'GENERAL_KNOWLEDGE':
+      return DOMAIN_INTENTS.KNOWLEDGE;
+
+    case 'MIXED_SALES_SECRETARY':
+    case 'MIXED':
+      return DOMAIN_INTENTS.MIXED;
+
+    case 'GREETING':
+    case 'IDENTITY_INQUIRY':
+    case 'GENERAL_CHAT':
+    case 'GENERAL_CONVERSATION':
+    case 'COMPANY_INFO':
+    case 'POLICY_INQUIRY':
+    case 'STAFF_HANDOFF':
+    case 'COMPLAINT':
+    default:
+      return DOMAIN_INTENTS.CONVERSATION;
   }
 }
 
@@ -207,13 +285,74 @@ export class IntentEngine {
   }
 
   /**
+   * Standardize and format intent output (Giai đoạn 1 - Universal Intent Engine)
+   */
+  static formatIntentOutput(result = {}) {
+    const rawConf = Number(result?.confidence);
+    const confidence = Math.min(1.0, Math.max(0.0, isNaN(rawConf) ? 0.8 : rawConf));
+    const isLowConfidence = confidence < 0.65;
+    const needsClarification = isLowConfidence || result?.primaryIntent === 'UNCLEAR_NEEDS' || result?.needsClarification === true;
+
+    let primaryIntent = result?.primaryIntent || 'GENERAL_CONVERSATION';
+    let domain = result?.domain || getDomainIntent(primaryIntent);
+    let intentGroup = result?.intentGroup || getIntentGroup(primaryIntent);
+
+    if (isLowConfidence) {
+      primaryIntent = 'UNCLEAR_NEEDS';
+      domain = DOMAIN_INTENTS.CONVERSATION;
+      intentGroup = INTENT_GROUPS.UNKNOWN;
+    }
+
+    // STRICT SALES ENFORCEMENT: isSales is ONLY true when domain is SALES or MIXED
+    const isSales = (domain === DOMAIN_INTENTS.SALES || domain === DOMAIN_INTENTS.MIXED);
+    const isDoc = domain === DOMAIN_INTENTS.DOCUMENT;
+    const isSecretary = (domain === DOMAIN_INTENTS.SECRETARY || domain === DOMAIN_INTENTS.MIXED);
+    const isMixed = domain === DOMAIN_INTENTS.MIXED;
+
+    return {
+      primaryIntent,
+      domain,
+      intentGroup,
+      confidence: Number(confidence.toFixed(2)),
+      needsClarification,
+      subIntents: result?.subIntents || [],
+      capabilities: result?.capabilities || (
+        domain === DOMAIN_INTENTS.SALES ? ['AI_SALES'] :
+        domain === DOMAIN_INTENTS.SECRETARY ? ['AI_SECRETARY'] :
+        domain === DOMAIN_INTENTS.DOCUMENT ? ['DOCUMENT_RAG'] :
+        domain === DOMAIN_INTENTS.DATA ? ['DATA_EXCEL'] :
+        domain === DOMAIN_INTENTS.RESEARCH ? ['WEB_RESEARCH'] :
+        domain === DOMAIN_INTENTS.KNOWLEDGE ? ['KNOWLEDGE_BASE'] :
+        domain === DOMAIN_INTENTS.MIXED ? ['AI_SALES', 'AI_SECRETARY'] :
+        ['GENERAL_CONVERSATION']
+      ),
+      slots: result?.slots || {},
+      flags: {
+        ...(result?.flags || {}),
+        isSales,
+        isDoc,
+        isSecretary,
+        isMixed
+      }
+    };
+  }
+
+  /**
    * Main intent recognition entry point
    * 
    * @param {string} rawMessage - Raw customer query
    * @param {Object} context - Conversation turn context
-   * @returns {Object} { primaryIntent, intentGroup, confidence, slots, flags }
+   * @returns {Object} { primaryIntent, domain, intentGroup, confidence, needsClarification, subIntents, capabilities, slots, flags }
    */
   static analyzeIntent(rawMessage = '', context = {}) {
+    const rawResult = this._detectRawIntent(rawMessage, context);
+    return this.formatIntentOutput(rawResult);
+  }
+
+  /**
+   * Internal raw intent detector
+   */
+  static _detectRawIntent(rawMessage = '', context = {}) {
     const trimmedRaw = (rawMessage || '').trim();
     const norm = this.normalizeText(rawMessage);
     const unaccented = this.stripDiacritics(norm);
@@ -375,6 +514,37 @@ export class IntentEngine {
     // Check if query is explicitly asking price or product specs (Topic switch from appointment to shopping)
     const isExplicitProductKeywords = /(?:bao\s+nhieu\s+tien|gia\s+bao\s+nhieu|may\s+tien|bao\s+gia|mua\s+ngay|dat\s+mua|mua\s+hang|laptop|may\s+in|may\s+scan|tra\s+|ca\s+phe\s+rang|tu\s+lanh|may\s+lanh|man\s+hinh|may\s+dem\s+tien)\b/i.test(unaccented);
 
+    // 5. REMINDER INTENT (Nhắc việc, nhắc lịch, nhắc cuộc hẹn)
+    const isReminder = /(?:nhac\s+(?:toi|em|minh|giup|cho|viec|lich|hen)|tao\s+nhac\s+nho|dat\s+nhac\s+nho|len\s+lich\s+nhac|nhac\s+nho)\b/i.test(unaccented);
+
+    // 2D. MULTI-INTENT DETECTION: Composite requests (e.g. Sales + Secretary)
+    const hasSalesSignals = (isExplicitProductKeywords || !!slots.productName || /(?:bao\s+gia|mua\s+ngay|dat\s+mua|gia\s+bao\s+nhieu)\b/i.test(unaccented)) && !slots.isBroadCategory;
+    const hasSecretarySignals = (isAppointmentExplicit || isReminder || isDraftEmail || isSecretaryCrmSummary);
+
+    if (hasSalesSignals && hasSecretarySignals) {
+      let salesSub = 'SALES_CONSULTATION';
+      if (/(?:bao\s+gia)\b/i.test(unaccented)) salesSub = 'FORMAL_QUOTATION';
+      else if (/(?:gia\s+bao\s+nhieu|bao\s+nhieu\s+tien)\b/i.test(unaccented)) salesSub = 'PRICE_INQUIRY';
+      else if (/(?:dat\s+mua|mua\s+ngay)\b/i.test(unaccented)) salesSub = 'ORDER_REQUEST';
+
+      let secretarySub = 'SECRETARY_TASK';
+      if (isReminder) secretarySub = 'REMINDER';
+      else if (isAppointmentExplicit) secretarySub = 'APPOINTMENT';
+      else if (isDraftEmail) secretarySub = 'EMAIL_TASK';
+      else if (isSecretaryCrmSummary) secretarySub = 'SECRETARY_CRM_SUMMARY';
+
+      return {
+        primaryIntent: 'MIXED_SALES_SECRETARY',
+        domain: DOMAIN_INTENTS.MIXED,
+        intentGroup: INTENT_GROUPS.MIXED,
+        confidence: 0.95,
+        subIntents: [salesSub, secretarySub],
+        capabilities: ['AI_SALES', 'AI_SECRETARY'],
+        slots,
+        flags: { isSales: true, isDoc: false, isSecretary: true, isMixed: true }
+      };
+    }
+
     if (!isExplicitProductKeywords && (isAppointmentExplicit || isAppointmentFollowUp || (hadRecentAppointment && /(ca phe|nhau|an trua|gap mat|ngay do|gio do)/i.test(unaccented)))) {
       // Prioritize APPOINTMENT when user wants to book or arrange a meeting
       return {
@@ -398,7 +568,6 @@ export class IntentEngine {
     }
 
     // 5. REMINDER INTENT (Nhắc việc, nhắc lịch, nhắc cuộc hẹn)
-    const isReminder = /(?:nhac\s+(?:toi|em|minh|giup|cho|viec|lich|hen)|tao\s+nhac\s+nho|dat\s+nhac\s+nho|len\s+lich\s+nhac|nhac\s+nho)\b/i.test(unaccented);
     if (isReminder) {
       return {
         primaryIntent: 'REMINDER',
@@ -590,8 +759,21 @@ export class IntentEngine {
     }
 
     // Default fallback: General conversation (Do NOT assume sales!)
+    const isVagueOrLowConfidence = norm.split(' ').length <= 3 && !isGreeting && !isGeneralSmallTalk;
+    if (isVagueOrLowConfidence) {
+      return {
+        primaryIntent: 'UNCLEAR_NEEDS',
+        domain: DOMAIN_INTENTS.CONVERSATION,
+        intentGroup: INTENT_GROUPS.UNKNOWN,
+        confidence: 0.5,
+        slots,
+        flags: { isSales: false, isDoc: false }
+      };
+    }
+
     return {
       primaryIntent: 'GENERAL_CONVERSATION',
+      domain: DOMAIN_INTENTS.CONVERSATION,
       intentGroup: INTENT_GROUPS.GENERAL_CHAT,
       confidence: 0.85,
       slots,
@@ -690,10 +872,12 @@ export class IntentEngine {
 
     const unaccentedClean = this.stripDiacritics(cleanedQuery);
 
-    // Blacklist non-product verbs and nouns
-    const NON_PRODUCT_TERMS = /(?:hen|gap|nhau|ca phe|cafe|uong|an trua|an toi|di an|lich|ranh|trong|nhac|nho|ban|noi chuyen|tam su|thoi tiet|khieu nai|dia chi|bao hanh|giao hang|doi tra|phi ship|gap nhan vien|nguoi that|chuyen vien|so sanh|khac nhau|ho tro truc tiep|cong viec|cuoc hen|ngay nao|thu sau|thu hai|thu ba|thu tu|thu nam|thu bay|chu nhat|tuan nay|ngay mai|hom nay|tuan toi|dat ngay do|chot lich|dat lich|nguoi yeu|ban gai|ban trai|thong minh|danh sach viec|viec can lam|ke hoach|todo|to do|bao cao|doanh thu)/i;
+    // Blacklist non-product verbs, fillers, conversational particles
+    const NON_PRODUCT_TERMS = /(?:hen|gap|nhau|ca phe|cafe|uong|an trua|an toi|di an|lich|ranh|trong|nhac|nho|ban|noi chuyen|tam su|thoi tiet|khieu nai|dia chi|bao hanh|giao hang|doi tra|phi ship|gap nhan vien|nguoi that|chuyen vien|so sanh|khac nhau|ho tro truc tiep|cong viec|cuoc hen|ngay nao|thu sau|thu hai|thu ba|thu tu|thu nam|thu bay|chu nhat|tuan nay|ngay mai|hom nay|tuan toi|dat ngay do|chot lich|dat lich|nguoi yeu|ban gai|ban trai|thong minh|danh sach viec|viec can lam|ke hoach|todo|to do|bao cao|doanh thu|de xem|de coi|thu xem|thu coi|xem sao|biet dau|khong ro|chua ro|the nao|ra sao|sao cung duoc|u de xem|uh|um|u|sao|co gi|khong co|chua|roi|thoi|vay|nhi|the|a|ha|day|kia)/i;
 
-    const isNonProductPhrase = NON_PRODUCT_TERMS.test(unaccentedClean);
+    const hasProductSignal = !!matchedBrand || !!extractedModelCode || !!categoryDomain || /(?:laptop|may in|may scan|may dem tien|may lanh|tu lanh|man hinh|tivi|dien thoai|tai nghe|chuot|ban phim|tra\b|ca phe|nuoc hoa|muc in|giay in)/i.test(unaccentedClean);
+
+    const isNonProductPhrase = NON_PRODUCT_TERMS.test(unaccentedClean) || (!hasProductSignal && unaccentedClean.split(' ').length <= 2);
     // If it has non-product terms and no verified hardware model code, resolvedProductName MUST be null!
     const resolvedProductName = (isNonProductPhrase || isBroadCategory) && !extractedModelCode ? null : (cleanedQuery || null);
 
