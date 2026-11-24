@@ -138,6 +138,60 @@ export class ReasoningEngine {
       return plan;
     }
 
+    // 5C. Lịch hẹn & Hẹn gặp (Appointment Handler Plan)
+    if (primaryIntent === 'APPOINTMENT') {
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.steps = ['CHECK_CALENDAR_CAPABILITY', 'REQUEST_APPOINTMENT_DETAILS', 'LOG_APPOINTMENT_CONTEXT'];
+      plan.targetSources = ['appointmentHandler', 'calendar_integration'];
+      plan.internalReasoningLog = 'Appointment scheduling requested. Solicit appointment parameters without hallucinating calendar availability.';
+      return plan;
+    }
+
+    // 5D. Tra cứu lịch trống & lịch làm việc (Schedule Query Plan)
+    if (primaryIntent === 'SCHEDULE_QUERY') {
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.steps = ['CHECK_SCHEDULE_AVAILABILITY', 'INFORM_CALENDAR_STATUS', 'OFFER_APPOINTMENT_RECORDING'];
+      plan.targetSources = ['scheduleHandler', 'calendar_integration'];
+      plan.internalReasoningLog = 'Schedule availability queried. Explicitly inform calendar sync status and request details.';
+      return plan;
+    }
+
+    // 5E. Nhắc việc (Reminder Plan)
+    if (primaryIntent === 'REMINDER') {
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.steps = ['PARSE_REMINDER_TIME_AND_TASK', 'CONFIRM_REMINDER_RECORDED'];
+      plan.targetSources = ['reminderHandler'];
+      plan.internalReasoningLog = 'Reminder requested by user.';
+      return plan;
+    }
+
+    // 5F. Giao tiếp xã hội / Chào hỏi / Tâm sự (General Chat Plan)
+    if (primaryIntent === 'GENERAL_CHAT' || primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || primaryIntent === 'GENERAL_CONVERSATION') {
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.steps = ['ENGAGE_FRIENDLY_CHAT'];
+      plan.targetSources = ['generalChatHandler'];
+      plan.internalReasoningLog = 'Social greeting / small talk. Keep catalog closed.';
+      return plan;
+    }
+
+    // 5G. Thông tin doanh nghiệp / Khiếu nại (Business Support Plan)
+    if (primaryIntent === 'COMPANY_INFO' || primaryIntent === 'COMPLAINT') {
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.steps = ['RESOLVE_BUSINESS_INQUIRY'];
+      plan.targetSources = ['supportHandler'];
+      plan.internalReasoningLog = 'Business info / complaint recorded.';
+      return plan;
+    }
+
+    // 5H. Yêu cầu chưa rõ (Unknown Intent)
+    if (primaryIntent === 'UNKNOWN') {
+      plan.dataSufficient = false;
+      plan.complexity = 'NEEDS_CLARIFICATION';
+      plan.clarificationQuestion = 'Dạ em chưa rõ yêu cầu của bạn, bạn có thể nói rõ hơn bạn cần hỗ trợ về sản phẩm, đặt lịch hẹn hay thông tin nào không ạ?';
+      plan.internalReasoningLog = 'Unknown query with insufficient information. Asking targeted clarification.';
+      return plan;
+    }
+
     // 6. Mặc định: Bán hàng và tư vấn sản phẩm
     plan.complexity = 'SIMPLE_DIRECT';
     plan.steps = ['CONSULT_SALES_ENGINE', 'SYNC_COLUMN_2_DIRECTIVES'];

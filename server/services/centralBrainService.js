@@ -29,6 +29,7 @@ import { ToolOrchestrator } from './intelligence/toolOrchestrator.js';
 import { LearningCaptureEngine } from './intelligence/learningCaptureEngine.js';
 import { LearningIngestionEngine } from './intelligence/learningIngestionEngine.js';
 import { SmartSalesConsultant } from './intelligence/smartSalesConsultant.js';
+import { AppointmentHandler } from './intelligence/appointmentHandler.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -310,6 +311,26 @@ export class CentralBrainService {
       orgId
     };
 
+    // -------------------------------------------------------------------------
+    // 2C. SMART CONVERSATION & APPOINTMENT ROUTING (BOTCHAT BRAIN 2.1)
+    // Non-product intents are handled directly; NEVER leak into Sales Engine!
+    // -------------------------------------------------------------------------
+    if (intentResult.primaryIntent === 'APPOINTMENT') {
+      return await AppointmentHandler.handleAppointment(enrichedContext);
+    }
+    if (intentResult.primaryIntent === 'SCHEDULE_QUERY') {
+      return await AppointmentHandler.handleScheduleQuery(enrichedContext);
+    }
+    if (intentResult.primaryIntent === 'REMINDER') {
+      return await AppointmentHandler.handleReminder(enrichedContext);
+    }
+    if (intentResult.primaryIntent === 'COMPANY_INFO' || intentResult.primaryIntent === 'COMPLAINT') {
+      return await AppointmentHandler.handleBusinessSupport(enrichedContext);
+    }
+    if (intentResult.primaryIntent === 'GENERAL_CHAT') {
+      return await AppointmentHandler.handleGeneralChat(enrichedContext);
+    }
+
     // Check if OpenAI Key is configured
     const openAiApiKey = process.env.OPENAI_API_KEY;
     const hasOpenAi = openAiApiKey && openAiApiKey.length > 10 && !openAiApiKey.includes('your_');
@@ -353,14 +374,27 @@ export class CentralBrainService {
     const isQuotationRequest = primaryIntent === 'FORMAL_QUOTATION' || /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(message);
     const isLiveWebSearch = primaryIntent === 'LIVE_WEBSITE_SEARCH' || lower.includes('website') || lower.includes('web nha cung cap');
 
-    // 0A. Greeting & Conversational Routing (Polite Personal Assistant)
-    const isGreeting = primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim());
+    // 0A. Appointment & Schedule & Reminder & Support Routing (Defense-in-depth)
+    if (primaryIntent === 'APPOINTMENT') {
+      return await AppointmentHandler.handleAppointment(context);
+    }
+    if (primaryIntent === 'SCHEDULE_QUERY') {
+      return await AppointmentHandler.handleScheduleQuery(context);
+    }
+    if (primaryIntent === 'REMINDER') {
+      return await AppointmentHandler.handleReminder(context);
+    }
+    if (primaryIntent === 'COMPANY_INFO' || primaryIntent === 'COMPLAINT') {
+      return await AppointmentHandler.handleBusinessSupport(context);
+    }
+    if (primaryIntent === 'GENERAL_CHAT') {
+      return await AppointmentHandler.handleGeneralChat(context);
+    }
+
+    // 0B. Greeting & Conversational Routing (Polite Personal Assistant)
+    const isGreeting = primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || primaryIntent === 'GENERAL_CONVERSATION' || /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim());
     if (isGreeting && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery && !isLiveWebSearch) {
-      return ResponseEngine.formatResponse({
-        replyText: 'Dạ, em chào bạn ạ! Em là **TRÍ AN** — Trợ lý AI Bán hàng & Tư vấn Toàn diện.\n\nHôm nay em có thể hỗ trợ bạn tư vấn sản phẩm, kiểm tra tồn kho hay lập bảng báo giá nào không ạ?',
-        stage: 'GREETING',
-        toolsUsed: ['greeting_handler']
-      });
+      return await AppointmentHandler.handleGeneralChat(context);
     }
 
     // 0B. Live Website Retrieval
@@ -395,7 +429,7 @@ export class CentralBrainService {
       const qty = slots.quantity || (qtyMatch ? parseInt(qtyMatch[1]) : 1);
 
       const cleanedQuery = (slots.productName || message)
-        .replace(/(cho tôi|cho em|cho e|tôi|mình|minh|em|anh|chị|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|\d+|máy|cái|chiếc|bộ)/gi, ' ')
+        .replace(/(cho tôi|cho em|cho e|tôi|mình|minh|em|anh|chị|lập|xin|cần|bảng báo giá|báo giá|bao gia|chi tiết|giúp|với|nhé|nha|\b\d+\b|máy|cái|chiếc|bộ)/gi, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
@@ -756,7 +790,9 @@ Nguyên tắc:
       leadCaptured: salesResult.leadCaptured || false,
       products: salesResult.products || [],
       citations: [],
-      toolsUsed
+      toolsUsed,
+      intentResult,
+      message
     });
 
     // Log gap to TRÍ AN Learning Center if quality gap detected

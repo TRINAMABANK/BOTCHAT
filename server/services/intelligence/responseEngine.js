@@ -36,6 +36,15 @@ export class ResponseEngine {
     // 1. Sanitize text with VerificationEngine
     let cleanedReply = VerificationEngine.sanitizeAndVerifyResponse(replyText);
 
+    // 1B. Guard against off-topic leaks in non-sales conversations
+    if (params.intentResult) {
+      cleanedReply = VerificationEngine.guardOffTopic({
+        replyText: cleanedReply,
+        intentResult: params.intentResult,
+        userMessage: params.message
+      });
+    }
+
     // 2. Append confidence and time badge if live web was extracted
     if (confidenceTag && !cleanedReply.includes('Lưu ý về nguồn giá')) {
       if (confidenceTag === 'LIVE_WEBSITE_EXTRACTED') {

@@ -135,6 +135,41 @@ export class VerificationEngine {
     }
     return DATA_CONFIDENCE_LEVELS.UNVERIFIED_ESTIMATE;
   }
+
+  /**
+   * Off-topic and Hallucination Guard (BotChat Brain 2.1)
+   * Ensures non-product conversations (APPOINTMENT, SCHEDULE_QUERY, GENERAL_CHAT, REMINDER, BUSINESS_SUPPORT)
+   * never leak unexpected product promotions, missing product fallbacks, or hallucinated schedules.
+   */
+  static guardOffTopic({ replyText = '', intentResult = {}, userMessage = '' }) {
+    if (!replyText) return replyText;
+    const intentGroup = intentResult.intentGroup;
+    const primaryIntent = intentResult.primaryIntent;
+
+    // If intent is NOT PRODUCT_INQUIRY, ensure response doesn't inappropriately pitch products or warehouse checks
+    if (intentGroup && intentGroup !== 'PRODUCT_INQUIRY') {
+      const isLeakingProductPitch =
+        replyText.includes('chưa có trong dữ liệu của shop') ||
+        replyText.includes('chưa tìm thấy trong dữ liệu của shop') ||
+        replyText.includes('chuyên cung cấp các sản phẩm công nghệ') ||
+        replyText.includes('mở bộ sản phẩm ở Cột 2') ||
+        replyText.includes('Giá niêm yết đã phê duyệt');
+
+      if (isLeakingProductPitch) {
+        if (intentGroup === 'APPOINTMENT' || primaryIntent === 'APPOINTMENT') {
+          return `Dạ hiện tại hệ thống chưa tích hợp trực tiếp với Google Calendar cá nhân nên em chưa thể kiểm tra ngay lịch trống theo thời gian thực của anh Trí ạ.\n\nTuy nhiên, em rất sẵn lòng ghi nhận yêu cầu hẹn gặp của bạn để chuyển đến anh Trí. Bạn vui lòng cho em biết thời gian dự kiến và số điện thoại của bạn nhé!`;
+        }
+        if (intentGroup === 'SCHEDULE_QUERY' || primaryIntent === 'SCHEDULE_QUERY') {
+          return `Dạ hiện tại hệ thống chưa kết nối với Google Calendar cá nhân nên em chưa thể tra cứu chính xác lịch làm việc hay ngày rảnh của anh Trí ạ. Bạn có thể để lại số điện thoại và thời gian mong muốn để anh Trí liên hệ lại nhé!`;
+        }
+        if (intentGroup === 'GENERAL_CHAT') {
+          return `Dạ em chào bạn! Em là TRÍ AN — Trợ lý AI Thông minh & Toàn diện. Em có thể hỗ trợ gì cho bạn hôm nay ạ?`;
+        }
+      }
+    }
+
+    return replyText;
+  }
 }
 
 export default VerificationEngine;

@@ -330,7 +330,23 @@ export class SmartSalesConsultant {
     let reply = '';
     let topProd = prodsInDb[0] || allProducts.find(p => p.field === 'LAPTOP') || null;
 
-    if (matchedBrands.includes('dell') && matchedBrands.includes('asus')) {
+    const prodBichThuy = allProducts.find(p => /bich thuy/i.test(p.name));
+    const prodHoangTy = allProducts.find(p => /hoang ty/i.test(p.name));
+
+    if ((lower.includes('bich thuy') || lower.includes('bích thủy')) && (lower.includes('hoang ty') || lower.includes('hoàng tỳ'))) {
+      // Comparison: Bích Thủy Hoàn Nguyên vs Hoàng Tỳ Nhật Minh
+      reply = `Dạ, em xin phân tích so sánh chi tiết giữa hai dòng trà Oolong thượng hạng của shop:\n\n` +
+        `1. **Trà Bích Thủy Hoàn Nguyên:**\n` +
+        `   • **Đặc trưng:** Là dòng lục trà Oolong cao cấp với sắc nước xanh ngọc bích độc đáo.\n` +
+        `   • **Hương vị:** Hương hoa cỏ tự nhiên, vị ngọt thanh, hậu vị đắng chát nhẹ tinh tế, rất thanh mát và sảng khoái.\n` +
+        `   • **Giá niêm yết:** ${SmartSalesConsultant.formatPrice(prodBichThuy?.price || 2500000)}.\n\n` +
+        `2. **Trà Hoàng Tỳ Nhật Minh:**\n` +
+        `   • **Đặc trưng:** Là dòng hắc trà Oolong quý hiếm với sắc nước nâu đỏ cánh gián óng ánh.\n` +
+        `   • **Hương vị & Công dụng:** Hương thơm gỗ quế và khói đặc trưng; chứa hàm lượng GABA lớn giúp an thần, ngủ ngon, giảm stress và thải độc cơ thể.\n` +
+        `   • **Giá niêm yết:** ${SmartSalesConsultant.formatPrice(prodHoangTy?.price || 2350000)}.\n\n` +
+        `💡 **Gợi ý chọn lựa:** Nếu bạn thích vị trà xanh thanh mát, hương hoa tao nhã thì **Bích Thủy Hoàn Nguyên** là lựa chọn tuyệt vời. Còn nếu bạn tìm kiếm hương vị đậm đà, ấm áp và hỗ trợ giấc ngủ ngon, thư giãn tinh thần thì nên chọn **Hoàng Tỳ Nhật Minh** nhé ạ!\n\nThông tin chi tiết của cả hai sản phẩm đã được mở ở **Cột 2** để bạn tiện tham khảo thêm ạ!`;
+      topProd = prodBichThuy || topProd;
+    } else if (matchedBrands.includes('dell') && matchedBrands.includes('asus')) {
       // Comparison: Dell vs Asus
       reply = `Dạ, em xin phân tích so sánh khách quan giữa **Laptop Dell** và **Laptop Asus** để bạn dễ dàng chọn lựa:\n\n` +
         `1. **Laptop Dell:**\n` +

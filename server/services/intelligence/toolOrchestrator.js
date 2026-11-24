@@ -87,11 +87,24 @@ export class ToolOrchestrator {
       }
 
       if (matchedProds.length === 0) {
-        const dbProds = await db.all(`
+        const flexiblePattern = `%${productName.trim().replace(/[\s\-_]+/g, '%')}%`;
+        let dbProds = await db.all(`
           SELECT * FROM products 
           WHERE is_active = 1 AND is_approved = 1 AND (name LIKE ? OR field LIKE ?)
           ORDER BY price ASC LIMIT 3
-        `, [`%${productName}%`, `%${productName}%`]);
+        `, [flexiblePattern, flexiblePattern]);
+
+        if (dbProds.length === 0) {
+          const tokens = productName.split(/[\s\-_]+/).filter(w => w.length > 2);
+          for (const tok of tokens) {
+            dbProds = await db.all(`
+              SELECT * FROM products 
+              WHERE is_active = 1 AND is_approved = 1 AND name LIKE ?
+              ORDER BY price ASC LIMIT 3
+            `, [`%${tok}%`]);
+            if (dbProds.length > 0) break;
+          }
+        }
 
         matchedProds = dbProds.map(dp => ({
           id: dp.id,
