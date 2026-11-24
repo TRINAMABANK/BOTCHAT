@@ -48,8 +48,13 @@ export class ContextEngine {
     // Check for unauthenticated impersonation attempt in chat text
     if (role !== 'OWNER') {
       const lowerMsg = (message || '').toLowerCase();
-      const claimsOwner = /(?:tôi|anh|minh|em)\s+là\s+(?:anh\s+)?(?:trí|quang nhựt trí|admin|chủ shop|sếp trí)\b/i.test(lowerMsg) ||
-                         /(?:tôi|anh)\s+là\s+chủ\s+(?:sở hữu|nhân|doanh nghiệp)\b/i.test(lowerMsg);
+      const unaccented = lowerMsg
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd');
+
+      const claimsOwner = /(?:toi|anh|minh|em)\s+la\s+(?:anh\s+)?(?:tri|quang\s+nhut\s+tri|admin|chu\s+shop|sep\s+tri)\b/i.test(unaccented) ||
+                         /(?:toi|anh)\s+la\s+chu\s+(?:so\s+huu|nhan|doanh\s+nghiep)\b/i.test(unaccented);
       if (claimsOwner) {
         isImpersonationAttempt = true;
       }
