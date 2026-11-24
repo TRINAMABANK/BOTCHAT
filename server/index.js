@@ -16,6 +16,7 @@ import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService
 import { requireAdmin, optionalAuth } from './middleware/authMiddleware.js';
 import AuthService from './services/authService.js';
 import { isSafePublicUrl } from './utils/ssrfProtection.js';
+import { CrmLeadService } from './services/crmLeadService.js';
 
 dotenv.config();
 
@@ -634,19 +635,58 @@ app.post('/api/leads', async (req, res) => {
     const id = `lead_${Date.now()}`;
     const now = new Date().toISOString();
 
+    let finalProductName = product_name ? product_name.trim() : null;
+    let finalBrand = req.body.brand || null;
+    let finalModel = req.body.model || null;
+    let finalProductsJson = req.body.products_json || null;
+    let finalSummary = req.body.conversation_summary || null;
+
+    if (!finalProductName && conversation_id) {
+      const extracted = await CrmLeadService.extractProductsFromConversation({
+        conversationId: conversation_id,
+        currentMessage: notes || customer_requirement || '',
+        db
+      });
+      finalProductName = extracted.productName;
+      finalBrand = extracted.brand;
+      finalModel = extracted.model;
+      finalProductsJson = JSON.stringify(extracted.products);
+      finalSummary = extracted.conversationSummary;
+    } else if (finalProductName) {
+      if (!finalBrand) finalBrand = CrmLeadService.extractBrand(finalProductName);
+      if (!finalModel) finalModel = CrmLeadService.extractModelCodes(finalProductName)[0] || null;
+      if (!finalProductsJson) {
+        finalProductsJson = JSON.stringify([{
+          id: product_id || null,
+          name: finalProductName,
+          brand: finalBrand,
+          model: finalModel,
+          quantity: parseInt(quantity, 10) || 1
+        }]);
+      }
+      if (!finalSummary) {
+        finalSummary = `Khách quan tâm sản phẩm: ${finalProductName}. Nhu cầu: ${customer_requirement || 'Yêu cầu tư vấn'}.`;
+      }
+    } else {
+      finalProductName = 'Chưa xác định sản phẩm';
+      finalProductsJson = '[]';
+      finalSummary = 'Khách hàng trao đổi chung, chưa đề cập sản phẩm cụ thể.';
+    }
+
     await db.run(`
       INSERT INTO leads (
         id, customer_name, phone, email, product_id, product_name, quantity,
         customer_requirement, conversation_id, website_source, widget_id,
-        consent_to_contact, created_time, lead_status, notes, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?)
+        consent_to_contact, created_time, lead_status, notes, updated_at,
+        brand, model, products_json, conversation_summary
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?, ?, ?, ?, ?)
     `, [
       id,
       customer_name.trim(),
       phoneClean,
       email ? email.trim() : null,
       product_id || null,
-      product_name || null,
+      finalProductName,
       parseInt(quantity, 10) || 1,
       customer_requirement || 'Yêu cầu tư vấn',
       conversation_id || null,
@@ -655,13 +695,18 @@ app.post('/api/leads', async (req, res) => {
       consent_to_contact ? 1 : 0,
       now,
       notes || '',
-      now
+      now,
+      finalBrand,
+      finalModel,
+      finalProductsJson,
+      finalSummary
     ]);
 
     res.json({
       success: true,
       message: 'Tạo Lead CRM thành công! Chủ nhân sẽ sớm liên hệ.',
-      leadId: id
+      leadId: id,
+      product_name: finalProductName
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -680,8 +725,8 @@ app.get('/api/crm/leads', requireAdmin, async (req, res) => {
     }
 
     if (search) {
-      sql += ' AND (customer_name LIKE ? OR phone LIKE ? OR email LIKE ? OR product_name LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      sql += ' AND (customer_name LIKE ? OR phone LIKE ? OR email LIKE ? OR product_name LIKE ? OR brand LIKE ? OR model LIKE ? OR conversation_summary LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     sql += ' ORDER BY created_time DESC';

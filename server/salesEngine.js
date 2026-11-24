@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import db from './db.js';
 import { callGemini } from './geminiService.js';
+import { CrmLeadService } from './services/crmLeadService.js';
 
 /**
  * Call an OpenAI-compatible Chat Completions endpoint using server-side credentials.
@@ -2187,46 +2188,66 @@ export class SalesEngine {
       );
 
       if (!existingLead) {
-        const leadId = `lead_${randomUUID().slice(0, 8)}`;
-        const pendingMissing = customerProfile.pendingMissingProduct;
-        const reqDetail = pendingMissing
-          ? `Khách hỏi sản phẩm ngoài danh mục: "${pendingMissing}". Cần kiểm tra nguồn hàng và phản hồi lại.`
-          : (actionType || (activeProduct ? `Quan tâm ${activeProduct.name}` : 'Yêu cầu tư vấn trực tiếp'));
-        const prodId = activeProduct?.id || null;
-        const prodName = pendingMissing
-          ? `Tìm nguồn hàng: ${pendingMissing}`
-          : (activeProduct?.name || 'Sản phẩm tổng quan');
+        const enrichedLead = await CrmLeadService.enrichLeadData({
+          leadId: `lead_${randomUUID().slice(0, 8)}`,
+          customerName,
+          phone: extractedPhone,
+          email: extractedEmail,
+          conversationId: convId,
+          currentMessage: message,
+          activeProduct: activeProduct || (customerProfile?.pendingMissingProduct ? { name: customerProfile.pendingMissingProduct } : null),
+          db,
+          source: 'TRÍ AI Humanoid Widget',
+          widgetId: 'WIDGET_HUMANOID_V1'
+        });
+
+        // If detectedQty is explicitly extracted and greater than 1, preserve it
+        if (detectedQty > 1 && enrichedLead.quantity === 1) {
+          enrichedLead.quantity = detectedQty;
+        }
 
         await db.run(
           `INSERT INTO leads (
             id, customer_name, phone, email, product_id, product_name, quantity, customer_requirement,
-            conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRÍ AI Humanoid Widget', 'WIDGET_HUMANOID_V1', 1, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?)`,
+            conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at,
+            brand, model, products_json, conversation_summary
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            leadId,
-            customerName,
-            extractedPhone,
-            extractedEmail,
-            prodId,
-            prodName,
-            detectedQty,
-            reqDetail,
-            convId,
-            now,
-            `Khách để lại SĐT trong chat: "${message}". Sản phẩm: ${prodName} (SL: ${detectedQty}).`,
-            now
+            enrichedLead.id,
+            enrichedLead.customer_name,
+            enrichedLead.phone,
+            enrichedLead.email,
+            enrichedLead.product_id,
+            enrichedLead.product_name,
+            enrichedLead.quantity,
+            enrichedLead.customer_requirement,
+            enrichedLead.conversation_id,
+            enrichedLead.website_source,
+            enrichedLead.widget_id,
+            enrichedLead.consent_to_contact,
+            enrichedLead.created_time,
+            enrichedLead.lead_status,
+            enrichedLead.notes,
+            enrichedLead.updated_at,
+            enrichedLead.brand,
+            enrichedLead.model,
+            enrichedLead.products_json,
+            enrichedLead.conversation_summary
           ]
         );
 
         leadCreated = {
-          id: leadId,
-          name: customerName,
-          phone: extractedPhone,
-          product: prodName,
-          quantity: detectedQty,
-          status: 'NEW – WAITING FOR OWNER CONTACT'
+          id: enrichedLead.id,
+          name: enrichedLead.customer_name,
+          phone: enrichedLead.phone,
+          product: enrichedLead.product_name,
+          brand: enrichedLead.brand,
+          model: enrichedLead.model,
+          products_json: enrichedLead.products_json,
+          quantity: enrichedLead.quantity,
+          status: enrichedLead.lead_status
         };
-        console.log(`[CRM INTEGRATION] New Lead created: ${leadId} (${customerName} - ${extractedPhone})`);
+        console.log(`[CRM INTEGRATION] New Lead created: ${enrichedLead.id} (${enrichedLead.customer_name} - ${enrichedLead.phone}) - Product: ${enrichedLead.product_name}`);
       }
     }
 
@@ -3202,11 +3223,23 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         : (customerProfile?.name
           ? (customerProfile?.pronoun ? `${capitalizeFirst(customerProfile.pronoun)} ${customerProfile.name}` : customerProfile.name)
           : `Khách ${flow.phone}`);
+      const prodBrand = CrmLeadService.extractBrand(flow.productName);
+      const prodModel = CrmLeadService.extractModelCodes(flow.productName)[0] || null;
+      const orderProductsJson = JSON.stringify([{
+        id: flow.productId || null,
+        name: flow.productName,
+        brand: prodBrand,
+        model: prodModel,
+        quantity: flow.quantity || 1
+      }]);
+      const orderSummary = `Đơn đặt hàng từng bước: ${flow.productName} × ${flow.quantity} ${unit}${subtotalText}. Nhu cầu: Đặt mua ngay.`;
+
       await db.run(
         `INSERT INTO leads (
           id, customer_name, phone, email, product_id, product_name, quantity, customer_requirement,
-          conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRÍ AI Humanoid Widget', 'WIDGET_HUMANOID_V1', 1, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?)`,
+          conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at,
+          brand, model, products_json, conversation_summary
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRÍ AI Humanoid Widget', 'WIDGET_HUMANOID_V1', 1, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?, ?, ?, ?, ?)`,
         [
           leadId,
           orderCustomerName,
@@ -3219,7 +3252,11 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           convId,
           now,
           `Đơn đặt hàng từng bước: ${flow.productName} × ${flow.quantity} ${unit}${subtotalText}.`,
-          now
+          now,
+          prodBrand,
+          prodModel,
+          orderProductsJson,
+          orderSummary
         ]
       );
       flow.leadId = leadId;
@@ -3228,6 +3265,9 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         name: flow.name,
         phone: flow.phone,
         product: flow.productName,
+        brand: prodBrand,
+        model: prodModel,
+        products_json: orderProductsJson,
         quantity: flow.quantity,
         status: 'NEW – WAITING FOR OWNER CONTACT'
       };

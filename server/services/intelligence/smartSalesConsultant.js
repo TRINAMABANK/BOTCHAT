@@ -22,6 +22,7 @@
 import db from '../../db.js';
 import { randomUUID } from 'crypto';
 import LearningCaptureEngine, { FAILURE_REASONS } from './learningCaptureEngine.js';
+import { CrmLeadService } from '../crmLeadService.js';
 
 export function isFoodOrBeverageProduct(product) {
   if (!product) return false;
@@ -106,19 +107,46 @@ export class SmartSalesConsultant {
       stage = 'STAFF_HANDOFF_CAPTURED';
 
       try {
-        const leadId = `lead_${randomUUID().slice(0, 8)}`;
-        const customerName = customerInfo?.name || 'Khách yêu cầu hỗ trợ';
+        const enrichedLead = await CrmLeadService.enrichLeadData({
+          leadId: `lead_${randomUUID().slice(0, 8)}`,
+          customerName: customerInfo?.name || 'Khách yêu cầu hỗ trợ',
+          phone,
+          email: null,
+          conversationId,
+          currentMessage: message,
+          activeProduct: null,
+          db,
+          source: 'TRÍ AN Smart Sales',
+          widgetId: 'WIDGET_HUMANOID_V1'
+        });
+
         await db.run(`
           INSERT INTO leads (
             id, customer_name, phone, email, product_id, product_name, quantity, customer_requirement,
-            conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at
-          ) VALUES (?, ?, ?, null, null, null, 1, 'Yêu cầu gặp nhân viên trực tiếp', ?, 'TRÍ AN Smart Sales', 'WIDGET_HUMANOID_V1', 1, ?, 'HOT', ?, ?)
-        `, [leadId, customerName, phone, conversationId, now, 'Khách yêu cầu gặp nhân viên tư vấn trực tiếp', now]);
+            conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at,
+            brand, model, products_json, conversation_summary
+          ) VALUES (?, ?, ?, null, ?, ?, ?, 'Yêu cầu gặp nhân viên trực tiếp', ?, 'TRÍ AN Smart Sales', 'WIDGET_HUMANOID_V1', 1, ?, 'HOT', ?, ?, ?, ?, ?, ?)
+        `, [
+          enrichedLead.id,
+          enrichedLead.customer_name,
+          phone,
+          enrichedLead.product_id,
+          enrichedLead.product_name,
+          enrichedLead.quantity,
+          conversationId,
+          now,
+          enrichedLead.notes || 'Khách yêu cầu gặp nhân viên tư vấn trực tiếp',
+          now,
+          enrichedLead.brand,
+          enrichedLead.model,
+          enrichedLead.products_json,
+          enrichedLead.conversation_summary
+        ]);
 
         await db.run(`
           INSERT INTO lead_activities (id, lead_id, activity_type, description, created_at)
           VALUES (?, ?, 'STAFF_HANDOFF_REQUEST', ?, ?)
-        `, [`act_${randomUUID().slice(0, 8)}`, leadId, `Khách yêu cầu gặp nhân viên trực tiếp qua tin nhắn: "${message}"`, now]);
+        `, [`act_${randomUUID().slice(0, 8)}`, enrichedLead.id, `Khách yêu cầu gặp nhân viên trực tiếp qua tin nhắn: "${message}". Sản phẩm: ${enrichedLead.product_name}`, now]);
       } catch (err) {
         // Fallback update if existing
         if (conversationId) {

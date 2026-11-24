@@ -7,6 +7,9 @@ import { runPhase2Migrations } from './migrations/schema_phase2.js';
 import { runCrawlerMigrations } from './migrations/schema_phase_crawler.js';
 import { runIntelligence2Migration } from './migrations/schema_phase_intelligence2.js';
 import { runLearningCenterMigration } from './migrations/schema_phase_learning_center.js';
+import { runBrain21Migration } from './migrations/schema_phase_brain_2_1.js';
+import { runCrmLeadsMigration } from './migrations/schema_phase_crm_leads.js';
+import { CrmLeadService } from './services/crmLeadService.js';
 
 dotenv.config();
 
@@ -864,6 +867,21 @@ export async function initDatabase() {
     await runLearningCenterMigration(getDb());
   } catch (err) {
     console.error('[MIGRATION ERROR] Learning Center migration error:', err);
+  }
+
+  // 13. BOTCHAT BRAIN 2.1 - Universal Intent, Owner Tasks, Secretary Memos
+  try {
+    await runBrain21Migration(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Brain 2.1 migration error:', err);
+  }
+
+  // 14. BOTCHAT CRM LEADS - Accurate Product Recording & Schema Extensions
+  try {
+    await runCrmLeadsMigration(db);
+    await CrmLeadService.backfillExistingLeads(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] CRM Leads migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');
