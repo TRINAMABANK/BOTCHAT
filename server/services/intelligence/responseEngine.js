@@ -69,7 +69,8 @@ export class ResponseEngine {
       leadCaptured: Boolean(leadCaptured),
       products: params.products || [],
       citations,
-      toolsUsed
+      toolsUsed,
+      confidenceTag: confidenceTag || null
     };
   }
 

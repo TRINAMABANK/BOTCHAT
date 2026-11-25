@@ -40,6 +40,8 @@ import { ActiveProductContext } from './intelligence/activeProductContext.js';
 import { CrmLeadService } from './crmLeadService.js';
 import { ServiceConsultant } from './serviceConsultant.js';
 import { KnowledgeGraphEngine } from './intelligence/knowledgeGraphEngine.js';
+import { DeepResearchEngine } from './intelligence/deepResearchEngine.js';
+import { MetacognitionEngine } from './intelligence/metacognitionEngine.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -1037,49 +1039,30 @@ export class CentralBrainService {
       return await this.handleMixedSalesSecretary(context);
     }
 
-    // 0B. Greeting & Conversational Routing (Polite Personal Assistant)
-    const isGreeting = primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || primaryIntent === 'GENERAL_CONVERSATION' || /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim());
-    if (isGreeting && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery && !isLiveWebSearch) {
-      return await AppointmentHandler.handleGeneralChat(context);
-    }
-
     // 0B-RESEARCH. DOCTOR-LEVEL ADVANCED COGNITIVE RESEARCH & MULTIDISCIPLINARY SYNTHESIS
     if ((plan?.capability === 'DOCTOR_RESEARCH' || plan?.complexity === 'DEEP_COGNITIVE') && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery) {
-      toolsUsed.push('doctor_research_engine');
-      let assocText = '';
-      if (plan?.crossAssociations && plan.crossAssociations.associations?.length > 0) {
-        assocText = '\n\n### 🌐 GÓC NHÌN LIÊN NGÀNH & BẢN ĐỒ KHÁI NIỆM:\n' +
-          plan.crossAssociations.associations.map(a => `- **${a.perspective} (${a.concept}):** ${a.insight}`).join('\n');
-      }
+      toolsUsed.push('deep_research_engine');
+      const research = await DeepResearchEngine.synthesizeDialecticalReport(message, { orgId });
 
-      const academicPrompt = `Bạn là TRÍ AI ULTIMATE ROBOT – hệ thống trí tuệ nhân tạo chuyên sâu cấp tiến sĩ.
-Yêu cầu phân tích: "${message}".
-${assocText ? `Thông tin liên ngành liên quan:\n${assocText}\n` : ''}
-Quy tắc:
-- Trả lời bằng tiếng Việt chuẩn mực, tư duy phản biện, lập luận logic đa chiều.
-- Phân tích nguyên nhân gốc rễ, đối chiếu các phương án giải pháp.
-- Đưa ra kết luận có cơ sở khoa học và khuyến nghị hành động cụ thể.
-- Xưng hô lịch thiệp: TRÍ AI ULTIMATE ROBOT.`;
-
-      let replyText = '';
-      try {
-        replyText = await callGemini(academicPrompt);
-      } catch (e) {
-        replyText = `Dạ, về yêu cầu nghiên cứu và phân tích chuyên sâu cho "${message}":\n\n` +
-          `Dưới góc nhìn khoa học và tư duy hệ thống, vấn đề này cần được bóc tách từ nhiều khía cạnh cấu thành.${assocText}\n\n` +
-          `📌 **Khuyến nghị chuyên môn:** Cần xác định rõ các ràng buộc mục tiêu và nguồn lực trước khi đưa ra quyết định tối ưu cuối cùng.`;
-      }
+      const mergedTools = [...new Set([...toolsUsed, ...(research.toolsUsed || [])])];
+      const mergedCitations = [...(citations || []), ...(research.citations || [])];
 
       return ResponseEngine.formatResponse({
-        replyText,
+        replyText: research.reportText,
         revealCatalog: false,
         recommendedField: null,
         recommendedProduct: null,
         stage: 'DOCTOR_RESEARCH_RESOLVED',
-        citations,
-        toolsUsed,
+        citations: mergedCitations,
+        toolsUsed: mergedTools,
         confidenceTag: 'DOCTOR_LEVEL_SYNTHESIZED'
       });
+    }
+
+    // 0B. Greeting & Conversational Routing (Polite Personal Assistant)
+    const isGreeting = (primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || primaryIntent === 'GENERAL_CONVERSATION' || /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim())) && plan?.capability !== 'DOCTOR_RESEARCH' && plan?.complexity !== 'DEEP_COGNITIVE';
+    if (isGreeting && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery && !isLiveWebSearch) {
+      return await AppointmentHandler.handleGeneralChat(context);
     }
 
     // 0B-COMPATIBILITY: Knowledge Graph Hardware Compatibility Lookup (Stage 3)

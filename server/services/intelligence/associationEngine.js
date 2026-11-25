@@ -102,6 +102,13 @@ export class AssociationEngine {
   }
 
   /**
+   * Synthesize cross-domain insights (Alias for findAssociations)
+   */
+  static synthesizeCrossDomainInsights(text = '', context = {}) {
+    return this.findAssociations(text, context);
+  }
+
+  /**
    * Concept Mapping: Map an entity to its related conceptual ecosystem
    */
   static getConceptEcosystem(entityName = '') {

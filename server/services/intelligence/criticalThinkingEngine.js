@@ -83,6 +83,13 @@ const COMMON_FACTUAL_FALSE_PREMISES = [
 
 export class CriticalThinkingEngine {
   /**
+   * Audit an argument for premises and fallacies (Alias for analyze)
+   */
+  static auditArgument(text = '', context = {}) {
+    return this.analyze(text, context);
+  }
+
+  /**
    * Main Critical Thinking evaluation entry
    * 
    * @param {string} text - User message

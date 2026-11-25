@@ -1,11 +1,13 @@
 /**
  * TRÍ AI HUMAN BRAIN – PLANNING ENGINE (HỆ THỐNG LẬP KẾ HOẠCH & QUẢN LÝ MỤC TIÊU)
+ * DOCTOR-LEVEL DYNAMIC DAG & ADAPTIVE REPLANNING – STAGE 4
  * 
  * Capabilities:
  * 1. Goal Decomposition: Phân rã mục tiêu lớn thành chuỗi các nhiệm vụ cụ thể có thứ tự ưu tiên.
- * 2. Step Tracking: Theo dõi tiến độ từng bước (PENDING, IN_PROGRESS, COMPLETED).
- * 3. Deadline & Schedule Recognition: Nhận diện thời hạn, tích hợp Prospective Memory và owner_tasks.
- * 4. Next Step Recommendation: Đề xuất bước tiếp theo khi hoàn thành một nhiệm vụ.
+ * 2. Step Tracking: Theo dõi tiến độ từng bước (PENDING, IN_PROGRESS, COMPLETED, FAILED, HEALED).
+ * 3. Dynamic DAG Planning: Tạo đồ thị có hướng không chu trình (DAG) với quan hệ phụ thuộc (dependsOn).
+ * 4. Self-Healing & Adaptive Replanning: Tự động phát hiện lỗi bước hoặc thiếu dữ liệu để rẽ sang đường đi dự phòng.
+ * 5. Deadline & Schedule Recognition: Tích hợp Prospective Memory và owner_tasks.
  */
 
 import { randomUUID } from 'crypto';
@@ -129,6 +131,124 @@ export class PlanningEngine {
       console.error('[PLANNING ENGINE] Error fetching active plans:', err);
       return { tasks: [], prospectiveTasks: [], pendingCount: 0, inProgressCount: 0, completedCount: 0 };
     }
+  }
+
+  /**
+   * 4. Create Dynamic DAG Execution Plan (Stage 4)
+   * Builds an execution graph with explicit dependencies and fallback contingency paths
+   */
+  static createDynamicDagPlan(goalTitle = '', options = {}) {
+    const {
+      domain = 'RESEARCH',
+      userId = 'owner_tri',
+      primaryTool = 'EXTERNAL_API',
+      fallbackTool = 'INTERNAL_KNOWLEDGE'
+    } = options;
+
+    const dagId = `dag_${randomUUID().slice(0, 8)}`;
+    const nodes = [
+      {
+        id: 'node_1_analyze',
+        name: 'Phân tích yêu cầu & Khởi tạo cây giả thuyết',
+        tool: 'deep_research_engine',
+        dependsOn: [],
+        status: 'COMPLETED',
+        canFallback: false
+      },
+      {
+        id: 'node_2_gather',
+        name: `Thu thập dữ liệu chuyên sâu (${primaryTool})`,
+        tool: primaryTool,
+        dependsOn: ['node_1_analyze'],
+        status: 'PENDING',
+        canFallback: true,
+        fallbackNodeId: 'node_2_fallback'
+      },
+      {
+        id: 'node_2_fallback',
+        name: `Dự phòng: Tra cứu tri thức nội bộ & Đồ thị tri thức (${fallbackTool})`,
+        tool: fallbackTool,
+        dependsOn: ['node_1_analyze'],
+        status: 'STANDBY',
+        isFallback: true
+      },
+      {
+        id: 'node_3_synthesize',
+        name: 'Tổng hợp biện chứng luận đề - phản đề & Hiệu chuẩn siêu nhận thức',
+        tool: 'metacognition_engine',
+        dependsOn: ['node_2_gather'], // or node_2_fallback if replanned
+        status: 'PENDING',
+        canFallback: false
+      },
+      {
+        id: 'node_4_verify',
+        name: 'Kiểm định chất lượng học thuật & Lập báo cáo kết luận',
+        tool: 'response_engine',
+        dependsOn: ['node_3_synthesize'],
+        status: 'PENDING',
+        canFallback: false
+      }
+    ];
+
+    return {
+      dagId,
+      goalTitle,
+      domain,
+      userId,
+      nodes,
+      executionHistory: [],
+      isHealed: false,
+      status: 'INITIALIZED'
+    };
+  }
+
+  /**
+   * 5. Adaptive Replanning upon step failure or data starvation
+   * Reroutes the DAG to the alternative path seamlessly without breaking the pipeline
+   */
+  static replanOnFailure(dagPlan, failedNodeId, errorReason = 'Tool returned empty data or error') {
+    if (!dagPlan || !Array.isArray(dagPlan.nodes)) return dagPlan;
+
+    const failedNode = dagPlan.nodes.find(n => n.id === failedNodeId);
+    if (!failedNode || !failedNode.canFallback || !failedNode.fallbackNodeId) {
+      return {
+        ...dagPlan,
+        status: 'FAILED',
+        error: `Node ${failedNodeId} failed and has no viable contingency fallback.`
+      };
+    }
+
+    const fallbackNode = dagPlan.nodes.find(n => n.id === failedNode.fallbackNodeId);
+    if (!fallbackNode) return dagPlan;
+
+    // Mark failed node as FAILED
+    failedNode.status = 'FAILED';
+    failedNode.errorReason = errorReason;
+
+    // Activate fallback node
+    fallbackNode.status = 'IN_PROGRESS';
+
+    // Reroute downstream nodes that depended on failedNodeId
+    dagPlan.nodes.forEach(n => {
+      if (Array.isArray(n.dependsOn)) {
+        const depIdx = n.dependsOn.indexOf(failedNodeId);
+        if (depIdx !== -1) {
+          n.dependsOn[depIdx] = fallbackNode.id;
+        }
+      }
+    });
+
+    dagPlan.isHealed = true;
+    dagPlan.status = 'HEALED_AND_REROUTED';
+    dagPlan.executionHistory.push({
+      timestamp: new Date().toISOString(),
+      event: 'ADAPTIVE_REPLAN',
+      failedNodeId,
+      repairedWithNodeId: fallbackNode.id,
+      reason: errorReason
+    });
+
+    return dagPlan;
   }
 }
 
