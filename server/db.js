@@ -10,6 +10,7 @@ import { runLearningCenterMigration } from './migrations/schema_phase_learning_c
 import { runBrain21Migration } from './migrations/schema_phase_brain_2_1.js';
 import { runCrmLeadsMigration } from './migrations/schema_phase_crm_leads.js';
 import { runHumanBrainMemoryMigration } from './migrations/schema_phase_human_brain_memory.js';
+import { runPrivateSecretaryMigration } from './migrations/schema_phase_private_secretary.js';
 import { CrmLeadService } from './services/crmLeadService.js';
 
 dotenv.config();
@@ -900,6 +901,13 @@ export async function initDatabase() {
     await runHumanBrainMemoryMigration(db);
   } catch (err) {
     console.error('[MIGRATION ERROR] Human Brain Memory migration error:', err);
+  }
+
+  // 16. THƯ KÝ RIÊNG CỦA ANH - Tasks, Reminders, Notifications & Audit Logs
+  try {
+    await runPrivateSecretaryMigration(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Private Secretary migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');

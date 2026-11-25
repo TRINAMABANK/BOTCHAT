@@ -12,6 +12,8 @@ import supplierWebsiteRoutes from './routes/supplierWebsiteRoutes.js';
 import centralBrainRoutes from './routes/centralBrainRoutes.js';
 import learningRoutes from './routes/learningRoutes.js';
 import memoryRoutes from './routes/memoryRoutes.js';
+import secretaryRoutes from './routes/secretaryRoutes.js';
+import { ReminderScheduler } from './services/secretary/reminderScheduler.js';
 const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 import { requireAdmin, optionalAuth } from './middleware/authMiddleware.js';
@@ -84,6 +86,9 @@ app.use('/api/learning-center', learningRoutes);
 
 // Mount TRÍ AI Human Brain 5-Tier Memory & Planning APIs
 app.use('/api/memory', memoryRoutes);
+
+// Mount TRÍ AI Private Secretary & Notification APIs
+app.use('/api', secretaryRoutes);
 
 // Anti-tamper & Security headers
 app.use((req, res, next) => {
@@ -496,7 +501,7 @@ app.post('/api/upload/image', requireAdmin, (req, res) => {
 // -----------------------------------------------------------------------------
 // 4. CHAT & STREAMING ENGINE (COLUMN 1)
 // -----------------------------------------------------------------------------
-app.post('/api/chat/message', async (req, res) => {
+app.post('/api/chat/message', optionalAuth, async (req, res) => {
   try {
     const { conversationId, message, selectedProduct, actionType, customerInfo, clientDevice, orgId } = req.body;
 
@@ -507,7 +512,8 @@ app.post('/api/chat/message', async (req, res) => {
       actionType,
       customerInfo,
       clientDevice,
-      orgId
+      orgId,
+      user: req.user
     });
 
     res.json(result);
@@ -957,6 +963,7 @@ if (fs.existsSync(distPath)) {
 async function start() {
   try {
     await initDatabase();
+    ReminderScheduler.start();
     app.listen(PORT, () => {
       console.log(`
 ========================================================================

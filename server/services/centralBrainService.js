@@ -33,6 +33,7 @@ import { UniversalSalesConsultant } from './intelligence/universalSalesConsultan
 import { AppointmentHandler } from './intelligence/appointmentHandler.js';
 import { ContextEngine } from './intelligence/contextEngine.js';
 import { SecretaryHandler } from './intelligence/secretaryHandler.js';
+import { SecretaryAgent } from './secretary/secretaryAgent.js';
 import { HumanMemoryEngine } from './intelligence/humanMemoryEngine.js';
 import { PlanningEngine } from './intelligence/planningEngine.js';
 import { ActiveProductContext } from './intelligence/activeProductContext.js';
@@ -337,6 +338,20 @@ export class CentralBrainService {
     if (coRef.resolvedProduct && !selectedProduct) {
       selectedProduct = coRef.resolvedProduct;
       params.selectedProduct = selectedProduct;
+    }
+
+    // 0B. THƯ KÝ RIÊNG: Kiểm tra phiên hội thoại đang chờ làm rõ giờ hoặc dời lịch
+    if (SecretaryAgent.hasPendingClarification(conversationId)) {
+      const secRes = await SecretaryAgent.handleSecretaryConversation({
+        ...params,
+        userContext,
+        message: trimmedMsg,
+        conversationId
+      });
+      if (secRes && secRes.stage !== 'SECRETARY_GENERAL_READY') {
+        ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_TASK' });
+        return secRes;
+      }
     }
 
     // 1. INTENT ENGINE: Natural language analysis, slang normalization, entity & intent extraction
@@ -730,14 +745,9 @@ export class CentralBrainService {
     // -------------------------------------------------------------------------
     // 2C. DUAL ROLE: AI SECRETARY (THƯ KÝ RIÊNG CỦA ANH TRÍ)
     // -------------------------------------------------------------------------
-    if (intentResult.primaryIntent === 'SECRETARY_TASK') {
-      const res = await SecretaryHandler.handleOwnerTask(enrichedContext);
+    if (intentResult.primaryIntent === 'SECRETARY_TASK' || intentResult.primaryIntent === 'OWNER_DAILY_PLAN') {
+      const res = await SecretaryAgent.handleSecretaryConversation(enrichedContext);
       ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_TASK', lastTimeSpec: intentResult.slots?.timeSpec });
-      return res;
-    }
-    if (intentResult.primaryIntent === 'OWNER_DAILY_PLAN') {
-      const res = await SecretaryHandler.handleOwnerAgenda(enrichedContext);
-      ContextEngine.updateSessionContext(conversationId, { lastIntent: 'OWNER_DAILY_PLAN' });
       return res;
     }
     if (intentResult.primaryIntent === 'SECRETARY_CRM_SUMMARY') {
@@ -767,7 +777,7 @@ export class CentralBrainService {
     }
     if (intentResult.primaryIntent === 'REMINDER') {
       if (enrichedContext.userContext?.isOwner) {
-        const res = await SecretaryHandler.handleOwnerTask(enrichedContext);
+        const res = await SecretaryAgent.handleSecretaryConversation(enrichedContext);
         ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_TASK', lastTimeSpec: intentResult.slots?.timeSpec });
         return res;
       }
@@ -925,8 +935,8 @@ export class CentralBrainService {
     }
 
     // 0B. AI Secretary Tasks (Defense-in-depth)
-    if (primaryIntent === 'SECRETARY_TASK') {
-      return await SecretaryHandler.handleOwnerTask(context);
+    if (primaryIntent === 'SECRETARY_TASK' || primaryIntent === 'OWNER_DAILY_PLAN') {
+      return await SecretaryAgent.handleSecretaryConversation(context);
     }
     if (primaryIntent === 'SECRETARY_CRM_SUMMARY') {
       return await SecretaryHandler.handleCrmSummary(context);

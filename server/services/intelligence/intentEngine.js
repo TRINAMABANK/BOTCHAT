@@ -279,9 +279,11 @@ export class IntentEngine {
     if (!rawText) return '';
     let normalized = rawText.trim().toLowerCase();
 
-    // Replace common Vietnamese slang & typos
+    // Replace common Vietnamese slang & typos with Unicode boundaries
     for (const [pattern, replacement] of Object.entries(VIETNAMESE_SLANG_MAP)) {
-      normalized = normalized.replace(new RegExp(pattern, 'gi'), replacement);
+      const cleanPattern = pattern.replace(/^\\b|\\b$/g, '');
+      const unicodeRegex = new RegExp(`(?<![\\p{L}\\p{N}])${cleanPattern}(?![\\p{L}\\p{N}])`, 'giu');
+      normalized = normalized.replace(unicodeRegex, replacement);
     }
 
     return normalized.replace(/\s+/g, ' ');
@@ -505,6 +507,27 @@ export class IntentEngine {
       };
     }
 
+    // 2B. PRIVATE SECRETARY CỦA ANH TRÍ ("Thư ký của anh", "Thư ký ơi", "Thư ký, ...")
+    const isSecretaryActivationOrCall = /^(?:thư ký(?: của anh| riêng| ơi)?|thu ky(?: cua anh| rieng| oi)?)(?:[,.!]|\s|$)/i.test(unaccented) ||
+      /(?:thư ký của anh|thu ky cua anh|thư ký riêng|thu ky rieng|em là thư ký của anh|em la thu ky cua anh)/i.test(unaccented) ||
+      /^(?:thư ký|thu ky)[,:]/i.test(unaccented);
+
+    const isSecretaryManagement = /(?:hôm nay (?:anh|tôi) còn (?:những )?việc|hom nay (?:anh|toi) con (?:nhung )?viec|việc nào đang quá hạn|viec nao dang qua han|tổng hợp công việc tuần|tong hop cong viec tuan|dời lịch nhắc|doi lich nhac|dời việc|doi viec|đã hoàn thành|da hoan thanh|hoàn thành việc|hoan thanh viec|lưu lại thông tin|luu lai thong tin)/i.test(unaccented);
+
+    const isExplicitTaskReminder = /(?:nhắc anh|nhac anh|nhắc tôi|nhac toi|nhắc sếp|nhac sep|lên lịch nhắc|len lich nhac|tạo lịch nhắc|tao lich nhac)/i.test(unaccented);
+
+    const hasSalesSignalsInOwnerTask = /(?:bao\s+gia|mua\s+ngay|dat\s+mua|gia\s+bao\s+nhieu|bao\s+nhieu\s+tien)\b/i.test(unaccented);
+
+    if ((isSecretaryActivationOrCall || isSecretaryManagement || isExplicitTaskReminder) && !hasSalesSignalsInOwnerTask) {
+      return {
+        primaryIntent: 'SECRETARY_TASK',
+        intentGroup: INTENT_GROUPS.SECRETARY_TASK,
+        confidence: 0.99,
+        slots,
+        flags: { isSales: false, isDoc: false, isSecretary: true }
+      };
+    }
+
     // 2C. AI SECRETARY TASKS (Owner Specific or Administrative)
     const isSecretaryCrmSummary = /(?:tong\s+hop|thong\s+ke|bao\s+cao|danh\s+sach)\s+(?:cac\s+)?(?:khach\s+hang|leads|khach)\s+(?:dang\s+)?(?:cho\s+bao\s+gia|cho\s+chot|tiem\s+nang|moi)/i.test(unaccented);
     if (isSecretaryCrmSummary) {
@@ -530,22 +553,10 @@ export class IntentEngine {
     }
 
     // Owner personal agenda view vs task recording
-    const isOwnerAgendaQuery = context.userContext?.isOwner && /(?:xem|cho\s+toi\s+xem|kiem\s+tra)\s+(?:danh\s+sach\s+viec|viec\s+can\s+lam|ke\s+hoach|todo|lich\s+trinh|nhiem\s+vu)/i.test(unaccented);
+    const isOwnerAgendaQuery = (context.userContext?.isOwner || /anh|toi/i.test(unaccented)) && /(?:xem|cho\s+toi\s+xem|kiem\s+tra)\s+(?:danh\s+sach\s+viec|viec\s+can\s+lam|ke\s+hoach|todo|lich\s+trinh|nhiem\s+vu)/i.test(unaccented);
     if (isOwnerAgendaQuery) {
       return {
         primaryIntent: 'OWNER_DAILY_PLAN',
-        intentGroup: INTENT_GROUPS.SECRETARY_TASK,
-        confidence: 0.98,
-        slots,
-        flags: { isSales: false, isDoc: false, isSecretary: true }
-      };
-    }
-
-    const isOwnerExplicitTask = context.userContext?.isOwner && /(?:nhac\s+toi|nhac\s+anh|nhac\s+sep|ghi\s+nho\s+giup\s+toi|ghi\s+nho\s+giup\s+anh|todo|danh\s+sach\s+viec|ke\s+hoach\s+ngay|ke\s+hoach\s+tuan)/i.test(unaccented);
-    const hasSalesSignalsInOwnerTask = /(?:bao\s+gia|mua\s+ngay|dat\s+mua|gia\s+bao\s+nhieu|bao\s+nhieu\s+tien)\b/i.test(unaccented);
-    if (isOwnerExplicitTask && !hasSalesSignalsInOwnerTask) {
-      return {
-        primaryIntent: 'SECRETARY_TASK',
         intentGroup: INTENT_GROUPS.SECRETARY_TASK,
         confidence: 0.98,
         slots,
@@ -574,7 +585,7 @@ export class IntentEngine {
 
     // 2D. MULTI-INTENT DETECTION: Composite requests (e.g. Sales + Secretary)
     const hasSalesSignals = (isExplicitProductKeywords || !!slots.productName || /(?:bao\s+gia|mua\s+ngay|dat\s+mua|gia\s+bao\s+nhieu)\b/i.test(unaccented)) && !slots.isBroadCategory;
-    const hasSecretarySignals = (isAppointmentExplicit || isReminder || isDraftEmail || isSecretaryCrmSummary || isOwnerExplicitTask || /(?:hop\b|cuoc\s+hop)/i.test(unaccented));
+    const hasSecretarySignals = (isAppointmentExplicit || isReminder || isDraftEmail || isSecretaryCrmSummary || isExplicitTaskReminder || isSecretaryActivationOrCall || isSecretaryManagement || /(?:hop\b|cuoc\s+hop)/i.test(unaccented));
 
     if (hasSalesSignals && hasSecretarySignals) {
       let salesSub = 'SALES_CONSULTATION';

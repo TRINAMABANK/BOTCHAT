@@ -8,13 +8,15 @@ import AdminLoginModal from './components/AdminLoginModal';
 import MobileDrawer from './components/MobileDrawer';
 import ProductDetailModal from './components/ProductDetailModal';
 import GuideModal from './components/GuideModal';
+import ReminderNotificationModal from './components/ReminderNotificationModal';
 import {
   HelpCircle,
   PhoneCall,
   User,
   Shield,
   ShoppingCart,
-  Bot
+  Bot,
+  Bell
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -120,6 +122,12 @@ export const App = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [unreadLeadsCount, setUnreadLeadsCount] = useState(0);
 
+  // Thư ký riêng: Trạng thái Thông báo Nhắc việc (Nút Nhắc việc)
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [isLoadingNotifs, setIsLoadingNotifs] = useState(false);
+
   // Initialize Session: Cuộc trò chuyện chỉ giữ nguyên khi chưa thoát (sessionStorage), khi thoát rồi vào lại thì như làm mới
   useEffect(() => {
     // Xóa sạch dữ liệu legacy ở localStorage để không bao giờ bị lưu vĩnh viễn qua các lần tắt trình duyệt
@@ -212,6 +220,121 @@ export const App = () => {
     }
   };
 
+  // Thư ký riêng: Tải số lượng thông báo nhắc việc chưa xem
+  const fetchUnreadNotifications = async () => {
+    try {
+      const token = sessionStorage.getItem('triai_admin_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const res = await fetch('/api/notifications/unread', { headers });
+      const data = await res.json();
+      if (data.success) {
+        setUnreadNotifCount(data.count || 0);
+        if (data.notifications && data.notifications.length > 0) {
+          setNotifications(prev => {
+            const newMap = new Map();
+            data.notifications.forEach(n => newMap.set(n.notification_id || n.id, n));
+            prev.forEach(p => {
+              const id = p.notification_id || p.id;
+              if (!newMap.has(id)) newMap.set(id, p);
+            });
+            return Array.from(newMap.values());
+          });
+        }
+      }
+    } catch (_) {}
+  };
+
+  // Thư ký riêng: Tải toàn bộ danh sách thông báo khi bấm nút Nhắc việc
+  const fetchFullNotifications = async () => {
+    setIsLoadingNotifs(true);
+    try {
+      const token = sessionStorage.getItem('triai_admin_token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const res = await fetch('/api/notifications', { headers });
+      const data = await res.json();
+      if (data.success && data.notifications) {
+        setNotifications(data.notifications);
+        if (data.count !== undefined) {
+          setUnreadNotifCount(data.count);
+        }
+      }
+    } catch (err) {
+      console.error('[NOTIFICATIONS FETCH ERROR]', err);
+    } finally {
+      setIsLoadingNotifs(false);
+    }
+  };
+
+  // Thao tác A: Bấm "Đã xem" -> Ẩn khỏi unread, giữ nguyên công việc, không xóa việc
+  const handleMarkNotificationAsRead = async (notifId) => {
+    try {
+      const token = sessionStorage.getItem('triai_admin_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      };
+      const res = await fetch(`/api/notifications/${notifId}/read`, {
+        method: 'POST',
+        headers
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNotifications(prev =>
+          prev.map(n => ((n.notification_id === notifId || n.id === notifId) ? { ...n, is_read: 1, read_at: data.readAt } : n))
+        );
+        setUnreadNotifCount(data.unreadCount !== undefined ? data.unreadCount : Math.max(0, unreadNotifCount - 1));
+      }
+    } catch (err) {
+      console.error('[MARK READ ERROR]', err);
+    }
+  };
+
+  // Thao tác B: Bấm "Nhắc lại" -> Đóng modal, mở lại ô chat chính với câu hỏi dời lịch từ thư ký
+  const handleRescheduleNotification = async (notif) => {
+    try {
+      setIsReminderModalOpen(false);
+      const token = sessionStorage.getItem('triai_admin_token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      };
+      const notifId = notif.notification_id || notif.id;
+      const res = await fetch(`/api/notifications/${notifId}/reschedule`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ conversationId })
+      });
+      const data = await res.json();
+
+      const timeDisplay = notif.remind_at
+        ? new Date(notif.remind_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ngày ' + new Date(notif.remind_at).toLocaleDateString('vi-VN')
+        : 'vừa qua';
+
+      const promptReply = data.promptReply || `Dạ, công việc **"${notif.title}"** hiện tại đang được nhắc lúc **${timeDisplay}**. Anh muốn dời sang thời gian nào ạ?`;
+
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `msg_a_resched_${Date.now()}`,
+          senderType: 'assistant',
+          content: promptReply,
+          createdAt: new Date().toISOString()
+        }
+      ]);
+      setMobileViewTab('chat');
+      setInputFocusTick(t => t + 1);
+    } catch (err) {
+      console.error('[RESCHEDULE ERROR]', err);
+    }
+  };
+
+  // Định kỳ quét thông báo nhắc việc mới mỗi 15 giây
+  useEffect(() => {
+    fetchUnreadNotifications();
+    const notifInterval = setInterval(fetchUnreadNotifications, 15000);
+    return () => clearInterval(notifInterval);
+  }, []);
+
 
   // Send Message to AI Sales Engine
   const handleSendMessage = async (text, overrideProduct = null, actionType = null) => {
@@ -251,9 +374,13 @@ export const App = () => {
     setIsThinking(true);
 
     try {
+      const token = sessionStorage.getItem('triai_admin_token');
       const res = await fetch('/api/chat/message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           conversationId,
           message: text,
@@ -655,14 +782,22 @@ export const App = () => {
               <span className="hidden sm:inline font-medium text-[11px] md:text-xs">Đang hoạt động 24/7</span>
             </div>
 
-            {/* Guide Button: [?] Hướng dẫn */}
+            {/* Nút Nhắc việc (Thay thế nút Hướng dẫn) */}
             <button
-              onClick={() => setIsGuideOpen(true)}
-              className="flex items-center space-x-1 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-[#0C1B3E] hover:bg-[#102454] border border-cyan-500/30 text-cyan-200 text-xs font-semibold shadow-md transition-all active:scale-95"
-              title="Xem hướng dẫn sử dụng"
+              onClick={() => {
+                fetchFullNotifications();
+                setIsReminderModalOpen(true);
+              }}
+              className="relative flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-[#0C1B3E] hover:bg-[#102454] border border-cyan-500/30 text-cyan-200 text-xs font-semibold shadow-md transition-all active:scale-95 cursor-pointer"
+              title="Xem thông báo nhắc việc của Thư ký riêng"
             >
-              <HelpCircle size={14} className="text-cyan-400 flex-shrink-0" />
-              <span className="hidden sm:inline">Hướng dẫn</span>
+              <Bell size={14} className={`flex-shrink-0 ${unreadNotifCount > 0 ? 'text-amber-400 animate-bounce' : 'text-cyan-400'}`} />
+              <span className="hidden sm:inline">Nhắc việc</span>
+              {unreadNotifCount > 0 && (
+                <span className="flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-md">
+                  {unreadNotifCount}
+                </span>
+              )}
             </button>
 
             {/* Catalog Toggle Button (Bật/tắt Cột 2 mọi lúc trên máy tính, laptop, tablet, điện thoại) */}
@@ -881,6 +1016,20 @@ export const App = () => {
           setIsGuideOpen(false);
           setInputFocusTick((t) => t + 1);
         }}
+      />
+
+      {/* Reminder Notification Modal (Thư ký riêng) */}
+      <ReminderNotificationModal
+        isOpen={isReminderModalOpen}
+        onClose={() => {
+          setIsReminderModalOpen(false);
+          setInputFocusTick((t) => t + 1);
+        }}
+        notifications={notifications}
+        unreadCount={unreadNotifCount}
+        onMarkAsRead={handleMarkNotificationAsRead}
+        onReschedule={handleRescheduleNotification}
+        isLoading={isLoadingNotifs}
       />
 
       {/* Quick Phone Contact Modal */}
