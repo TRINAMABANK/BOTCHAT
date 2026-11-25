@@ -11,6 +11,7 @@ import { runBrain21Migration } from './migrations/schema_phase_brain_2_1.js';
 import { runCrmLeadsMigration } from './migrations/schema_phase_crm_leads.js';
 import { runHumanBrainMemoryMigration } from './migrations/schema_phase_human_brain_memory.js';
 import { runPrivateSecretaryMigration } from './migrations/schema_phase_private_secretary.js';
+import { runServiceLeadsMigration } from './migrations/schema_phase_service_leads.js';
 import { CrmLeadService } from './services/crmLeadService.js';
 
 dotenv.config();
@@ -908,6 +909,13 @@ export async function initDatabase() {
     await runPrivateSecretaryMigration(db);
   } catch (err) {
     console.error('[MIGRATION ERROR] Private Secretary migration error:', err);
+  }
+
+  // 17. BOTCHAT SERVICE SURVEY & INSTALLATION CRM MIGRATION
+  try {
+    await runServiceLeadsMigration(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Service Leads migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');

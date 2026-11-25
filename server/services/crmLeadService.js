@@ -512,6 +512,217 @@ export class CrmLeadService {
       undeterminedCount
     };
   }
+
+  /**
+   * Extract phone number from text
+   */
+  static extractPhoneNumber(text = '') {
+    if (!text) return null;
+    const cleaned = text.replace(/[\.\s\-\(\)]/g, '');
+    const match = cleaned.match(/(?:\+?84|0)(?:3[2-9]|5[2689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}\b/);
+    if (match) {
+      let phone = match[0];
+      if (phone.startsWith('+84')) phone = '0' + phone.slice(3);
+      else if (phone.startsWith('84')) phone = '0' + phone.slice(2);
+      return phone;
+    }
+    return null;
+  }
+
+  /**
+   * Extract construction/installation service details from text
+   */
+  static extractServiceDetails(text = '') {
+    if (!text) return {};
+    const unaccented = this.stripDiacritics(text).toLowerCase();
+
+    // 1. Phone number
+    const phone = this.extractPhoneNumber(text);
+
+    // 2. Classify service type
+    let serviceType = 'SERVICE_SURVEY_REQUEST';
+    if (/(?:sua|sua chua|khac phuc|hu hong|bao hong|bi loi|khong len)/i.test(unaccented)) {
+      serviceType = 'REPAIR_REQUEST';
+    } else if (/(?:bao tri|bao duong|ve sinh|kiem tra dinh ky)/i.test(unaccented)) {
+      serviceType = 'MAINTENANCE_REQUEST';
+    } else if (/(?:lap dat|thao do|di doi|thao lap|lap rap|gan|treo)/i.test(unaccented)) {
+      serviceType = 'INSTALLATION_REQUEST';
+    } else if (/(?:thi cong|khao sat|tron goi|cong trinh|du an)/i.test(unaccented)) {
+      serviceType = 'SERVICE_SURVEY_REQUEST';
+    }
+
+    // 3. Extract address
+    let surveyAddress = null;
+    const isPureInquiry = /(?:co\s+thi\s+cong|co\s+lap\s+dat|co\s+sua\s+chua|co\s+bao\s+tri|khao\s+sat\s+khong)/i.test(unaccented) &&
+      !/(?:quan|huyen|phuong|duong|tp|thanh\s+pho|so\s+nha|so\s+\d+|toa\s+nha|kdt|hem|ngo)/i.test(unaccented);
+
+    if (!isPureInquiry) {
+      const addrRegex = /(?<![\p{L}\p{N}])(?:địa chỉ(?: công trình)?|tại|ở|khu vực|địa điểm|công trình ở|nhà ở)(?![\p{L}\p{N}])\s*[:\-]?\s*([^,\n.;?]+(?:(?:quận|huyện|phường|xã|thành phố|tp|tỉnh|đường|phố|hẻm|ngõ|số nhà)[^,\n.;?]*)*)/iu;
+      const addrMatch = text.match(addrRegex);
+      if (addrMatch && addrMatch[1] && addrMatch[1].trim().length > 3) {
+        const cand = addrMatch[1].trim();
+        if (!/(?:thi cong|lap dat|khao sat|sua chua|khong|bao nhieu|may gio|the nao)/i.test(this.stripDiacritics(cand))) {
+          surveyAddress = cand;
+        }
+      }
+      
+      if (!surveyAddress) {
+        // District/city/street match
+        const generalAddr = text.match(/(?<![\p{L}\p{N}])(?:(?:số\s*\d+[A-Za-z]?\s+[\p{L}\s\d]+)|(?:(?:quận|huyện|phường|thị xã|tp\.|thành phố|đường|phố|p\.|q\.)\s*[\p{L}\s\d]+))/iu);
+        if (generalAddr && generalAddr[0]) {
+          surveyAddress = generalAddr[0].trim();
+        }
+      }
+    }
+
+    // 4. Extract scale or quantity
+    let scaleOrQuantity = null;
+    const scaleMatch = text.match(/(\d+\s*(?:máy|bộ|chiếc|cái|thiết bị|tầng|phòng|điểm|vị trí|m2|mét vuông))/i);
+    if (scaleMatch) {
+      scaleOrQuantity = scaleMatch[1].trim();
+    }
+
+    // 5. Extract expected time
+    let expectedTime = null;
+    const timeMatch = text.match(/(?:(?:sáng|chiều|tối)\s+)?(?:hôm nay|ngày mai|sáng mai|chiều mai|tuần sau|thứ [2-7]|thứ hai|thứ ba|thứ tư|thứ năm|thứ sáu|thứ bảy|chủ nhật|ngày \d+[\/\-]\d+)/i);
+    if (timeMatch) {
+      expectedTime = timeMatch[0].trim();
+    }
+
+    return {
+      phone,
+      serviceType,
+      surveyAddress,
+      scaleOrQuantity,
+      expectedTime
+    };
+  }
+
+  /**
+   * Create or update a Service Survey & Installation Lead in CRM
+   */
+  static async createOrUpdateServiceLead(db, {
+    conversationId,
+    customerName,
+    phone,
+    email,
+    serviceType = 'SERVICE_SURVEY_REQUEST',
+    surveyAddress,
+    scaleOrQuantity,
+    expectedTime,
+    customerRequirement,
+    attachments = [],
+    notes = '',
+    source = 'TRÍ AI Service Consultation'
+  } = {}) {
+    if (!db) return null;
+    const now = new Date().toISOString();
+
+    let existing = null;
+    if (conversationId) {
+      existing = await db.get(
+        `SELECT * FROM leads WHERE conversation_id = ? AND lead_type = 'SERVICE_SURVEY' ORDER BY created_time DESC LIMIT 1`,
+        [conversationId]
+      );
+    }
+
+    const finalPhone = phone || existing?.phone || '';
+    const finalAddress = surveyAddress || existing?.survey_address || null;
+    const finalCustomerName = (customerName && customerName !== 'Quý khách' && customerName !== 'Quý Khách')
+      ? customerName.trim()
+      : (existing?.customer_name || (finalPhone ? `Khách ${finalPhone}` : 'Khách hàng'));
+    const finalScale = scaleOrQuantity || existing?.scale_or_quantity || null;
+    const finalTime = expectedTime || existing?.expected_time || null;
+    const finalServiceType = serviceType || existing?.service_type || 'SERVICE_SURVEY_REQUEST';
+    const finalReq = customerRequirement || existing?.customer_requirement || 'Yêu cầu tư vấn khảo sát thi công lắp đặt';
+    const finalAttachments = attachments.length > 0 ? JSON.stringify(attachments) : (existing?.attachments || '[]');
+
+    if (existing) {
+      await db.run(`
+        UPDATE leads
+        SET customer_name = ?,
+            phone = ?,
+            service_type = ?,
+            survey_address = ?,
+            scale_or_quantity = ?,
+            expected_time = ?,
+            attachments = ?,
+            customer_requirement = ?,
+            notes = ?,
+            updated_at = ?
+        WHERE id = ?
+      `, [
+        finalCustomerName,
+        finalPhone,
+        finalServiceType,
+        finalAddress,
+        finalScale,
+        finalTime,
+        finalAttachments,
+        finalReq,
+        notes || existing.notes || '',
+        now,
+        existing.id
+      ]);
+
+      return await db.get(`SELECT * FROM leads WHERE id = ?`, [existing.id]);
+    } else {
+      const id = `lead_svc_${Date.now()}`;
+      await db.run(`
+        INSERT INTO leads (
+          id, customer_name, phone, email, lead_type, service_type,
+          survey_address, scale_or_quantity, expected_time, attachments,
+          product_name, quantity, customer_requirement, conversation_id,
+          website_source, widget_id, consent_to_contact, created_time,
+          lead_status, notes, updated_at, conversation_summary
+        ) VALUES (
+          ?, ?, ?, ?, 'SERVICE_SURVEY', ?,
+          ?, ?, ?, ?,
+          'Dịch vụ khảo sát thi công lắp đặt', 1, ?, ?,
+          ?, 'WIDGET_SERVICE_V1', 1, ?,
+          'Mới tiếp nhận', ?, ?, ?
+        )
+      `, [
+        id,
+        finalCustomerName,
+        finalPhone,
+        email || null,
+        finalServiceType,
+        finalAddress,
+        finalScale,
+        finalTime,
+        finalAttachments,
+        finalReq,
+        conversationId || null,
+        source,
+        now,
+        notes || 'Lead dịch vụ được tạo từ hội thoại tư vấn thi công - lắp đặt',
+        now,
+        `Yêu cầu dịch vụ: ${finalServiceType}. Địa chỉ: ${finalAddress || 'Chưa cung cấp'}. SĐT: ${finalPhone || 'Chưa cung cấp'}.`
+      ]);
+
+      return await db.get(`SELECT * FROM leads WHERE id = ?`, [id]);
+    }
+  }
 }
+
+export const SERVICE_STATUSES = [
+  'Mới tiếp nhận',
+  'Chờ liên hệ',
+  'Đang sắp xếp khảo sát',
+  'Đã khảo sát',
+  'Đang lập báo giá',
+  'Đã gửi báo giá',
+  'Khách đồng ý',
+  'Không thực hiện',
+  'Đã hoàn thành'
+];
+
+export const SERVICE_TYPES = {
+  SERVICE_SURVEY_REQUEST: 'SERVICE_SURVEY_REQUEST',
+  INSTALLATION_REQUEST: 'INSTALLATION_REQUEST',
+  MAINTENANCE_REQUEST: 'MAINTENANCE_REQUEST',
+  REPAIR_REQUEST: 'REPAIR_REQUEST'
+};
 
 export default CrmLeadService;

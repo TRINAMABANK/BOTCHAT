@@ -52,6 +52,7 @@ const VIETNAMESE_SLANG_MAP = {
 export const INTENT_GROUPS = {
   GENERAL_CHAT: 'GENERAL_CHAT',
   PRODUCT_INQUIRY: 'PRODUCT_INQUIRY',
+  SERVICE_CONSULTATION: 'SERVICE_CONSULTATION',
   APPOINTMENT: 'APPOINTMENT',
   SCHEDULE_QUERY: 'SCHEDULE_QUERY',
   REMINDER: 'REMINDER',
@@ -64,10 +65,11 @@ export const INTENT_GROUPS = {
 };
 
 /**
- * 8 Core Domain Categories (Giai đoạn 1 - Controlled Upgrade)
+ * 9 Core Domain Categories (Giai đoạn 1 & Dịch vụ thi công)
  */
 export const DOMAIN_INTENTS = {
   SALES: 'SALES',
+  SERVICE: 'SERVICE',
   SECRETARY: 'SECRETARY',
   DOCUMENT: 'DOCUMENT',
   DATA: 'DATA',
@@ -185,6 +187,12 @@ export function getIntentGroup(primaryIntent = '') {
     case 'SECURITY_IMPERSONATION_ATTEMPT':
     case 'SECURITY_BLOCKED':
       return INTENT_GROUPS.SECURITY_BLOCKED;
+    case 'SERVICE_SURVEY_REQUEST':
+    case 'INSTALLATION_REQUEST':
+    case 'MAINTENANCE_REQUEST':
+    case 'REPAIR_REQUEST':
+    case 'SERVICE_CONSULTATION':
+      return INTENT_GROUPS.SERVICE_CONSULTATION;
     case 'PRICE_INQUIRY':
     case 'FORMAL_QUOTATION':
     case 'ORDER_REQUEST':
@@ -227,6 +235,13 @@ export function getDomainIntent(primaryIntent = '') {
     case 'VIEW_ALL_PRODUCTS':
     case 'LIVE_WEBSITE_SEARCH':
       return DOMAIN_INTENTS.SALES;
+
+    case 'SERVICE_SURVEY_REQUEST':
+    case 'INSTALLATION_REQUEST':
+    case 'MAINTENANCE_REQUEST':
+    case 'REPAIR_REQUEST':
+    case 'SERVICE_CONSULTATION':
+      return DOMAIN_INTENTS.SERVICE;
 
     case 'SECRETARY_TASK':
     case 'SECRETARY_CRM_SUMMARY':
@@ -335,6 +350,7 @@ export class IntentEngine {
       subIntents: result?.subIntents || [],
       capabilities: result?.capabilities || (
         domain === DOMAIN_INTENTS.SALES ? ['AI_SALES'] :
+        domain === DOMAIN_INTENTS.SERVICE ? ['SERVICE_CONSULTANT'] :
         domain === DOMAIN_INTENTS.SECRETARY ? ['AI_SECRETARY'] :
         domain === DOMAIN_INTENTS.DOCUMENT ? ['DOCUMENT_RAG'] :
         domain === DOMAIN_INTENTS.DATA ? ['DATA_EXCEL'] :
@@ -507,6 +523,50 @@ export class IntentEngine {
       };
     }
 
+    // 2B-1. DỊCH VỤ THI CÔNG – LẮP ĐẶT – KHẢO SÁT – SỬA CHỮA – BẢO TRÌ
+    // (BẮT BUỘC ƯU TIÊN TRƯỚC TRUY VẤN DANH MỤC SẢN PHẨM & AI SALES)
+    const isServiceKeywords = /(?:thi\s+cong|lap\s+dat|khao\s+sat|thao\s+do|di\s+doi|chuyen\s+doi|thao\s+lap|lap\s+rap|sua\s+chua|bao\s+tri|bao\s+duong|ve\s+sinh\s+may)/i.test(unaccented);
+    
+    const isDirectServiceInquiry = /(?:co\s+(?:nhan\s+)?thi\s+cong|thi\s+cong\s+(?:khong|ko|dc\s+khong|duoc\s+khong|tron\s+goi)|co\s+(?:nhan\s+)?lap\s+dat|lap\s+dat\s+(?:khong|ko|tan\s+noi|tai\s+nha|dc\s+khong|duoc\s+khong)|co\s+khao\s+sat|khao\s+sat\s+(?:khong|ko|tan\s+noi|thuc\s+te|cong\s+trinh)|khao\s+sat\s+va\s+lap\s+dat|co\s+(?:nhan\s+)?thao\s+do|co\s+di\s+doi|thao\s+do|di\s+doi|co\s+sua\s+chua|sua\s+chua\s+(?:khong|ko)|co\s+bao\s+tri|bao\s+tri\s+(?:khong|ko|dinh\s+ky)|bao\s+duong\s+khong|chi\s+phi\s+thi\s+cong|gia\s+thi\s+cong|chi\s+phi\s+lap\s+dat|gia\s+lap\s+dat|chi\s+phi\s+khao\s+sat|khao\s+sat\s+co\s+mat\s+phi)/i.test(unaccented);
+
+    // Multi-turn context check: customer in an active service consultation session
+    const prevHistory = context.conversationHistory || context.history || [];
+    const lastSessionIntent = context.sessionContext?.lastIntent || (prevHistory.length > 0 ? prevHistory[prevHistory.length - 1]?.intent : null);
+    const inServiceIntake = context.sessionContext?.inServiceIntake || lastSessionIntent === 'SERVICE_SURVEY_REQUEST' || (prevHistory.slice(-2).some(h => /(?:thi cong|lap dat|khao sat|cong trinh)/i.test(this.stripDiacritics(h.content || ''))));
+
+    const isTopicSwitch = /(?:mua\s+ngay|dat\s+mua|bao\s+gia\s+laptop|bao\s+gia\s+may\s+in|thu\s+ky\s+cua\s+anh)\b/i.test(unaccented);
+
+    const isServiceFollowUp = inServiceIntake && !isTopicSwitch && (
+      Boolean(slots.phone || slots.extractedPhone) ||
+      /(?:dia\s+chi|o\s+quan|tai\s+quan|o\s+phuong|tai\s+phuong|duong\s+|so\s+nha|quan\s+\d+|quan\s+[a-z]+|tp|thanh\s+pho|tinh)/i.test(unaccented) ||
+      /(?:bao\s+nhieu\s+tien|chi\s+phi|gia\s+ca|mat\s+phi|khi\s+nao|mai|sang\s+mai|chieu\s+mai|tuan\s+sau|may\s+gio|qua\s+lam|lam\s+luon|khao\s+sat|qua\s+xem|chot\s+lich|thoi\s+gian|quy\s+mo|\d+\s*(?:may|bo|thiet\s+bi|cai|chiec|diem|phong)|som\s+nhat)/i.test(unaccented)
+    );
+
+    if (isDirectServiceInquiry || (isServiceKeywords && /(?:co\s+|nhan\s+|khong|ko|giup|cho|tan\s+noi|tai\s+nha|tron\s+goi|o\s+dau|nhu\s+the\s+nao|ra\s+sao)/i.test(unaccented)) || isServiceFollowUp) {
+      let serviceType = 'SERVICE_SURVEY_REQUEST';
+      if (/(?:sua|sua\s+chua|khac\s+phuc|hu\s+hong|bao\s+hong|bi\s+loi|khong\s+len)/i.test(unaccented)) {
+        serviceType = 'REPAIR_REQUEST';
+      } else if (/(?:bao\s+tri|bao\s+duong|ve\s+sinh|kiem\s+tra\s+dinh\s+ky)/i.test(unaccented)) {
+        serviceType = 'MAINTENANCE_REQUEST';
+      } else if (/(?:lap\s+dat|thao\s+do|di\s+doi|thao\s+lap|lap\s+rap|gan|treo)/i.test(unaccented)) {
+        serviceType = 'INSTALLATION_REQUEST';
+      }
+
+      // Explicitly wipe productName to prevent leaking product catalogs or Column 2
+      slots.productName = null;
+      slots.serviceType = serviceType;
+
+      return {
+        primaryIntent: 'SERVICE_SURVEY_REQUEST',
+        domain: DOMAIN_INTENTS.SERVICE,
+        intentGroup: INTENT_GROUPS.SERVICE_CONSULTATION,
+        confidence: 0.99,
+        serviceType,
+        slots,
+        flags: { isSales: false, isDoc: false, isSecretary: false, isService: true }
+      };
+    }
+
     // 2B. PRIVATE SECRETARY CỦA ANH TRÍ ("Thư ký của anh", "Thư ký ơi", "Thư ký, ...")
     const isSecretaryActivationOrCall = /^(?:thư ký(?: của anh| riêng| ơi)?|thu ky(?: cua anh| rieng| oi)?)(?:[,.!]|\s|$)/i.test(unaccented) ||
       /(?:thư ký của anh|thu ky cua anh|thư ký riêng|thu ky rieng|em là thư ký của anh|em la thu ky cua anh)/i.test(unaccented) ||
@@ -573,7 +633,6 @@ export class IntentEngine {
     const isDayAvailabilityCheck = /(?:thu\s*(?:hai|ba|tu|nam|sau|bay|chu\s*nhat|2|3|4|5|6|7|cn)|hom\s+nay|ngay\s+mai|tuan\s+nay|tuan\s+toi|chieu\s+mai|sang\s+mai)\s*(?:co\s+)?(?:ranh|trong|ban|duoc\s+khong)\b/i.test(unaccented);
 
     // Multi-turn context awareness for appointment/schedule
-    const prevHistory = context.conversationHistory || context.history || [];
     const hadRecentAppointment = prevHistory.length > 0 && prevHistory.slice(-2).some(h => /(?:hen|lich|ranh|ca phe|di nhau|gap mat|dat ngay)/i.test(this.stripDiacritics(h.content || '')));
 
     // Check if query is explicitly asking price or product specs (Topic switch from appointment to shopping)
@@ -1026,8 +1085,8 @@ export class IntentEngine {
 
     const unaccentedClean = this.stripDiacritics(cleanedQuery);
 
-    // Blacklist non-product verbs, fillers, conversational particles
-    const NON_PRODUCT_TERMS = /(?:hen|gap|nhau|ca phe|cafe|uong|an trua|an toi|di an|lich|ranh|trong|nhac|nho|ban|noi chuyen|tam su|thoi tiet|khieu nai|dia chi|bao hanh|giao hang|doi tra|phi ship|gap nhan vien|nguoi that|chuyen vien|so sanh|khac nhau|ho tro truc tiep|cong viec|cuoc hen|ngay nao|thu sau|thu hai|thu ba|thu tu|thu nam|thu bay|chu nhat|tuan nay|ngay mai|hom nay|tuan toi|dat ngay do|chot lich|dat lich|nguoi yeu|ban gai|ban trai|thong minh|danh sach viec|viec can lam|ke hoach|todo|to do|bao cao|doanh thu|de xem|de coi|thu xem|thu coi|xem sao|biet dau|khong ro|chua ro|the nao|ra sao|sao cung duoc|u de xem|uh|um|u|sao|co gi|khong co|chua|roi|thoi|vay|nhi|the|a|ha|day|kia)/i;
+    // Blacklist non-product verbs, fillers, conversational particles, service terms
+    const NON_PRODUCT_TERMS = /(?:thi cong|lap dat|khao sat|thao do|di doi|sua chua|bao tri|bao duong|ve sinh may|lap rap|thao lap|hen|gap|nhau|ca phe|cafe|uong|an trua|an toi|di an|lich|ranh|trong|nhac|nho|ban|noi chuyen|tam su|thoi tiet|khieu nai|dia chi|bao hanh|giao hang|doi tra|phi ship|gap nhan vien|nguoi that|chuyen vien|so sanh|khac nhau|ho tro truc tiep|cong viec|cuoc hen|ngay nao|thu sau|thu hai|thu ba|thu tu|thu nam|thu bay|chu nhat|tuan nay|ngay mai|hom nay|tuan toi|dat ngay do|chot lich|dat lich|nguoi yeu|ban gai|ban trai|thong minh|danh sach viec|viec can lam|ke hoach|todo|to do|bao cao|doanh thu|de xem|de coi|thu xem|thu coi|xem sao|biet dau|khong ro|chua ro|the nao|ra sao|sao cung duoc|u de xem|uh|um|u|sao|co gi|khong co|chua|roi|thoi|vay|nhi|the|a|ha|day|kia)/i;
 
     const unaccentedMasked = unaccentedClean.replace(/\b(?:kiem\s+tra|tra\s+cuu|dieu\s+tra|tra\s+loi|tra\s+gop|tra\s+hang|trao\s+doi)\b/gi, '___verb___');
     const hasProductSignal = !!matchedBrand || !!extractedModelCode || !!categoryDomain || /(?:laptop|may in|may scan|may dem tien|may lanh|tu lanh|man hinh|tivi|dien thoai|tai nghe|chuot|ban phim|tra\b|ca phe|nuoc hoa|muc in|giay in)/i.test(unaccentedMasked);

@@ -38,6 +38,7 @@ import { HumanMemoryEngine } from './intelligence/humanMemoryEngine.js';
 import { PlanningEngine } from './intelligence/planningEngine.js';
 import { ActiveProductContext } from './intelligence/activeProductContext.js';
 import { CrmLeadService } from './crmLeadService.js';
+import { ServiceConsultant } from './serviceConsultant.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -740,6 +741,23 @@ export class CentralBrainService {
     }
     if (intentResult.primaryIntent === 'SECURITY_IMPERSONATION_ATTEMPT') {
       return SecretaryHandler.handleUnauthorizedAccess(enrichedContext, 'IMPERSONATION_ATTEMPT');
+    }
+
+    // -------------------------------------------------------------------------
+    // 2B-SERVICE. TƯ VẤN DỊCH VỤ THI CÔNG – LẮP ĐẶT – KHẢO SÁT (BOTCHAT SERVICE)
+    // Ưu tiên xử lý dịch vụ trước; TUYỆT ĐỐI không đổ danh mục sản phẩm Cột 2!
+    // -------------------------------------------------------------------------
+    if (intentResult.primaryIntent === 'SERVICE_SURVEY_REQUEST' || 
+        intentResult.primaryIntent === 'INSTALLATION_REQUEST' || 
+        intentResult.primaryIntent === 'MAINTENANCE_REQUEST' || 
+        intentResult.primaryIntent === 'REPAIR_REQUEST' ||
+        intentResult.domain === 'SERVICE') {
+      const res = await ServiceConsultant.handleServiceConsultation(enrichedContext);
+      ContextEngine.updateSessionContext(conversationId, {
+        inServiceIntake: true,
+        lastIntent: 'SERVICE_SURVEY_REQUEST'
+      });
+      return res;
     }
 
     // -------------------------------------------------------------------------

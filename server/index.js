@@ -725,9 +725,14 @@ app.post('/api/leads', async (req, res) => {
 
 app.get('/api/crm/leads', requireAdmin, async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, lead_type } = req.query;
     let sql = 'SELECT * FROM leads WHERE 1=1';
     const params = [];
+
+    if (lead_type && lead_type !== 'all') {
+      sql += ' AND lead_type = ?';
+      params.push(lead_type);
+    }
 
     if (status && status !== 'all') {
       sql += ' AND lead_status = ?';
@@ -735,8 +740,8 @@ app.get('/api/crm/leads', requireAdmin, async (req, res) => {
     }
 
     if (search) {
-      sql += ' AND (customer_name LIKE ? OR phone LIKE ? OR email LIKE ? OR product_name LIKE ? OR brand LIKE ? OR model LIKE ? OR conversation_summary LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      sql += ' AND (customer_name LIKE ? OR phone LIKE ? OR email LIKE ? OR product_name LIKE ? OR brand LIKE ? OR model LIKE ? OR conversation_summary LIKE ? OR survey_address LIKE ? OR service_type LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     sql += ' ORDER BY created_time DESC';
@@ -751,12 +756,12 @@ app.get('/api/crm/leads', requireAdmin, async (req, res) => {
 app.put('/api/crm/leads/:id/status', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { lead_status, notes } = req.body;
+    const { lead_status, notes, survey_address, scale_or_quantity, expected_time } = req.body;
     const now = new Date().toISOString();
 
     await db.run(
-      'UPDATE leads SET lead_status = ?, notes = COALESCE(?, notes), updated_at = ? WHERE id = ?',
-      [lead_status, notes, now, id]
+      'UPDATE leads SET lead_status = ?, notes = COALESCE(?, notes), survey_address = COALESCE(?, survey_address), scale_or_quantity = COALESCE(?, scale_or_quantity), expected_time = COALESCE(?, expected_time), updated_at = ? WHERE id = ?',
+      [lead_status, notes, survey_address, scale_or_quantity, expected_time, now, id]
     );
 
     res.json({ success: true, message: 'Cập nhật trạng thái Lead thành công!' });

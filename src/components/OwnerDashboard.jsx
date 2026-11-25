@@ -959,6 +959,10 @@ export const OwnerDashboard = ({
                 <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar text-xs">
                   {[
                     { key: 'all', label: 'Tất cả' },
+                    { key: 'Mới tiếp nhận', label: 'Dịch vụ: Mới tiếp nhận' },
+                    { key: 'Đang sắp xếp khảo sát', label: 'Đang sắp xếp khảo sát' },
+                    { key: 'Đã khảo sát', label: 'Đã khảo sát' },
+                    { key: 'Đang lập báo giá', label: 'Đang lập báo giá' },
                     { key: 'NEW – WAITING FOR OWNER CONTACT', label: 'Khách mới' },
                     { key: 'WAITING_CALL', label: 'Đang chờ gọi' },
                     { key: 'CONTACTED', label: 'Đã liên hệ' },
@@ -1114,9 +1118,48 @@ export const OwnerDashboard = ({
                               </span>
                             </td>
 
-                            {/* Sản phẩm quan tâm: Hiển thị đúng sản phẩm thực tế, nhiều sản phẩm, hoặc chưa xác định */}
+                            {/* Sản phẩm hoặc Dịch vụ thi công khảo sát */}
                             <td className="py-3 px-3 align-middle">
                               {(() => {
+                                if (ld.lead_type === 'SERVICE_SURVEY' || ld.service_type) {
+                                  const serviceLabels = {
+                                    SERVICE_SURVEY_REQUEST: 'Thi công & Khảo sát',
+                                    INSTALLATION_REQUEST: 'Lắp đặt / Di dời',
+                                    MAINTENANCE_REQUEST: 'Bảo trì & Bảo dưỡng',
+                                    REPAIR_REQUEST: 'Sửa chữa & Sự cố'
+                                  };
+                                  const label = serviceLabels[ld.service_type] || 'Dịch vụ thi công';
+                                  return (
+                                    <div
+                                      onClick={() => setSelectedLeadDetail(ld)}
+                                      className="group cursor-pointer select-none space-y-1"
+                                      title="Nhấn để xem chi tiết yêu cầu khảo sát thi công"
+                                    >
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-300 font-bold text-[11px]">
+                                          🛠️ {label}
+                                        </span>
+                                        {ld.scale_or_quantity && (
+                                          <span className="px-1.5 py-0.5 rounded bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[10px]">
+                                            {ld.scale_or_quantity}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {ld.survey_address && (
+                                        <div className="text-xs text-slate-200 flex items-center gap-1 break-words">
+                                          <span>📍</span>
+                                          <span className="font-medium text-white">{ld.survey_address}</span>
+                                        </div>
+                                      )}
+                                      {ld.expected_time && (
+                                        <div className="text-[11px] text-cyan-300/80">
+                                          ⏰ Dự kiến: {ld.expected_time}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+
                                 let prods = [];
                                 try {
                                   if (ld.products_json) {
@@ -1179,11 +1222,22 @@ export const OwnerDashboard = ({
                                 onChange={(e) => handleUpdateLeadStatus(ld.id, e.target.value)}
                                 className="w-full bg-[#0b2046] border border-cyan-500/40 text-[11px] sm:text-xs font-bold rounded-xl px-2 py-1.5 text-white outline-none focus:border-cyan-300 shadow-sm cursor-pointer"
                               >
-                                <option value="NEW – WAITING FOR OWNER CONTACT">Mới - Chờ gọi</option>
+                                {/* 9 trạng thái Lead Dịch vụ (Theo yêu cầu chuẩn) */}
+                                <option value="Mới tiếp nhận">Mới tiếp nhận</option>
+                                <option value="Chờ liên hệ">Chờ liên hệ</option>
+                                <option value="Đang sắp xếp khảo sát">Đang sắp xếp khảo sát</option>
+                                <option value="Đã khảo sát">Đã khảo sát</option>
+                                <option value="Đang lập báo giá">Đang lập báo giá</option>
+                                <option value="Đã gửi báo giá">Đã gửi báo giá</option>
+                                <option value="Khách đồng ý">Khách đồng ý</option>
+                                <option value="Không thực hiện">Không thực hiện</option>
+                                <option value="Đã hoàn thành">Đã hoàn thành</option>
+                                {/* Trạng thái cũ */}
+                                <option value="NEW – WAITING FOR OWNER CONTACT">Mới - Chờ gọi (Cũ)</option>
                                 <option value="WAITING_CALL">Đang chờ gọi</option>
                                 <option value="CONTACTED">Đã liên hệ</option>
                                 <option value="HIGH_INTEREST">Quan tâm cao</option>
-                                <option value="CLOSED">Hoàn thành</option>
+                                <option value="CLOSED">Đóng / Hoàn thành</option>
                               </select>
                             </td>
 
@@ -1942,6 +1996,46 @@ export const OwnerDashboard = ({
                   </span>
                 </div>
               </div>
+
+              {/* Service Survey Section */}
+              {(selectedLeadDetail.lead_type === 'SERVICE_SURVEY' || selectedLeadDetail.service_type) && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/30 to-blue-950/30 border border-amber-500/40 space-y-3">
+                  <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🛠️</span>
+                    <span>Yêu cầu Dịch vụ Khảo sát & Thi công</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-2.5 rounded-xl bg-[#091b3e] border border-amber-500/20">
+                      <span className="text-[10px] text-slate-400 block font-medium">Hạng mục dịch vụ</span>
+                      <span className="font-bold text-amber-200 mt-0.5 inline-block">
+                        {selectedLeadDetail.service_type === 'SERVICE_SURVEY_REQUEST' ? 'Thi công & Khảo sát công trình' :
+                         selectedLeadDetail.service_type === 'INSTALLATION_REQUEST' ? 'Lắp đặt / Di dời thiết bị' :
+                         selectedLeadDetail.service_type === 'MAINTENANCE_REQUEST' ? 'Bảo trì & Bảo dưỡng định kỳ' :
+                         selectedLeadDetail.service_type === 'REPAIR_REQUEST' ? 'Sửa chữa & Khắc phục sự cố' :
+                         selectedLeadDetail.service_type || 'Thi công lắp đặt'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-[#091b3e] border border-amber-500/20">
+                      <span className="text-[10px] text-slate-400 block font-medium">Địa chỉ công trình</span>
+                      <span className="font-bold text-white mt-0.5 inline-block break-words">
+                        {selectedLeadDetail.survey_address || 'Chưa cung cấp'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-[#091b3e] border border-amber-500/20">
+                      <span className="text-[10px] text-slate-400 block font-medium">Quy mô / Số lượng dự kiến</span>
+                      <span className="font-bold text-cyan-200 mt-0.5 inline-block">
+                        {selectedLeadDetail.scale_or_quantity || 'Chưa xác định'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-[#091b3e] border border-amber-500/20">
+                      <span className="text-[10px] text-slate-400 block font-medium">Thời gian mong muốn</span>
+                      <span className="font-bold text-cyan-200 mt-0.5 inline-block">
+                        {selectedLeadDetail.expected_time || 'Chưa cung cấp'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Interested Products Section */}
               <div className="p-4 rounded-2xl bg-[#081838] border border-cyan-500/30">
