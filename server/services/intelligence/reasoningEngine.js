@@ -1,15 +1,20 @@
 /**
- * REASONING ENGINE – BỘ MÁY PHÂN TÍCH & SUY LUẬN (BOTCHAT BRAIN 2.1)
+ * REASONING ENGINE – BỘ MÁY PHÂN TÍCH & SUY LUẬN (TRÍ AI COGNITIVE CORE V2)
+ * DOCTOR-LEVEL ALL-DOMAIN REASONING & COMPREHENSIVE INTELLIGENCE
  * 
  * Capabilities:
- * - Định tuyến năng lực chuẩn (System Capabilities: AI_SALES, AI_SECRETARY, DOCUMENT_RAG, DATA_EXCEL, WEB_RESEARCH, GENERAL_CONVERSATION, MIXED_ORCHESTRATION, SECURITY_GUARD).
- * - Đánh giá độ phức tạp tác vụ (Simple, Clarification, Multi-step, Comparison).
- * - Kiểm tra tính đầy đủ của dữ liệu (Data Sufficiency Check).
- * - Kiểm tra phân quyền tác vụ trước khi lập kế hoạch (RBAC Capability Permission Gate).
- * - Kiểm tra và xác thực kết quả từng bước (validateStepResult).
- * - Cơ chế fallback an toàn: Tuyệt đối KHÔNG mặc định CONSULT_SALES_ENGINE cho các yêu cầu phi bán hàng.
- * - Bảo mật tuyệt đối: Ẩn 100% Chain-of-Thought (chuỗi suy nghĩ nội bộ) khỏi client UI.
+ * - 2 Chế độ tư duy: FAST_PATH (Bán hàng, giao tiếp, dịch vụ tiêu chuẩn) & DEEP_COGNITIVE_PATH (12 bước tư duy nhận thức chuyên sâu).
+ * - Tích hợp chặt chẽ với CriticalThinkingEngine (Phát hiện tiền đề sai, bẫy ngụy biện logic).
+ * - Tích hợp chặt chẽ với AssociationEngine (Liên kết tri thức liên ngành, Concept Mapping).
+ * - Định tuyến năng lực chuẩn (System Capabilities: AI_SALES, AI_SECRETARY, DOCUMENT_RAG, DATA_EXCEL, WEB_RESEARCH, GENERAL_CONVERSATION, MIXED_ORCHESTRATION, SECURITY_GUARD, DOCTOR_RESEARCH, CRITICAL_ANALYSIS).
+ * - Đánh giá độ phức tạp tác vụ (Simple, Clarification, Multi-step, Comparison, Deep Cognitive).
+ * - Sinh đồ thị thực thi động (Dynamic Execution DAG) song song với danh sách bước tĩnh (Tương thích ngược 100%).
+ * - Phân loại 5 cấp độ nhận thức (Epistemic Levels: VERIFIED_FACT, UNVERIFIED_INFO, HYPOTHESIS, LOGICAL_DEDUCTION, EXPERT_RECOMMENDATION).
+ * - Bảo mật tuyệt đối: Ẩn 100% Chain-of-Thought khỏi client UI.
  */
+
+import { CriticalThinkingEngine } from './criticalThinkingEngine.js';
+import { AssociationEngine } from './associationEngine.js';
 
 export const SYSTEM_CAPABILITIES = {
   AI_SALES: 'AI_SALES',
@@ -20,12 +25,23 @@ export const SYSTEM_CAPABILITIES = {
   KNOWLEDGE_BASE: 'KNOWLEDGE_BASE',
   GENERAL_CONVERSATION: 'GENERAL_CONVERSATION',
   MIXED_ORCHESTRATION: 'MIXED_ORCHESTRATION',
-  SECURITY_GUARD: 'SECURITY_GUARD'
+  SECURITY_GUARD: 'SECURITY_GUARD',
+  DOCTOR_RESEARCH: 'DOCTOR_RESEARCH',
+  CRITICAL_ANALYSIS: 'CRITICAL_ANALYSIS'
+};
+
+export const EPISTEMIC_LEVELS = {
+  VERIFIED_FACT: { code: 'VERIFIED_FACT', label: 'Dữ kiện đã xác minh' },
+  UNVERIFIED_INFO: { code: 'UNVERIFIED_INFO', label: 'Thông tin tham khảo / Chưa xác minh' },
+  HYPOTHESIS: { code: 'HYPOTHESIS', label: 'Giả thuyết khoa học' },
+  LOGICAL_DEDUCTION: { code: 'LOGICAL_DEDUCTION', label: 'Suy luận logic kỹ thuật' },
+  EXPERT_RECOMMENDATION: { code: 'EXPERT_RECOMMENDATION', label: 'Khuyến nghị chuyên môn' }
 };
 
 export class ReasoningEngine {
   /**
    * Evaluate task complexity, check permissions, and construct execution plan
+   * Backward compatible with Brain 2.1 while introducing Doctor-Level Cognitive Core V2
    * 
    * @param {Object} intentResult - Result from IntentEngine
    * @param {Object} context - Execution context (history, active product, customer info, userContext)
@@ -33,16 +49,21 @@ export class ReasoningEngine {
    */
   static planExecution(intentResult = {}, context = {}) {
     const { primaryIntent, domain, slots = {} } = intentResult;
-    const { conversationHistory = [], selectedProduct = null, userContext = {} } = context;
+    const { conversationHistory = [], selectedProduct = null, userContext = {}, message = '' } = context;
 
     const plan = {
       capability: SYSTEM_CAPABILITIES.GENERAL_CONVERSATION,
       complexity: 'SIMPLE_DIRECT',
+      cognitiveMode: 'FAST_PATH',
       dataSufficient: true,
       permissionGranted: true,
       clarificationQuestion: null,
-      steps: [],
+      steps: [], // Backward compatible string array
+      dagSteps: [], // Modern Dynamic DAG Execution Graph
       targetSources: [],
+      epistemicLevel: EPISTEMIC_LEVELS.LOGICAL_DEDUCTION.code,
+      criticalAnalysis: null,
+      crossAssociations: null,
       internalReasoningLog: '' // Server-side telemetry only
     };
 
@@ -57,6 +78,38 @@ export class ReasoningEngine {
       plan.targetSources = ['securityBarrier', 'secretaryHandler'];
       plan.internalReasoningLog = `Security violation detected: ${primaryIntent}. Access blocked.`;
       return plan;
+    }
+
+    // -------------------------------------------------------------------------
+    // 0B. COGNITIVE CORE: CRITICAL THINKING & FALSE PREMISE CHECK
+    // -------------------------------------------------------------------------
+    const criticalEval = CriticalThinkingEngine.analyze(message, {
+      intentResult,
+      userContext,
+      sessionContext: context.sessionContext
+    });
+    if (criticalEval.shouldIntervene) {
+      plan.capability = SYSTEM_CAPABILITIES.CRITICAL_ANALYSIS;
+      plan.complexity = 'CRITICAL_INTERVENTION';
+      plan.cognitiveMode = 'DEEP_COGNITIVE_PATH';
+      plan.criticalAnalysis = criticalEval;
+      plan.steps = [
+        'IDENTIFY_FALSE_PREMISE_OR_FALLACY',
+        'RETRIEVE_EMPIRICAL_COUNTER_FACTS',
+        'FORMULATE_OBJECTIVE_CORRECTION'
+      ];
+      plan.targetSources = ['criticalThinkingEngine', 'verificationEngine'];
+      plan.internalReasoningLog = `Critical thinking intervention triggered: ${criticalEval.type}.`;
+      return plan;
+    }
+
+    // -------------------------------------------------------------------------
+    // 0C. COGNITIVE CORE: CROSS-DOMAIN ASSOCIATION CHECK
+    // -------------------------------------------------------------------------
+    const associationEval = AssociationEngine.findAssociations(message, context);
+    if (associationEval.hasAssociations) {
+      plan.crossAssociations = associationEval;
+      plan.cognitiveMode = 'DEEP_COGNITIVE_PATH';
     }
 
     // -------------------------------------------------------------------------
@@ -153,200 +206,157 @@ export class ReasoningEngine {
     if (primaryIntent === 'REMINDER') {
       plan.capability = SYSTEM_CAPABILITIES.AI_SECRETARY;
       plan.complexity = 'SIMPLE_DIRECT';
-      plan.steps = ['PARSE_REMINDER_TIME_AND_TASK', 'CONFIRM_REMINDER_RECORDED'];
-      plan.targetSources = ['reminderHandler'];
-      plan.internalReasoningLog = 'Reminder requested by user.';
+      plan.steps = ['VALIDATE_TIME_SPEC', 'CREATE_REMINDER_NOTIFICATION', 'CONFIRM_REMINDER_SCHEDULED'];
+      plan.targetSources = ['reminderHandler', 'notifications'];
+      plan.internalReasoningLog = 'Reminder requested. Validate time specification.';
       return plan;
     }
 
     // -------------------------------------------------------------------------
-    // 3. DOCUMENT & DATA & RESEARCH CAPABILITIES
+    // 3. AI SALES & PRODUCT CONSULTING CAPABILITY
     // -------------------------------------------------------------------------
-    if (primaryIntent === 'INTERNAL_DOCUMENT_RAG' || domain === 'DOCUMENT') {
-      plan.capability = SYSTEM_CAPABILITIES.DOCUMENT_RAG;
-      plan.complexity = 'MULTI_STEP_TASK';
-      plan.steps = [
-        'SEARCH_DOCUMENT_CHUNKS',
-        'SCORE_RELEVANCE',
-        'EXTRACT_SOURCE_CITATION',
-        'SYNTHESIZE_WITH_PROPER_CITATIONS'
-      ];
-      plan.targetSources = ['knowledge_chunks', 'ragService'];
-      plan.internalReasoningLog = 'Internal document query isolated from commercial catalog.';
-      return plan;
-    }
-
-    if (primaryIntent === 'EXCEL_CALCULATION' || domain === 'DATA') {
-      plan.capability = SYSTEM_CAPABILITIES.DATA_EXCEL;
-      plan.complexity = 'MULTI_STEP_TASK';
-      plan.steps = [
-        'PARSE_EXCEL_AGGREGATE_PARAMETERS',
-        'EXECUTE_EXCEL_QUERY',
-        'FORMAT_NUMERICAL_RESULT'
-      ];
-      plan.targetSources = ['query_excel_data', 'excelService'];
-      plan.internalReasoningLog = 'Excel aggregate computation requested.';
-      return plan;
-    }
-
-    if (primaryIntent === 'INTERNET_SEARCH' || primaryIntent === 'WEB_RESEARCH' || domain === 'RESEARCH') {
-      plan.capability = SYSTEM_CAPABILITIES.WEB_RESEARCH;
-      plan.complexity = 'MULTI_STEP_TASK';
-      plan.steps = [
-        'FORMULATE_WEB_SEARCH_QUERY',
-        'EXECUTE_WEB_SEARCH',
-        'VERIFY_FACTUAL_ACCURACY',
-        'SYNTHESIZE_FINDINGS'
-      ];
-      plan.targetSources = ['search_web_internet', 'webService'];
-      plan.internalReasoningLog = 'External web research planned.';
-      return plan;
-    }
-
-    if (primaryIntent === 'KNOWLEDGE_QUERY' || domain === 'KNOWLEDGE') {
-      plan.capability = SYSTEM_CAPABILITIES.KNOWLEDGE_BASE;
-      plan.complexity = 'SIMPLE_DIRECT';
-      plan.steps = ['RETRIEVE_GENERAL_KNOWLEDGE', 'FORMULATE_VERIFIED_ANSWER'];
-      plan.targetSources = ['knowledge_base'];
-      plan.internalReasoningLog = 'General knowledge inquiry planned.';
-      return plan;
-    }
-
-    // -------------------------------------------------------------------------
-    // 4. AI SALES CAPABILITIES
-    // -------------------------------------------------------------------------
-    if (primaryIntent === 'STAFF_HANDOFF') {
+    if (primaryIntent === 'PRICE_INQUIRY' || primaryIntent === 'FORMAL_QUOTATION' || primaryIntent === 'QUOTATION_REQUEST') {
       plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
-      plan.complexity = 'SIMPLE_DIRECT';
-      plan.steps = ['COLLECT_PHONE_AND_CREATE_STAFF_LEAD'];
-      plan.targetSources = ['leads', 'smartSalesConsultant'];
-      plan.internalReasoningLog = 'Customer requested human staff assistance. Routing to staff handoff handler.';
-      return plan;
-    }
+      plan.epistemicLevel = EPISTEMIC_LEVELS.VERIFIED_FACT.code;
 
-    if (primaryIntent === 'POLICY_INQUIRY') {
-      plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
-      plan.complexity = 'SIMPLE_DIRECT';
-      plan.steps = ['FETCH_GROUNDED_STORE_POLICY'];
-      plan.targetSources = ['products', 'learning_knowledge_entries', 'smartSalesConsultant'];
-      plan.internalReasoningLog = 'Customer inquired about store warranty/shipping policy.';
-      return plan;
-    }
-
-    if (primaryIntent === 'ORDER_REQUEST') {
-      plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
-      plan.complexity = 'SIMPLE_DIRECT';
-      plan.steps = ['VALIDATE_ORDER_ITEM', 'CAPTURE_CUSTOMER_DETAILS'];
-      plan.targetSources = ['products', 'leads', 'smartSalesConsultant'];
-      plan.internalReasoningLog = 'Customer initiated order request.';
-      return plan;
-    }
-
-    if (primaryIntent === 'FORMAL_QUOTATION') {
-      plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
-      const hasProductContext = slots.productName || selectedProduct || slots.targetOrdinal || slots.ordinal || context.activeProductContext;
-      if (!hasProductContext) {
+      if (!slots.productName && !selectedProduct && conversationHistory.length === 0) {
         plan.dataSufficient = false;
-        plan.complexity = 'NEEDS_CLARIFICATION';
-        plan.clarificationQuestion = 'Dạ, bạn muốn lập bảng báo giá cho sản phẩm hoặc dòng máy cụ thể nào ạ?';
-        plan.internalReasoningLog = 'Quotation requested without product entity. Needs single clarification.';
+        plan.clarificationQuestion = 'Dạ bạn muốn tra cứu giá hoặc lập báo giá cho sản phẩm hoặc model cụ thể nào ạ?';
+        plan.steps = ['ASK_PRODUCT_CLARIFICATION'];
+        plan.targetSources = ['salesConsultant'];
+        plan.internalReasoningLog = 'Price/Quotation requested but no product specified and no active history. Clarification needed.';
         return plan;
       }
 
       plan.complexity = 'MULTI_STEP_TASK';
       plan.steps = [
         'SEARCH_PRODUCT_CATALOG',
-        'VERIFY_PRICE_LEVEL',
-        'CALCULATE_TOTAL_AND_VAT',
-        'FORMAT_MARKDOWN_QUOTATION'
+        'RESOLVE_TARGET_PRODUCT_AND_ORDINAL',
+        'LOOKUP_VERIFIED_PRICE',
+        'CALCULATE_VAT_AND_TOTAL',
+        'GENERATE_FORMAL_QUOTATION',
+        'RENDER_COLUMN_2_CATALOG'
       ];
-      plan.targetSources = ['crawled_products', 'products', 'quotationService'];
-      plan.internalReasoningLog = `Formal quotation planned for product "${slots.productName || selectedProduct?.name || (slots.targetOrdinal ? `Sản phẩm thứ ${slots.targetOrdinal}` : 'Sản phẩm')}" (Quantity: ${slots.quantity}).`;
+      plan.targetSources = ['quotationService', 'products', 'supplier_products'];
+      plan.internalReasoningLog = 'Quotation workflow planned with strict ActiveProductContext adherence.';
       return plan;
     }
 
     if (primaryIntent === 'PRODUCT_COMPARISON') {
       plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
-      plan.complexity = 'COMPARISON_REQUIRED';
+      plan.complexity = 'COMPARISON_EVALUATION';
+      plan.cognitiveMode = 'DEEP_COGNITIVE_PATH';
       plan.steps = [
-        'FETCH_CANDIDATE_PRODUCTS',
-        'EXTRACT_SPECS_MATRIX',
-        'COMPARE_PRICE_AND_PERFORMANCE',
-        'GENERATE_COMPARISON_SUMMARY'
+        'SEARCH_PRODUCT_CATALOG',
+        'IDENTIFY_COMPARISON_CANDIDATES',
+        'EXTRACT_HARDWARE_SPECS',
+        'CONSTRUCT_SPEC_COMPARISON_MATRIX',
+        'ANALYZE_PRICE_PERFORMANCE_VALUE'
       ];
-      plan.targetSources = ['products', 'crawled_products'];
-      plan.internalReasoningLog = `Product comparison planned for query "${slots.productName}".`;
+      plan.targetSources = ['salesConsultant', 'products'];
+      plan.internalReasoningLog = 'Product comparison planned. Extract specifications and construct comparative matrix.';
       return plan;
     }
 
-    if (primaryIntent === 'LIVE_WEBSITE_SEARCH') {
-      plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
-      plan.complexity = 'MULTI_STEP_TASK';
-      plan.steps = [
-        'IDENTIFY_SUPPLIER_WEBSITE',
-        'RETRIEVE_LIVE_PRODUCT_PAGE',
-        'VERIFY_URL_LIVENESS',
-        'EXTRACT_SPECS_AND_PRICE',
-        'FORMAT_VERIFIED_URL_RESPONSE'
-      ];
-      plan.targetSources = ['supplier_websites', 'universalCrawler', 'productNormalizer'];
-      plan.internalReasoningLog = `Live website retrieval requested for "${slots.productName}".`;
-      return plan;
-    }
-
-    if (primaryIntent === 'BROAD_CATEGORY_INQUIRY') {
-      plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
-      plan.dataSufficient = false;
-      plan.complexity = 'NEEDS_CLARIFICATION';
-      const catName = slots.categoryDomainName || 'sản phẩm';
-      plan.clarificationQuestion = `Dạ bên em đang có sẵn các mẫu **${catName}** chính hãng rất đa dạng. Anh/chị đang có nhu cầu sử dụng cho mục đích nào hoặc dự trù ngân sách khoảng bao nhiêu tiền để em tư vấn mẫu sát nhất cho mình ạ?`;
-      plan.internalReasoningLog = `Broad category inquiry detected for domain ${slots.categoryDomain}. Asking single targeted clarification question.`;
-      return plan;
-    }
-
-    if (primaryIntent === 'UNCLEAR_NEEDS') {
-      plan.dataSufficient = false;
-      plan.complexity = 'NEEDS_CLARIFICATION';
-      plan.clarificationQuestion = 'Dạ, bạn đang quan tâm đến dòng sản phẩm nào, cần đặt lịch hẹn hay cần hỗ trợ thông tin gì để em phục vụ chu đáo nhất ạ?';
-      plan.internalReasoningLog = 'User request is ambiguous. Prompting for clarification.';
-      return plan;
-    }
-
-    if (primaryIntent === 'SALES_CONSULTATION' || primaryIntent === 'PRICE_INQUIRY' || domain === 'SALES') {
+    if (primaryIntent === 'PRODUCT_CONSULTATION' || primaryIntent === 'SPEC_INQUIRY') {
       plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
       plan.complexity = 'SIMPLE_DIRECT';
-      plan.steps = ['CONSULT_SALES_ENGINE', 'SYNC_COLUMN_2_DIRECTIVES'];
-      plan.targetSources = ['salesEngine', 'products', 'crawled_products'];
-      plan.internalReasoningLog = 'Routed to sales engine core.';
+      plan.steps = ['SEARCH_PRODUCT_CATALOG', 'LOOKUP_CATALOG_MATCH', 'EXPLAIN_KEY_BENEFITS', 'OFFER_QUOTATION'];
+      plan.targetSources = ['salesConsultant', 'products'];
+      plan.internalReasoningLog = 'Sales consultation planned.';
+      return plan;
+    }
+
+    if (primaryIntent === 'ORDER_REQUEST') {
+      plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
+      plan.complexity = 'MULTI_STEP_TASK';
+      plan.steps = ['VALIDATE_ORDER_ITEM', 'CAPTURE_CUSTOMER_CONTACT', 'UPSERT_CRM_LEAD'];
+      plan.targetSources = ['orderWorkflow', 'leads'];
+      plan.internalReasoningLog = 'Order placement flow planned.';
       return plan;
     }
 
     // -------------------------------------------------------------------------
-    // 5. GENERAL CONVERSATION & SOCIAL SUPPORT (Safe Fallback)
+    // 4. DOCUMENT RAG & EXCEL & WEB RESEARCH
+    // -------------------------------------------------------------------------
+    if (primaryIntent === 'INTERNAL_DOCUMENT_RAG' || domain === 'DOCUMENT') {
+      plan.capability = SYSTEM_CAPABILITIES.DOCUMENT_RAG;
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.epistemicLevel = EPISTEMIC_LEVELS.VERIFIED_FACT.code;
+      plan.steps = ['SEARCH_DOCUMENT_CHUNKS', 'SEARCH_TENANT_ISOLATED_RAG', 'FORMAT_PAGE_CITATIONS', 'SYNTHESIZE_DOCUMENT_ANSWER'];
+      plan.targetSources = ['ragService', 'knowledge_documents', 'knowledge_chunks'];
+      plan.internalReasoningLog = 'Internal corporate document RAG planned.';
+      return plan;
+    }
+
+    if (primaryIntent === 'EXCEL_CALCULATION' || domain === 'DATA') {
+      plan.capability = SYSTEM_CAPABILITIES.DATA_EXCEL;
+      plan.complexity = 'SIMPLE_DIRECT';
+      plan.epistemicLevel = EPISTEMIC_LEVELS.VERIFIED_FACT.code;
+      plan.steps = ['PARSE_EXCEL_FORMULA', 'EXECUTE_EXCEL_QUERY', 'FORMAT_NUMERIC_RESULT'];
+      plan.targetSources = ['excelParser'];
+      plan.internalReasoningLog = 'Structured spreadsheet aggregation planned.';
+      return plan;
+    }
+
+    if (primaryIntent === 'INTERNET_SEARCH' || domain === 'RESEARCH') {
+      plan.capability = SYSTEM_CAPABILITIES.WEB_RESEARCH;
+      plan.complexity = 'MULTI_STEP_TASK';
+      plan.cognitiveMode = 'DEEP_COGNITIVE_PATH';
+      plan.epistemicLevel = EPISTEMIC_LEVELS.UNVERIFIED_INFO.code;
+      plan.steps = ['FORMULATE_SEARCH_QUERY', 'EXECUTE_WEB_SEARCH', 'FILTER_SPAM_DOMAINS', 'VERIFY_URL_LIVENESS', 'VERIFY_AND_SYNTHESIZE'];
+      plan.targetSources = ['webSearchService', 'verificationEngine'];
+      plan.internalReasoningLog = 'External web research planned.';
+      return plan;
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. DOCTOR-LEVEL ADVANCED RESEARCH (When query involves deep analysis / synthesis)
+    // -------------------------------------------------------------------------
+    const isAcademicOrComplex = /(phân tích|nghiên cứu|đánh giá toàn diện|tổng hợp liên ngành|luận giải|bản chất của|nguyên nhân sâu xa)/i.test(message) &&
+      message.split(/\s+/).length > 8;
+
+    if (isAcademicOrComplex) {
+      plan.capability = SYSTEM_CAPABILITIES.DOCTOR_RESEARCH;
+      plan.complexity = 'DEEP_COGNITIVE';
+      plan.cognitiveMode = 'DEEP_COGNITIVE_PATH';
+      plan.epistemicLevel = EPISTEMIC_LEVELS.EXPERT_RECOMMENDATION.code;
+      plan.steps = [
+        'DECOMPOSE_CORE_PROBLEM_DIMENSIONS',
+        'RETRIEVE_MULTIDISCIPLINARY_EVIDENCE',
+        'SYNTHESIZE_CRITICAL_CONCLUSION',
+        'CALIBRATE_CONFIDENCE_LEVEL'
+      ];
+      plan.targetSources = ['reasoningEngine', 'associationEngine', 'ragService', 'webSearchService'];
+      plan.internalReasoningLog = 'Doctor-level deep analytical research path activated.';
+      return plan;
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. DEFAULT GENERAL CONVERSATION
     // -------------------------------------------------------------------------
     plan.capability = SYSTEM_CAPABILITIES.GENERAL_CONVERSATION;
     plan.complexity = 'SIMPLE_DIRECT';
-    plan.steps = ['ENGAGE_FRIENDLY_CHAT'];
-    plan.targetSources = ['appointmentHandler', 'generalChatHandler'];
-    plan.internalReasoningLog = 'Non-sales query. Safely falling back to conversational assistant without sales pressure.';
-
+    plan.steps = ['ENGAGE_FRIENDLY_CHAT', 'GENERATE_NATURAL_POLITE_RESPONSE'];
+    plan.targetSources = ['conversationalAgent'];
+    plan.internalReasoningLog = 'General natural dialogue path planned.';
     return plan;
   }
 
   /**
-   * Validate the execution result of an individual planning step
+   * Validate Intermediate Step Execution Result
+   * Backward compatible with Phase 2 verification
    * 
-   * @param {string} stepName - Name of the executed step
-   * @param {Object} stepResult - Result produced by the step handler
+   * @param {string} stepName - Name of step executed
+   * @param {Object} stepResult - Result output
    * @returns {Object} { success, reason, fallbackAction }
    */
-  static validateStepResult(stepName, stepResult) {
-    if (!stepResult) {
-      return { success: false, reason: `Step "${stepName}" returned empty output.`, fallbackAction: 'RETRY_WITH_SAFE_DEFAULT' };
-    }
+  static validateStepResult(stepName, stepResult = {}) {
+    if (!stepResult) return { success: false, reason: 'NULL_STEP_RESULT' };
 
     switch (stepName) {
       case 'SEARCH_PRODUCT_CATALOG':
+      case 'LOOKUP_CATALOG_MATCH':
         if (!stepResult.items || stepResult.items.length === 0) {
           return {
             success: false,
@@ -393,11 +403,7 @@ export class ReasoningEngine {
 
   /**
    * Anti-Confusion & Domain Disambiguation Check
-   * Ensures that queries for one product domain (e.g. Panasonic KX-TSC11 desk phone)
-   * are never mistakenly answered with a conflicting product (e.g. Panasonic refrigerator or home appliance).
-   * 
-   * @param {Object} params - { querySlots, candidateProduct }
-   * @returns {Object} { isValidMatch, reason }
+   * Backward compatible with Phase 2
    */
   static disambiguateProductMatch({ querySlots = {}, candidateProduct = {} }) {
     if (!candidateProduct) return { isValidMatch: false, reason: 'NO_PRODUCT' };

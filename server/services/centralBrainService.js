@@ -706,13 +706,32 @@ export class CentralBrainService {
       limit: 10
     });
 
-    // 3. REASONING ENGINE: Assess complexity & data sufficiency
+    // 3. REASONING ENGINE: Assess complexity & data sufficiency (Cognitive Core V2)
     const plan = ReasoningEngine.planExecution(intentResult, {
       ...params,
+      message: trimmedMsg,
       memories: relevantMemories
     });
     if (!plan.dataSufficient && plan.clarificationQuestion) {
       return ResponseEngine.formatClarification(plan.clarificationQuestion);
+    }
+
+    // 3B. CRITICAL THINKING INTERVENTION (False Premise & Fallacy Guard)
+    if (plan.criticalAnalysis && plan.criticalAnalysis.shouldIntervene && plan.criticalAnalysis.interventionResponse) {
+      return ResponseEngine.formatResponse({
+        replyText: plan.criticalAnalysis.interventionResponse,
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'CRITICAL_THINKING_RESOLVED',
+        requiresInput: 'TEXT_PROMPT',
+        suggestedActions: [
+          { id: 'explore_more', label: 'Tìm hiểu thêm cơ sở khoa học', action: 'explore_more' },
+          { id: 'ask_another', label: 'Đặt câu hỏi khác', action: 'ask_another' }
+        ],
+        citations: [],
+        toolsUsed: ['critical_thinking_engine', 'reasoning_engine']
+      });
     }
 
     // Context enriched with Intent & Plan
@@ -987,6 +1006,45 @@ export class CentralBrainService {
     const isGreeting = primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || primaryIntent === 'GENERAL_CONVERSATION' || /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim());
     if (isGreeting && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery && !isLiveWebSearch) {
       return await AppointmentHandler.handleGeneralChat(context);
+    }
+
+    // 0B-RESEARCH. DOCTOR-LEVEL ADVANCED COGNITIVE RESEARCH & MULTIDISCIPLINARY SYNTHESIS
+    if ((plan?.capability === 'DOCTOR_RESEARCH' || plan?.complexity === 'DEEP_COGNITIVE') && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery) {
+      toolsUsed.push('doctor_research_engine');
+      let assocText = '';
+      if (plan?.crossAssociations && plan.crossAssociations.associations?.length > 0) {
+        assocText = '\n\n### 🌐 GÓC NHÌN LIÊN NGÀNH & BẢN ĐỒ KHÁI NIỆM:\n' +
+          plan.crossAssociations.associations.map(a => `- **${a.perspective} (${a.concept}):** ${a.insight}`).join('\n');
+      }
+
+      const academicPrompt = `Bạn là TRÍ AI ULTIMATE ROBOT – hệ thống trí tuệ nhân tạo chuyên sâu cấp tiến sĩ.
+Yêu cầu phân tích: "${message}".
+${assocText ? `Thông tin liên ngành liên quan:\n${assocText}\n` : ''}
+Quy tắc:
+- Trả lời bằng tiếng Việt chuẩn mực, tư duy phản biện, lập luận logic đa chiều.
+- Phân tích nguyên nhân gốc rễ, đối chiếu các phương án giải pháp.
+- Đưa ra kết luận có cơ sở khoa học và khuyến nghị hành động cụ thể.
+- Xưng hô lịch thiệp: TRÍ AI ULTIMATE ROBOT.`;
+
+      let replyText = '';
+      try {
+        replyText = await callGemini(academicPrompt);
+      } catch (e) {
+        replyText = `Dạ, về yêu cầu nghiên cứu và phân tích chuyên sâu cho "${message}":\n\n` +
+          `Dưới góc nhìn khoa học và tư duy hệ thống, vấn đề này cần được bóc tách từ nhiều khía cạnh cấu thành.${assocText}\n\n` +
+          `📌 **Khuyến nghị chuyên môn:** Cần xác định rõ các ràng buộc mục tiêu và nguồn lực trước khi đưa ra quyết định tối ưu cuối cùng.`;
+      }
+
+      return ResponseEngine.formatResponse({
+        replyText,
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'DOCTOR_RESEARCH_RESOLVED',
+        citations,
+        toolsUsed,
+        confidenceTag: 'DOCTOR_LEVEL_SYNTHESIZED'
+      });
     }
 
     // 0B. Live Website Retrieval
