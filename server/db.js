@@ -12,6 +12,7 @@ import { runCrmLeadsMigration } from './migrations/schema_phase_crm_leads.js';
 import { runHumanBrainMemoryMigration } from './migrations/schema_phase_human_brain_memory.js';
 import { runPrivateSecretaryMigration } from './migrations/schema_phase_private_secretary.js';
 import { runServiceLeadsMigration } from './migrations/schema_phase_service_leads.js';
+import { runKnowledgeGraphMigration } from './migrations/schema_phase_knowledge_graph.js';
 import { CrmLeadService } from './services/crmLeadService.js';
 
 dotenv.config();
@@ -916,6 +917,13 @@ export async function initDatabase() {
     await runServiceLeadsMigration(db);
   } catch (err) {
     console.error('[MIGRATION ERROR] Service Leads migration error:', err);
+  }
+
+  // 18. KNOWLEDGE GRAPH ONTOLOGY & SEMANTIC VECTOR SCHEMA MIGRATION (STAGE 3)
+  try {
+    await runKnowledgeGraphMigration(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Knowledge Graph migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');

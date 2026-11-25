@@ -643,8 +643,10 @@ export class IntentEngine {
     const isReminder = /(?:nhac\s+(?:anh|chi|sep|ong|ba|ban|toi|em|minh|giup|cho|viec|lich|hen)|tao\s+nhac\s+nho|dat\s+nhac\s+nho|len\s+lich\s+nhac|nhac\s+nho|nhac\s+lich)\b/i.test(unaccented);
 
     // 2D. MULTI-INTENT DETECTION: Composite requests (e.g. Sales + Secretary)
+    const isMeetingSignal = /(?:cuoc\s+hop|buoi\s+hop|lich\s+hop|di\s+hop|phong\s+hop|hop\s+giao\s+ban|hop\s+noi\s+bo|hop\s+voi)\b/i.test(unaccented) || (/\bhọp\b/i.test(rawMessage) && !/\bhộp\b/i.test(rawMessage));
+    const isSuppliesCompatibility = /(?:dung\s+muc\s+nao|hop\s+muc\s+nao|cum\s+trong\s+nao|sac\s+gi|phu\s+kien\s+nao|linh\s+kien\s+nao|tuong\s+thich\s+voi)/i.test(unaccented);
     const hasSalesSignals = (isExplicitProductKeywords || !!slots.productName || /(?:bao\s+gia|mua\s+ngay|dat\s+mua|gia\s+bao\s+nhieu)\b/i.test(unaccented)) && !slots.isBroadCategory;
-    const hasSecretarySignals = (isAppointmentExplicit || isReminder || isDraftEmail || isSecretaryCrmSummary || isExplicitTaskReminder || isSecretaryActivationOrCall || isSecretaryManagement || /(?:hop\b|cuoc\s+hop)/i.test(unaccented));
+    const hasSecretarySignals = !isSuppliesCompatibility && (isAppointmentExplicit || isReminder || isDraftEmail || isSecretaryCrmSummary || isExplicitTaskReminder || isSecretaryActivationOrCall || isSecretaryManagement || isMeetingSignal);
 
     if (hasSalesSignals && hasSecretarySignals) {
       let salesSub = 'SALES_CONSULTATION';

@@ -39,6 +39,7 @@ import { PlanningEngine } from './intelligence/planningEngine.js';
 import { ActiveProductContext } from './intelligence/activeProductContext.js';
 import { CrmLeadService } from './crmLeadService.js';
 import { ServiceConsultant } from './serviceConsultant.js';
+import { KnowledgeGraphEngine } from './intelligence/knowledgeGraphEngine.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -331,6 +332,15 @@ export class CentralBrainService {
       }
     }
     params.activeProductContext = activeProdContext;
+
+    // Knowledge Graph Context Augmentation (Stage 3)
+    let kgAugmentedContext = '';
+    try {
+      kgAugmentedContext = await KnowledgeGraphEngine.getAugmentedContext(trimmedMsg, orgId);
+      if (kgAugmentedContext) {
+        params.knowledgeGraphContext = kgAugmentedContext;
+      }
+    } catch {}
 
     const coRef = ContextEngine.resolveCoReferences(trimmedMsg, conversationId, params);
     if (coRef.resolvedTimeSpec && !params.timeSpec) {
@@ -830,6 +840,31 @@ export class CentralBrainService {
     }
 
     // -------------------------------------------------------------------------
+    // 2D-COMPATIBILITY: Knowledge Graph Hardware Compatibility Lookup (Stage 3)
+    // -------------------------------------------------------------------------
+    const isCompatibilityQuery = /(dùng mực nào|hộp mực nào|cụm trống nào|sạc gì|phụ kiện nào|linh kiện nào|tương thích với|dung muc nao|hop muc nao)/i.test(trimmedMsg);
+    if (isCompatibilityQuery) {
+      const prodTarget = (intentResult.slots?.brand && intentResult.slots?.modelCode)
+        ? `${intentResult.slots.brand} ${intentResult.slots.modelCode}`
+        : (intentResult.slots?.productName || activeProdContext?.active_product_name || trimmedMsg);
+      const compatibleItems = await KnowledgeGraphEngine.findCompatibleItems(prodTarget, orgId);
+      if (compatibleItems.length > 0) {
+        const itemsList = compatibleItems.map(c => `- **${c.compatibleItem}** (${c.itemType || 'Linh kiện / Phụ kiện'})`).join('\n');
+        return ResponseEngine.formatResponse({
+          replyText: `Dạ, theo đối chiếu từ **Đồ thị Tri thức (Knowledge Graph)** của hệ thống, thiết bị **${compatibleItems[0].productName}** tương thích hoàn hảo với các vật tư sau ạ:\n\n${itemsList}\n\nBạn có muốn em hỗ trợ thêm thông tin chi tiết hoặc lập báo giá cho vật tư này không ạ?`,
+          revealCatalog: true,
+          stage: 'KNOWLEDGE_GRAPH_COMPATIBILITY_RESOLVED',
+          citations: [{
+            source: 'knowledge_graph',
+            label: `[Đồ thị Tri thức: Quan hệ COMPATIBLE_WITH]`
+          }],
+          toolsUsed: ['knowledge_graph_engine'],
+          confidenceTag: 'KNOWLEDGE_GRAPH_VERIFIED'
+        });
+      }
+    }
+
+    // -------------------------------------------------------------------------
     // 2E. MULTI-INTENT COMPOSITE ORCHESTRATION: MIXED_SALES_SECRETARY
     // -------------------------------------------------------------------------
     if (intentResult.primaryIntent === 'MIXED_SALES_SECRETARY' || intentResult.domain === 'MIXED') {
@@ -1045,6 +1080,28 @@ Quy tắc:
         toolsUsed,
         confidenceTag: 'DOCTOR_LEVEL_SYNTHESIZED'
       });
+    }
+
+    // 0B-COMPATIBILITY: Knowledge Graph Hardware Compatibility Lookup (Stage 3)
+    const isCompatibilityQuery = /(dùng mực nào|hộp mực nào|cụm trống nào|sạc gì|phụ kiện nào|linh kiện nào|tương thích với|dung muc nao|hop muc nao)/i.test(message);
+    if (isCompatibilityQuery && !isDocExplicitQuery && !isExcelQuery) {
+      const prodTarget = slots.productName || context.activeProductContext?.active_product_name || message;
+      const compatibleItems = await KnowledgeGraphEngine.findCompatibleItems(prodTarget, orgId);
+      if (compatibleItems.length > 0) {
+        toolsUsed.push('knowledge_graph_engine');
+        const itemsList = compatibleItems.map(c => `- **${c.compatibleItem}** (${c.itemType || 'Linh kiện / Phụ kiện'})`).join('\n');
+        return ResponseEngine.formatResponse({
+          replyText: `Dạ, theo đối chiếu từ **Đồ thị Tri thức (Knowledge Graph)** của hệ thống, thiết bị **${compatibleItems[0].productName}** tương thích hoàn hảo với các vật tư sau ạ:\n\n${itemsList}\n\nBạn có muốn em hỗ trợ thêm thông tin chi tiết hoặc lập báo giá cho vật tư này không ạ?`,
+          revealCatalog: true,
+          stage: 'KNOWLEDGE_GRAPH_COMPATIBILITY_RESOLVED',
+          citations: [{
+            source: 'knowledge_graph',
+            label: `[Đồ thị Tri thức: Quan hệ COMPATIBLE_WITH]`
+          }],
+          toolsUsed,
+          confidenceTag: 'KNOWLEDGE_GRAPH_VERIFIED'
+        });
+      }
     }
 
     // 0B. Live Website Retrieval
