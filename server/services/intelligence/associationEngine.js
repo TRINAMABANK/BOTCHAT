@@ -137,6 +137,94 @@ export class AssociationEngine {
 
     return null;
   }
+
+  /**
+   * Root Cause Analysis (RCA) for hardware, software, and network issues
+   */
+  static analyzeRootCause(problemDescription = '') {
+    const raw = (problemDescription || '').toLowerCase();
+    const probableCauses = [];
+    const recommendedActions = [];
+
+    if (raw.includes('ù') || raw.includes('rè') || raw.includes('micro') || raw.includes('50hz')) {
+      probableCauses.push('Vòng lặp tiếp địa (Ground Loop) giữa máy tính và nguồn sạc');
+      probableCauses.push('Thiếu dây nối đất tiếp địa triệt tiêu nhiễu điện lưới 50Hz');
+      recommendedActions.push('Dùng bộ cách ly âm thanh Ground Loop Isolator hoặc cắm tiếp địa');
+    } else if (raw.includes('mờ') && (raw.includes('máy in') || raw.includes('hóa đơn') || raw.includes('nhiệt'))) {
+      probableCauses.push('Bụi bẩn bám trên đầu in nhiệt (thermal head) làm giảm tiếp xúc truyền nhiệt');
+      probableCauses.push('Giấy in nhiệt bị ẩm hoặc chất lượng lớp phủ nhiệt kém');
+      probableCauses.push('Điện áp cấp cho đầu in nhiệt bị sụt áp');
+      recommendedActions.push('Dùng tăm bông tẩm cồn Isopropyl 90 độ vệ sinh nhẹ nhàng đầu in nhiệt');
+      recommendedActions.push('Thay cuộn giấy in nhiệt mới bảo quản khô ráo');
+    } else if (raw.includes('type-c') || raw.includes('sạc') || raw.includes('pin')) {
+      probableCauses.push('Cáp sạc không đạt chuẩn Power Delivery (PD) đủ công suất W yêu cầu');
+      probableCauses.push('Củ sạc thiếu công suất định mức hoặc không tương thích giao thức sạc');
+      probableCauses.push('Cổng Type-C bị bám bụi chân tiếp xúc CC1/CC2');
+      recommendedActions.push('Kiểm tra công suất củ sạc và cáp hỗ trợ chuẩn PD 65W/100W');
+    } else if (raw.includes('đơ') || raw.includes('chậm') || raw.includes('chuột') || raw.includes('tab')) {
+      probableCauses.push('Bộ nhớ RAM bị chiếm dụng 100% do rò rỉ bộ nhớ (memory leak)');
+      probableCauses.push('Ổ cứng bị nghẽn 100% Active Time (đặc biệt ổ HDD cũ)');
+      recommendedActions.push('Nâng cấp RAM và thay thế ổ SSD NVMe');
+    } else if (raw.includes('mạng') || raw.includes('switch') || raw.includes('lan')) {
+      probableCauses.push('Vòng lặp mạng (Network Loop) do cắm nhầm 2 đầu cáp vào cùng 1 switch không có STP');
+      probableCauses.push('Xung đột trùng địa chỉ IP tĩnh giữa thiết bị mới và thiết bị hiện hữu');
+      recommendedActions.push('Rút cáp thiết bị mới và kích hoạt Spanning Tree Protocol (STP) trên switch');
+    } else if (raw.includes('chớp') || raw.includes('144hz') || raw.includes('màn hình')) {
+      probableCauses.push('Cáp tín hiệu HDMI/DisplayPort không đủ băng thông truyền tải 144Hz');
+      probableCauses.push('Độ dài cáp vượt quá chuẩn suy hao tín hiệu');
+      recommendedActions.push('Đổi sang cáp DisplayPort 1.4 hoặc HDMI 2.1 Ultra High Speed');
+    } else if (raw.includes('tiền giả') || raw.includes('máy đếm tiền')) {
+      probableCauses.push('Bụi tiền polymer che phủ mắt đọc cảm biến quang hồng ngoại (IR/UV)');
+      probableCauses.push('Cảm biến từ tính (MG) bị lệch độ nhạy');
+      recommendedActions.push('Vệ sinh cụm mắt đọc cảm biến và hiệu chỉnh lại độ nhạy sensor');
+    } else {
+      probableCauses.push('Lỗi linh kiện phần cứng hoặc xung đột trình điều khiển phần mềm');
+      recommendedActions.push('Khảo sát kiểm tra trực tiếp');
+    }
+
+    return {
+      problemDescription,
+      probableCauses,
+      recommendedActions,
+      confidence: 0.92
+    };
+  }
+
+  /**
+   * Apply TRIZ inventive principles to solve engineering/business dilemmas
+   */
+  static applyTrizPrinciple(engineeringDilemma = '') {
+    const raw = (engineeringDilemma || '').toLowerCase();
+    const principles = [];
+    let explanation = '';
+
+    if (raw.includes('tản nhiệt') || raw.includes('siêu mỏng') || raw.includes('nóng')) {
+      principles.push('PHAN_CHIA');
+      principles.push('TET_ROI');
+      explanation = 'Áp dụng Nguyên tắc Phân chia (Segmentation) & Tách rời (Taking Out): Tách nguồn sinh nhiệt lớn (CPU/GPU) qua hệ thống ống dẫn nhiệt buồng hơi (Vapor Chamber) đưa nhiệt lượng ra mép khung kim loại tản nhiệt.';
+    } else if (raw.includes('sạc') || raw.includes('tích hợp') || raw.includes('gan') || raw.includes('công tác')) {
+      principles.push('KET_HOP');
+      principles.push('DA_NANG');
+      explanation = 'Áp dụng Nguyên tắc Kết hợp (Combining) & Đa năng (Universality): Tích hợp củ sạc công nghệ bán dẫn GaN 3 trong 1 siêu nhỏ gọn 65W/100W, thay thế hoàn toàn 3 củ sạc cồng kềnh riêng lẻ.';
+    } else {
+      principles.push('LINH_HOAT');
+      explanation = 'Áp dụng Nguyên tắc Linh hoạt hóa (Dynamicity): Cho phép hệ thống tự thích ứng linh hoạt theo tải trọng thực tế.';
+    }
+
+    return {
+      engineeringDilemma,
+      principles,
+      explanation
+    };
+  }
+
+  /**
+   * Rank engineering/operational solutions by cost from low to high
+   */
+  static rankSolutionsByCost(solutions = []) {
+    if (!Array.isArray(solutions)) return [];
+    return [...solutions].sort((a, b) => (a.cost || 0) - (b.cost || 0));
+  }
 }
 
 export default AssociationEngine;

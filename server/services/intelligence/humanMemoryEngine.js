@@ -30,6 +30,14 @@ const SECRET_PATTERNS = [
   /\b[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}\b/ // Credit card numbers
 ];
 
+export const MEMORY_LAYERS = {
+  WORKING: 'WORKING',
+  EPISODIC: 'EPISODIC',
+  SEMANTIC: 'SEMANTIC',
+  PROCEDURAL: 'PROCEDURAL',
+  PROSPECTIVE: 'PROSPECTIVE'
+};
+
 export class HumanMemoryEngine {
   /**
    * Working Memory cache for active in-memory session contexts

@@ -714,6 +714,15 @@ export class ActiveProductContext {
    * Internal validator for quotation readiness
    */
   static _validateProductForQuotation(activeContext, requestedQuantity = 1) {
+    if (!activeContext) {
+      return {
+        valid: false,
+        status: 'NO_ACTIVE_PRODUCT',
+        reason: 'Chưa có sản phẩm được chọn',
+        message: 'Dạ anh đang muốn em làm báo giá cho sản phẩm nào ạ? Anh cho em xin tên hoặc mã máy cụ thể để em lên báo giá chuẩn cho anh nhé!'
+      };
+    }
+
     const name = activeContext.active_product_name || activeContext.name;
     const price = parseFloat(activeContext.active_product_price || activeContext.price || 0);
     const priceType = activeContext.price_type || (price > 0 ? (activeContext.active_product_id ? 'SUPPLIER_VERIFIED' : 'REFERENCE_ONLY') : 'UNVERIFIED');

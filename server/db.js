@@ -49,6 +49,10 @@ export function getDb() {
 
     dbInstance.run('PRAGMA foreign_keys = ON;');
     dbInstance.run('PRAGMA journal_mode = WAL;');
+    dbInstance.run('PRAGMA synchronous = NORMAL;');
+    dbInstance.run('PRAGMA cache_size = -64000;'); // 64MB Cache for fast retrieval
+    dbInstance.run('PRAGMA temp_store = MEMORY;');
+    dbInstance.run('PRAGMA mmap_size = 268435456;'); // 256MB memory-mapped I/O
   }
   return dbInstance;
 }
