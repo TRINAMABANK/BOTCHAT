@@ -13,6 +13,7 @@ import { runHumanBrainMemoryMigration } from './migrations/schema_phase_human_br
 import { runPrivateSecretaryMigration } from './migrations/schema_phase_private_secretary.js';
 import { runServiceLeadsMigration } from './migrations/schema_phase_service_leads.js';
 import { runKnowledgeGraphMigration } from './migrations/schema_phase_knowledge_graph.js';
+import { runPersonalAssistantMigration } from './migrations/schema_phase_personal_assistant.js';
 import { CrmLeadService } from './services/crmLeadService.js';
 
 dotenv.config();
@@ -928,6 +929,13 @@ export async function initDatabase() {
     await runKnowledgeGraphMigration(db);
   } catch (err) {
     console.error('[MIGRATION ERROR] Knowledge Graph migration error:', err);
+  }
+
+  // 19. TRÍ AI PERSONAL ASSISTANT & SMART REMINDER (MASTER PROMPT 03)
+  try {
+    await runPersonalAssistantMigration(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Personal Assistant migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');

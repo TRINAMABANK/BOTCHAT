@@ -576,9 +576,12 @@ export class IntentEngine {
 
     const isExplicitTaskReminder = /(?:nhắc anh|nhac anh|nhắc tôi|nhac toi|nhắc sếp|nhac sep|lên lịch nhắc|len lich nhac|tạo lịch nhắc|tao lich nhac)/i.test(unaccented);
 
+    // Mở rộng nhận diện trợ lý thông minh (Master Prompt 03: Recurring, Follow-Up, Briefing, Calendar)
+    const isAssistantExtended = /(?:hang tuan|moi tuan|moi ngay|cuoi thang|neu nha cung cap chua|neu chua xac nhan|ban tin|tom tat cong viec|tong ket ngay|gio ranh|khung gio trong|lich hen|lich hop)/i.test(unaccented);
+
     const hasSalesSignalsInOwnerTask = /(?:bao\s+gia|mua\s+ngay|dat\s+mua|gia\s+bao\s+nhieu|bao\s+nhieu\s+tien)\b/i.test(unaccented);
 
-    if ((isSecretaryActivationOrCall || isSecretaryManagement || isExplicitTaskReminder) && !hasSalesSignalsInOwnerTask) {
+    if ((isSecretaryActivationOrCall || isSecretaryManagement || isExplicitTaskReminder || isAssistantExtended) && !hasSalesSignalsInOwnerTask) {
       return {
         primaryIntent: 'SECRETARY_TASK',
         intentGroup: INTENT_GROUPS.SECRETARY_TASK,

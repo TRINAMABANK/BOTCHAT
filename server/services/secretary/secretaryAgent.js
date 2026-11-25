@@ -18,6 +18,7 @@ import { AuditLogService } from './auditLogService.js';
 import MemoryEngine from '../intelligence/memoryEngine.js';
 import ResponseEngine from '../intelligence/responseEngine.js';
 import { ActiveProductContext } from '../intelligence/activeProductContext.js';
+import { PersonalAssistantEngine } from '../assistant/personalAssistantEngine.js';
 
 // In-memory clarification state per conversation: { taskTitle, dueDay, pendingField, targetTaskId }
 const clarificationSessions = new Map();
@@ -188,6 +189,25 @@ export class SecretaryAgent {
         revealCatalog: false,
         stage: 'SECRETARY_ACTIVATED',
         toolsUsed: ['secretary_activation']
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 1B. NÂNG CẤP TRỢ LÝ THƯ KÝ ĐA NĂNG (MASTER PROMPT 03: RECURRING, FOLLOW-UP, BRIEFING, CALENDAR)
+    // -------------------------------------------------------------
+    const assistantResult = await PersonalAssistantEngine.handleMessage({
+      userId: ownerId,
+      text: message,
+      role: userContext.role || 'OWNER',
+      ipAddress: context.ipAddress || '127.0.0.1'
+    });
+
+    if (assistantResult && assistantResult.handled && assistantResult.action !== 'ACTIVATE_SECRETARY') {
+      return ResponseEngine.formatResponse({
+        replyText: assistantResult.message,
+        revealCatalog: false,
+        stage: assistantResult.action,
+        toolsUsed: ['personal_assistant_engine']
       });
     }
 
