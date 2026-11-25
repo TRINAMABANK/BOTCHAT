@@ -11,11 +11,15 @@ import knowledgeRoutes from './routes/knowledgeRoutes.js';
 import supplierWebsiteRoutes from './routes/supplierWebsiteRoutes.js';
 import centralBrainRoutes from './routes/centralBrainRoutes.js';
 import learningRoutes from './routes/learningRoutes.js';
+import memoryRoutes from './routes/memoryRoutes.js';
+import secretaryRoutes from './routes/secretaryRoutes.js';
+import { ReminderScheduler } from './services/secretary/reminderScheduler.js';
 const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 import { requireAdmin, optionalAuth } from './middleware/authMiddleware.js';
 import AuthService from './services/authService.js';
 import { isSafePublicUrl } from './utils/ssrfProtection.js';
+import { CrmLeadService } from './services/crmLeadService.js';
 
 dotenv.config();
 
@@ -79,6 +83,12 @@ app.use('/api/central-brain', centralBrainRoutes);
 
 // Mount TRÍ AN Learning Center APIs
 app.use('/api/learning-center', learningRoutes);
+
+// Mount TRÍ AI Human Brain 5-Tier Memory & Planning APIs
+app.use('/api/memory', memoryRoutes);
+
+// Mount TRÍ AI Private Secretary & Notification APIs
+app.use('/api', secretaryRoutes);
 
 // Anti-tamper & Security headers
 app.use((req, res, next) => {
@@ -491,7 +501,7 @@ app.post('/api/upload/image', requireAdmin, (req, res) => {
 // -----------------------------------------------------------------------------
 // 4. CHAT & STREAMING ENGINE (COLUMN 1)
 // -----------------------------------------------------------------------------
-app.post('/api/chat/message', async (req, res) => {
+app.post('/api/chat/message', optionalAuth, async (req, res) => {
   try {
     const { conversationId, message, selectedProduct, actionType, customerInfo, clientDevice, orgId } = req.body;
 
@@ -502,7 +512,8 @@ app.post('/api/chat/message', async (req, res) => {
       actionType,
       customerInfo,
       clientDevice,
-      orgId
+      orgId,
+      user: req.user
     });
 
     res.json(result);
@@ -634,19 +645,58 @@ app.post('/api/leads', async (req, res) => {
     const id = `lead_${Date.now()}`;
     const now = new Date().toISOString();
 
+    let finalProductName = product_name ? product_name.trim() : null;
+    let finalBrand = req.body.brand || null;
+    let finalModel = req.body.model || null;
+    let finalProductsJson = req.body.products_json || null;
+    let finalSummary = req.body.conversation_summary || null;
+
+    if (!finalProductName && conversation_id) {
+      const extracted = await CrmLeadService.extractProductsFromConversation({
+        conversationId: conversation_id,
+        currentMessage: notes || customer_requirement || '',
+        db
+      });
+      finalProductName = extracted.productName;
+      finalBrand = extracted.brand;
+      finalModel = extracted.model;
+      finalProductsJson = JSON.stringify(extracted.products);
+      finalSummary = extracted.conversationSummary;
+    } else if (finalProductName) {
+      if (!finalBrand) finalBrand = CrmLeadService.extractBrand(finalProductName);
+      if (!finalModel) finalModel = CrmLeadService.extractModelCodes(finalProductName)[0] || null;
+      if (!finalProductsJson) {
+        finalProductsJson = JSON.stringify([{
+          id: product_id || null,
+          name: finalProductName,
+          brand: finalBrand,
+          model: finalModel,
+          quantity: parseInt(quantity, 10) || 1
+        }]);
+      }
+      if (!finalSummary) {
+        finalSummary = `Khách quan tâm sản phẩm: ${finalProductName}. Nhu cầu: ${customer_requirement || 'Yêu cầu tư vấn'}.`;
+      }
+    } else {
+      finalProductName = 'Chưa xác định sản phẩm';
+      finalProductsJson = '[]';
+      finalSummary = 'Khách hàng trao đổi chung, chưa đề cập sản phẩm cụ thể.';
+    }
+
     await db.run(`
       INSERT INTO leads (
         id, customer_name, phone, email, product_id, product_name, quantity,
         customer_requirement, conversation_id, website_source, widget_id,
-        consent_to_contact, created_time, lead_status, notes, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?)
+        consent_to_contact, created_time, lead_status, notes, updated_at,
+        brand, model, products_json, conversation_summary
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?, ?, ?, ?, ?)
     `, [
       id,
       customer_name.trim(),
       phoneClean,
       email ? email.trim() : null,
       product_id || null,
-      product_name || null,
+      finalProductName,
       parseInt(quantity, 10) || 1,
       customer_requirement || 'Yêu cầu tư vấn',
       conversation_id || null,
@@ -655,13 +705,18 @@ app.post('/api/leads', async (req, res) => {
       consent_to_contact ? 1 : 0,
       now,
       notes || '',
-      now
+      now,
+      finalBrand,
+      finalModel,
+      finalProductsJson,
+      finalSummary
     ]);
 
     res.json({
       success: true,
       message: 'Tạo Lead CRM thành công! Chủ nhân sẽ sớm liên hệ.',
-      leadId: id
+      leadId: id,
+      product_name: finalProductName
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -670,9 +725,14 @@ app.post('/api/leads', async (req, res) => {
 
 app.get('/api/crm/leads', requireAdmin, async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, lead_type } = req.query;
     let sql = 'SELECT * FROM leads WHERE 1=1';
     const params = [];
+
+    if (lead_type && lead_type !== 'all') {
+      sql += ' AND lead_type = ?';
+      params.push(lead_type);
+    }
 
     if (status && status !== 'all') {
       sql += ' AND lead_status = ?';
@@ -680,8 +740,8 @@ app.get('/api/crm/leads', requireAdmin, async (req, res) => {
     }
 
     if (search) {
-      sql += ' AND (customer_name LIKE ? OR phone LIKE ? OR email LIKE ? OR product_name LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      sql += ' AND (customer_name LIKE ? OR phone LIKE ? OR email LIKE ? OR product_name LIKE ? OR brand LIKE ? OR model LIKE ? OR conversation_summary LIKE ? OR survey_address LIKE ? OR service_type LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     sql += ' ORDER BY created_time DESC';
@@ -696,12 +756,12 @@ app.get('/api/crm/leads', requireAdmin, async (req, res) => {
 app.put('/api/crm/leads/:id/status', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { lead_status, notes } = req.body;
+    const { lead_status, notes, survey_address, scale_or_quantity, expected_time } = req.body;
     const now = new Date().toISOString();
 
     await db.run(
-      'UPDATE leads SET lead_status = ?, notes = COALESCE(?, notes), updated_at = ? WHERE id = ?',
-      [lead_status, notes, now, id]
+      'UPDATE leads SET lead_status = ?, notes = COALESCE(?, notes), survey_address = COALESCE(?, survey_address), scale_or_quantity = COALESCE(?, scale_or_quantity), expected_time = COALESCE(?, expected_time), updated_at = ? WHERE id = ?',
+      [lead_status, notes, survey_address, scale_or_quantity, expected_time, now, id]
     );
 
     res.json({ success: true, message: 'Cập nhật trạng thái Lead thành công!' });
@@ -908,6 +968,7 @@ if (fs.existsSync(distPath)) {
 async function start() {
   try {
     await initDatabase();
+    ReminderScheduler.start();
     app.listen(PORT, () => {
       console.log(`
 ========================================================================

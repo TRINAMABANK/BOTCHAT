@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import db from './db.js';
 import { callGemini } from './geminiService.js';
+import { CrmLeadService } from './services/crmLeadService.js';
 
 /**
  * Call an OpenAI-compatible Chat Completions endpoint using server-side credentials.
@@ -361,7 +362,7 @@ export function hasBlockedNameTokens(str) {
 /**
  * Extract customer name cleanly (supports full intro phrases, casual introductions, and standalone names).
  */
-function extractCustomerName(rawMsg, allowBare = false) {
+export function extractCustomerName(rawMsg, allowBare = false) {
   if (!rawMsg || typeof rawMsg !== 'string') return null;
   let s = rawMsg.trim();
   if (s.includes('?') || s.includes('@')) return null;
@@ -567,11 +568,22 @@ function isCatalogOverviewQuery(normMsg) {
   const SPECIFIC_PRODUCT_INDICATORS = [
     'edison', 'xinda', 'sharp', 'daikin', 'samsung', 'sony', 'lg', 'lenovo', 'dell', 'hp', 'asus',
     'julong', 'hang tin', 'hangtin', 'like sys', 'likesys', 'lda', 'xiudun', 'bofa', 'canon', 'apple', 'macbook',
+    'thinkpad', 'thinkcentre', 'ideapad', 'vivobook', 'omnibook', 'legion', 'thinkstation',
     'tivi', 'tv', 'tu lanh', 'may lanh', 'dieu hoa', 'laptop', 'hut am', 'may hut am', 'man hinh',
     'dem tien', 'may dem tien', 'bo tien', 'dong chung tu', 'kiem gia', 'ket sat',
-    'ban giam doc', 'ban lam viec', 'ban hop', 'ghe giam doc', 'ghe van phong', 'ghe gaming', 'tra '
+    'ban giam doc', 'ban lam viec', 'ban hop', 'ghe giam doc', 'ghe van phong', 'ghe gaming',
+    'tra ', 'oolong', 'olong', 'hac tra', 'matcha', 'luc tra', 'hong tra', 'hoang ty', 'nhat minh', 'bich thuy', 'hoan nguyen', 'ngoc trac', 'hao ky', 'huong sa', 'phong mat', 'dai hoang bao', 'tam thanh',
+    'ca phe', 'cafe', 'espresso', 'robusta', 'culi', 'arabica', 'rang moc',
+    'cay nuoc', 'nuoc nong lanh', 'kangaroo', 'kg64a3',
+    'nuoc hoa', 'my pham', 'cindy bloom', 'aroma flower', 'tay te bao chet',
+    'panasonic', 'kx-tsc11', 'kx ts500', 'kx-'
   ];
   if (SPECIFIC_PRODUCT_INDICATORS.some((kw) => clean.includes(kw))) {
+    return false;
+  }
+
+  const modelCodesInClean = extractModelCodes(clean);
+  if (modelCodesInClean && modelCodesInClean.length > 0) {
     return false;
   }
 
@@ -865,9 +877,25 @@ function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', conte
 
   // Scenario 1: Model matches + (brand or category or specific token) => 92% - 98%
   if (modelMatch && (brandMatch || hasCategory || prodModels.some((m) => cleanNormMsg.includes(m)))) {
+    const queryGenMatch = cleanNormMsg.match(/\bgen\s*(\d{1,2})\b/i);
+    if (queryGenMatch) {
+      const qGen = queryGenMatch[1];
+      const prodGenMatch = normProdName.match(/\bgen\s*(\d{1,2})\b/i);
+      if (prodGenMatch) {
+        return prodGenMatch[1] === qGen ? 98 : 88;
+      }
+    }
     return 95;
   }
   if (modelMatch) {
+    const queryGenMatch = cleanNormMsg.match(/\bgen\s*(\d{1,2})\b/i);
+    if (queryGenMatch) {
+      const qGen = queryGenMatch[1];
+      const prodGenMatch = normProdName.match(/\bgen\s*(\d{1,2})\b/i);
+      if (prodGenMatch) {
+        return prodGenMatch[1] === qGen ? 96 : 86;
+      }
+    }
     return 92;
   }
 
@@ -1658,7 +1686,7 @@ function capitalizeFirst(str) {
 /**
  * Extract customer preferred addressing (pronoun + optional name) from natural Vietnamese self-introductions.
  */
-function extractCustomerAddressing(rawMsg) {
+export function extractCustomerAddressing(rawMsg) {
   if (!rawMsg || typeof rawMsg !== 'string') return null;
   const trimmed = rawMsg.trim();
   const norm = removeVietnameseTones(trimmed).toLowerCase();
@@ -1704,7 +1732,7 @@ function extractCustomerAddressing(rawMsg) {
  * Khi khách xưng tên ("Tôi tên Trí", "Mình tên Nam", "Anh là Tuấn", "Em tên Linh"...):
  * Tuyệt đối coi đây là thông tin xưng hô của khách hàng, không bao giờ đối chiếu hay coi là sản phẩm.
  */
-function isCustomerNameDeclaration(rawMsg, normMsg) {
+export function isCustomerNameDeclaration(rawMsg, normMsg) {
   const text = rawMsg || normMsg;
   if (!text || typeof text !== 'string') return false;
   const clean = removeVietnameseTones(text)
@@ -1874,7 +1902,7 @@ export class SalesEngine {
       return acc;
     }, {});
 
-    const botName = settings.bot_name || 'TRÍ AI SALES ROBOT';
+    const botName = settings.bot_name || 'TRÍ AI ULTIMATE ROBOT';
     const ownerName = settings.owner_name || 'Quang Nhựt Trí';
     const rawPhonePrompt = settings.phone_invitation_prompt ||
       'Tôi có thể ghi nhận yêu cầu để shop trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.';
@@ -2160,46 +2188,66 @@ export class SalesEngine {
       );
 
       if (!existingLead) {
-        const leadId = `lead_${randomUUID().slice(0, 8)}`;
-        const pendingMissing = customerProfile.pendingMissingProduct;
-        const reqDetail = pendingMissing
-          ? `Khách hỏi sản phẩm ngoài danh mục: "${pendingMissing}". Cần kiểm tra nguồn hàng và phản hồi lại.`
-          : (actionType || (activeProduct ? `Quan tâm ${activeProduct.name}` : 'Yêu cầu tư vấn trực tiếp'));
-        const prodId = activeProduct?.id || null;
-        const prodName = pendingMissing
-          ? `Tìm nguồn hàng: ${pendingMissing}`
-          : (activeProduct?.name || 'Sản phẩm tổng quan');
+        const enrichedLead = await CrmLeadService.enrichLeadData({
+          leadId: `lead_${randomUUID().slice(0, 8)}`,
+          customerName,
+          phone: extractedPhone,
+          email: extractedEmail,
+          conversationId: convId,
+          currentMessage: message,
+          activeProduct: activeProduct || (customerProfile?.pendingMissingProduct ? { name: customerProfile.pendingMissingProduct } : null),
+          db,
+          source: 'TRÍ AI Humanoid Widget',
+          widgetId: 'WIDGET_HUMANOID_V1'
+        });
+
+        // If detectedQty is explicitly extracted and greater than 1, preserve it
+        if (detectedQty > 1 && enrichedLead.quantity === 1) {
+          enrichedLead.quantity = detectedQty;
+        }
 
         await db.run(
           `INSERT INTO leads (
             id, customer_name, phone, email, product_id, product_name, quantity, customer_requirement,
-            conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRÍ AI Humanoid Widget', 'WIDGET_HUMANOID_V1', 1, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?)`,
+            conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at,
+            brand, model, products_json, conversation_summary
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            leadId,
-            customerName,
-            extractedPhone,
-            extractedEmail,
-            prodId,
-            prodName,
-            detectedQty,
-            reqDetail,
-            convId,
-            now,
-            `Khách để lại SĐT trong chat: "${message}". Sản phẩm: ${prodName} (SL: ${detectedQty}).`,
-            now
+            enrichedLead.id,
+            enrichedLead.customer_name,
+            enrichedLead.phone,
+            enrichedLead.email,
+            enrichedLead.product_id,
+            enrichedLead.product_name,
+            enrichedLead.quantity,
+            enrichedLead.customer_requirement,
+            enrichedLead.conversation_id,
+            enrichedLead.website_source,
+            enrichedLead.widget_id,
+            enrichedLead.consent_to_contact,
+            enrichedLead.created_time,
+            enrichedLead.lead_status,
+            enrichedLead.notes,
+            enrichedLead.updated_at,
+            enrichedLead.brand,
+            enrichedLead.model,
+            enrichedLead.products_json,
+            enrichedLead.conversation_summary
           ]
         );
 
         leadCreated = {
-          id: leadId,
-          name: customerName,
-          phone: extractedPhone,
-          product: prodName,
-          quantity: detectedQty,
-          status: 'NEW – WAITING FOR OWNER CONTACT'
+          id: enrichedLead.id,
+          name: enrichedLead.customer_name,
+          phone: enrichedLead.phone,
+          product: enrichedLead.product_name,
+          brand: enrichedLead.brand,
+          model: enrichedLead.model,
+          products_json: enrichedLead.products_json,
+          quantity: enrichedLead.quantity,
+          status: enrichedLead.lead_status
         };
-        console.log(`[CRM INTEGRATION] New Lead created: ${leadId} (${customerName} - ${extractedPhone})`);
+        console.log(`[CRM INTEGRATION] New Lead created: ${enrichedLead.id} (${enrichedLead.customer_name} - ${enrichedLead.phone}) - Product: ${enrichedLead.product_name}`);
       }
     }
 
@@ -2295,7 +2343,7 @@ export class SalesEngine {
     const isOneToThreeWords = rawCleanWords.length >= 1 && rawCleanWords.length <= 3;
     const hasQuestionKeywords = /(?:bao\s+nhieu|nhieu\s+tien|may\s+tien|gia\s+ca|gia\s+bao|o\s+dau|co\s+khong|co\s+ban|tinh\s+nang|thong\s+so|chuc\s+nang|cau\s+hinh|bao\s+hanh|chinh\s+sach|the\s+nao|nhu\s+the\s+nao|sao\s+the|la\s+gi|ban\s+gi|kinh\s+doanh\s+gi|co\s+nhung|cho\s+(?:anh|toi|em|minh)?\s*xem|xem\s+san\s+pham|mua|dat\s+hang|tu\s+van)\b/i.test(normMessage);
     const userMsgCount = history.filter((h) => h.sender_type === 'user').length;
-    const isFirstCustomerTurn = userMsgCount <= 1;
+    const isFirstCustomerTurn = userMsgCount <= 1 || (userMsgCount <= 2 && history.some(h => h.sender_type === 'user' && isGreetingMessage(removeVietnameseTones(h.content))));
 
     // Khi khách xuất phát lần đầu và chỉ nhắn 1 đến 3 từ ngắn (ví dụ: 'nguyên', 'nam', 'tủ lạnh', 'trà', 'bột matcha'):
     // TUYỆT ĐỐI KHÔNG tự ý suy diễn là sản phẩm hay tên của khách, mà BẮT BUỘC phải hỏi lại để khách xác nhận rõ ràng
@@ -2325,6 +2373,8 @@ Từ **"${displayTerm}"** bên trên là **tên của bạn/anh/chị** để ti
       customerProfile.name = null;
       missingProductQuery = null;
       productMatch.topProduct = null;
+      productMatch.relatedProduct = null;
+      productMatch.rankedProducts = [];
       productMatch.tier = 3;
       productMatch.similarity = 0;
       customerProfile.pendingClarification = {
@@ -2342,9 +2392,9 @@ Từ **"${displayTerm}"** bên trên là **tên của bạn/anh/chị** để ti
         replyText = `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì để tôi hỗ trợ nhé?`;
       } else if (isGreeting) {
         if (!hasAddressingInfo) {
-          replyText = `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm gì? Bạn cần tôi giúp gì? Bạn có thể hỏi tôi hoặc tham khảo cột dự liệu bên cạnh. Do tôi là Trợ lý ảo nên Bạn viết câu từ rõ ràng giúp, tôi mới hiểu ý bạn`;
+          replyText = `Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?`;
         } else {
-          replyText = `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
+          replyText = `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
         }
       } else if (isMissing) {
         const capRef = capitalizeFirst(customerRef);
@@ -2761,15 +2811,18 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         matchedField
       });
 
+    const isPendingClarification = Boolean(customerProfile.pendingClarification || prevCustomerProfile?.pendingClarification);
+
     // Automatically reveal Column 2 whenever chat mentions or requests related products,
     // HOẶC khi khách hỏi sản phẩm chưa có (để khách tham khảo các mẫu khác cùng loại ở Cột 2)
     const mentionsRelatedProduct =
-      isMissingProduct ||
+      !isPendingClarification &&
+      (isMissingProduct ||
       isExplicitViewAsk ||
       (!isNonProductIntent &&
         (productMatch.tier === 1 ||
           productMatch.tier === 2 ||
-          (productMatch.tier === 3 && (wantsProducts || Boolean(matchedField) || asksGeneralCatalog || hasBudgetQuery || hasCompareQuery || isAskOtherModels || Boolean(actionType)))));
+          (productMatch.tier === 3 && (wantsProducts || Boolean(matchedField) || asksGeneralCatalog || hasBudgetQuery || hasCompareQuery || isAskOtherModels || Boolean(actionType))))));
 
     const isMissingOrCollectingPhone = Boolean(missingProductQuery) && !extractedPhone;
     if (isMissingOrCollectingPhone) {
@@ -3170,11 +3223,23 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         : (customerProfile?.name
           ? (customerProfile?.pronoun ? `${capitalizeFirst(customerProfile.pronoun)} ${customerProfile.name}` : customerProfile.name)
           : `Khách ${flow.phone}`);
+      const prodBrand = CrmLeadService.extractBrand(flow.productName);
+      const prodModel = CrmLeadService.extractModelCodes(flow.productName)[0] || null;
+      const orderProductsJson = JSON.stringify([{
+        id: flow.productId || null,
+        name: flow.productName,
+        brand: prodBrand,
+        model: prodModel,
+        quantity: flow.quantity || 1
+      }]);
+      const orderSummary = `Đơn đặt hàng từng bước: ${flow.productName} × ${flow.quantity} ${unit}${subtotalText}. Nhu cầu: Đặt mua ngay.`;
+
       await db.run(
         `INSERT INTO leads (
           id, customer_name, phone, email, product_id, product_name, quantity, customer_requirement,
-          conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRÍ AI Humanoid Widget', 'WIDGET_HUMANOID_V1', 1, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?)`,
+          conversation_id, website_source, widget_id, consent_to_contact, created_time, lead_status, notes, updated_at,
+          brand, model, products_json, conversation_summary
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'TRÍ AI Humanoid Widget', 'WIDGET_HUMANOID_V1', 1, ?, 'NEW – WAITING FOR OWNER CONTACT', ?, ?, ?, ?, ?, ?)`,
         [
           leadId,
           orderCustomerName,
@@ -3187,7 +3252,11 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           convId,
           now,
           `Đơn đặt hàng từng bước: ${flow.productName} × ${flow.quantity} ${unit}${subtotalText}.`,
-          now
+          now,
+          prodBrand,
+          prodModel,
+          orderProductsJson,
+          orderSummary
         ]
       );
       flow.leadId = leadId;
@@ -3196,6 +3265,9 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         name: flow.name,
         phone: flow.phone,
         product: flow.productName,
+        brand: prodBrand,
+        model: prodModel,
+        products_json: orderProductsJson,
         quantity: flow.quantity,
         status: 'NEW – WAITING FOR OWNER CONTACT'
       };
@@ -3604,7 +3676,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('la ai') ||
       normMessage.includes('gioi thieu')
     ) {
-      return `${politeAskBanner}Dạ, tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh. Rất hân hạnh được phục vụ ${customerRef}!\n\n${capRef} đang quan tâm đến sản phẩm nào để tôi gửi thông tin và ưu đãi ạ?`;
+      return `${politeAskBanner}Dạ, em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh. Rất hân hạnh được phục vụ ${customerRef}!\n\n${capRef} đang quan tâm đến sản phẩm nào để em gửi thông tin và ưu đãi ạ?`;
     }
 
     // 11B. Friendly Conversation / Asking Permission ("Tôi hỏi thăm bạn được không?", "Cho tôi hỏi chút", "Hỏi thăm")
@@ -3618,7 +3690,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('khoe khong') ||
       normMessage.includes('co khoe khong')
     ) {
-      return `${politeAskBanner}Dạ cảm ơn ${customerRef} nhiều ạ! Tôi luôn có mặt 24/7 để phục vụ ${customerRef}. ${capRef} cứ thoải mái chia sẻ câu hỏi hoặc nhu cầu nhé!`;
+      return `${politeAskBanner}Dạ cảm ơn ${customerRef} nhiều ạ! Em luôn có mặt 24/7 để phục vụ ${customerRef}. ${capRef} cứ thoải mái chia sẻ câu hỏi hoặc nhu cầu nhé!`;
     }
 
     // 11C. Capabilities / What can you do? ("Bạn giúp được gì?", "Làm được gì?")
@@ -3629,16 +3701,16 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('biet lam gi')
     ) {
       const actionScope = `tìm sản phẩm theo nhu cầu, so sánh thông số & giá bán, mở danh mục trực quan ở Cột 2 và ghi nhận đơn hàng`;
-      return `${politeAskBanner}Dạ, tôi có thể giúp ${customerRef}: ${actionScope}. ${capRef} cần hỗ trợ gì cứ nhắn tôi nhé!`;
+      return `${politeAskBanner}Dạ, em có thể giúp ${customerRef}: ${actionScope}. ${capRef} cần hỗ trợ gì cứ nhắn em nhé!`;
     }
 
     // 11D. Conversational Greeting / Addressing Inquiry / Open-ended Consultation
     const isGreeting = isGreetingMessage(normMessage);
     if (isGreeting) {
       if (!hasAddressingInfo) {
-        return `Dạ xin chào bạn! Cảm ơn bạn đã ghé thăm shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh.\n\nXin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô để tôi tiện phục vụ nhé!\n\nHôm nay bạn đang quan tâm sản phẩm gì? Bạn cần tôi giúp gì? Bạn có thể hỏi tôi hoặc tham khảo cột dự liệu bên cạnh. Do tôi là Trợ lý ảo nên Bạn viết câu từ rõ ràng giúp, tôi mới hiểu ý bạn`;
+        return `Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?`;
       }
-      return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Tôi là **TRÍ AI SALES ROBOT** — trợ lý bán hàng thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
+      return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
     }
 
     // 12. Intelligent Clarification when request is ambiguous

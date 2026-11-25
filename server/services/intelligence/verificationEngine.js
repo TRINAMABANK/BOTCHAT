@@ -91,13 +91,15 @@ export class VerificationEngine {
       .replace(/\(https?:\/\/(?:www\.)?duckduckgo\.com[^\s)]*\)/gi, '')
       .replace(/https?:\/\/(?:www\.)?duckduckgo\.com\S*/gi, '')
       .replace(/\[Nguồn:\s*\]/gi, '')
-      // 2. Eliminate owner names and unify persona
+      // 2. Eliminate owner names and unify persona to TRÍ AI ULTIMATE ROBOT
       .replace(/(\*\*[^*]+?)\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?Quang Nhựt Trí\*\*/gi, '$1**')
-      .replace(/—\s*Thư ký AI Toàn năng của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí\b/gi, '— Trợ lý AI Bán hàng & Tư vấn Toàn diện')
-      .replace(/trợ lý bán hàng (?:thông minh )?của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí/gi, 'Trợ lý AI Bán hàng & Tư vấn Toàn diện')
+      .replace(/—\s*Thư ký AI Toàn năng của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí\b/gi, '— Trợ lý AI thông minh')
+      .replace(/trợ lý bán hàng (?:thông minh )?của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí/gi, 'Trợ lý AI thông minh')
       .replace(/\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?[\.]?/gi, '')
-      .replace(/TRÍ AI ULTIMATE ROBOT\s*—\s*Thư ký AI Toàn năng/gi, 'TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện')
-      .replace(/TRÍ AI SALES ROBOT\s*—\s*trợ lý bán hàng thông minh/gi, 'TRÍ AN — Trợ lý AI Bán hàng & Tư vấn Toàn diện')
+      .replace(/TRÍ AI SALES ROBOT\s*—\s*trợ lý bán hàng thông minh/gi, 'TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh')
+      .replace(/TRÍ AN\s*—\s*Trợ lý AI (?:Bán hàng & Tư vấn Toàn diện|Thông minh & Toàn diện)/gi, 'TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh')
+      .replace(/\bTRÍ AN\b/gi, 'TRÍ AI ULTIMATE ROBOT')
+      .replace(/\bSALES ROBOT\b/gi, 'TRÍ AI ULTIMATE ROBOT')
       // 3. Block accidental internal bank regulation leakage in public chats
       .replace(/Rất tiếc,\s*hiện tại dữ liệu tra cứu từ hệ thống chỉ cung cấp các thông tin nội bộ liên quan đến Quy chế.*?(?:Trang.*?)?(?:\.|$)/gis, 'Dạ hiện tại thông tin này chưa có trong dữ liệu sản phẩm của shop ạ.')
       .trim();
@@ -134,6 +136,50 @@ export class VerificationEngine {
       return DATA_CONFIDENCE_LEVELS.APPROVED_DOCUMENT;
     }
     return DATA_CONFIDENCE_LEVELS.UNVERIFIED_ESTIMATE;
+  }
+
+  /**
+   * Off-topic and Hallucination Guard (BotChat Brain 2.1)
+   * Ensures non-product conversations (APPOINTMENT, SCHEDULE_QUERY, GENERAL_CHAT, REMINDER, BUSINESS_SUPPORT)
+   * never leak unexpected product promotions, missing product fallbacks, or hallucinated schedules.
+   */
+  static guardOffTopic({ replyText = '', intentResult = {}, userMessage = '' }) {
+    if (!replyText) return replyText;
+    const intentGroup = intentResult.intentGroup;
+    const primaryIntent = intentResult.primaryIntent;
+
+    // If intent is NOT PRODUCT_INQUIRY, ensure response doesn't inappropriately pitch products or warehouse checks
+    if (intentGroup && intentGroup !== 'PRODUCT_INQUIRY') {
+      const isLeakingProductPitch =
+        replyText.includes('chưa có trong dữ liệu của shop') ||
+        replyText.includes('chưa tìm thấy trong dữ liệu của shop') ||
+        replyText.includes('chuyên cung cấp các sản phẩm công nghệ') ||
+        replyText.includes('mở bộ sản phẩm ở Cột 2') ||
+        replyText.includes('Giá niêm yết đã phê duyệt');
+
+      if (isLeakingProductPitch) {
+        if (intentGroup === 'APPOINTMENT' || primaryIntent === 'APPOINTMENT') {
+          return `Dạ hiện tại hệ thống chưa tích hợp trực tiếp với Google Calendar cá nhân nên em chưa thể kiểm tra ngay lịch trống theo thời gian thực của anh Trí ạ.\n\nTuy nhiên, em rất sẵn lòng ghi nhận yêu cầu hẹn gặp của bạn để chuyển đến anh Trí. Bạn vui lòng cho em biết thời gian dự kiến và số điện thoại của bạn nhé!`;
+        }
+        if (intentGroup === 'SCHEDULE_QUERY' || primaryIntent === 'SCHEDULE_QUERY') {
+          return `Dạ hiện tại hệ thống chưa kết nối với Google Calendar cá nhân nên em chưa thể tra cứu chính xác lịch làm việc hay ngày rảnh của anh Trí ạ. Bạn có thể để lại số điện thoại và thời gian mong muốn để anh Trí liên hệ lại nhé!`;
+        }
+        if (intentGroup === 'SECRETARY_TASK' || primaryIntent === 'SECRETARY_TASK') {
+          return `Dạ thưa Anh Trí, em đã ghi nhận công việc vào to-do list cá nhân của anh rồi ạ!`;
+        }
+        if (intentGroup === 'OFFICE_TASK' || primaryIntent === 'EMAIL_TASK') {
+          return `Dạ em đã hoàn thiện bản thảo văn bản/email cho anh/chị rồi ạ.`;
+        }
+        if (intentGroup === 'SECURITY_BLOCKED' || primaryIntent.startsWith('SECURITY_')) {
+          return `Dạ em xin phép từ chối yêu cầu này theo đúng quy định bảo mật và an toàn dữ liệu cá nhân của hệ thống ạ.`;
+        }
+        if (intentGroup === 'GENERAL_CHAT') {
+          return `Dạ em chào bạn! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể hỗ trợ gì cho bạn hôm nay ạ?`;
+        }
+      }
+    }
+
+    return replyText;
   }
 }
 

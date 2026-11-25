@@ -36,12 +36,16 @@ import {
   Lock,
   Edit,
   Pencil,
-  BookOpen
+  BookOpen,
+  Package,
+  Eye,
+  Brain
 } from 'lucide-react';
 import KnowledgeCenter from './admin/KnowledgeCenter';
 import SupplierWebsiteCenter from './admin/SupplierWebsiteCenter';
 import CentralBrainManagement from './admin/CentralBrainManagement';
 import TriAnLearningCenter from './admin/TriAnLearningCenter';
+import HumanBrainMemoryCenter from './admin/HumanBrainMemoryCenter';
 
 export const OwnerDashboard = ({
   isOpen = false,
@@ -57,6 +61,7 @@ export const OwnerDashboard = ({
   const [searchLead, setSearchLead] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedLeadConv, setSelectedLeadConv] = useState(null);
+  const [selectedLeadDetail, setSelectedLeadDetail] = useState(null);
   const [convMessages, setConvMessages] = useState([]);
   const [loadingConv, setLoadingConv] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
@@ -930,6 +935,18 @@ export const OwnerDashboard = ({
             <Sparkles size={16} />
             <span>TRÍ AN – Trung Tâm Học Hỏi</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('human_brain_memory')}
+            className={`flex items-center space-x-2 px-5 py-3 rounded-t-2xl font-bold transition-all text-xs sm:text-sm ${
+              activeTab === 'human_brain_memory'
+                ? 'bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400 text-slate-950 shadow-[0_0_20px_rgba(45,212,191,0.5)]'
+                : 'text-cyan-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Brain size={16} />
+            <span>TRÍ AI – Trí Nhớ 5 Tầng</span>
+          </button>
         </div>
 
         {/* 4. TAB CONTENT BODY */}
@@ -942,6 +959,10 @@ export const OwnerDashboard = ({
                 <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar text-xs">
                   {[
                     { key: 'all', label: 'Tất cả' },
+                    { key: 'Mới tiếp nhận', label: 'Dịch vụ: Mới tiếp nhận' },
+                    { key: 'Đang sắp xếp khảo sát', label: 'Đang sắp xếp khảo sát' },
+                    { key: 'Đã khảo sát', label: 'Đã khảo sát' },
+                    { key: 'Đang lập báo giá', label: 'Đang lập báo giá' },
                     { key: 'NEW – WAITING FOR OWNER CONTACT', label: 'Khách mới' },
                     { key: 'WAITING_CALL', label: 'Đang chờ gọi' },
                     { key: 'CONTACTED', label: 'Đã liên hệ' },
@@ -1097,11 +1118,94 @@ export const OwnerDashboard = ({
                               </span>
                             </td>
 
-                            {/* Sản phẩm quan tâm: XUỐNG DÒNG TỰ NHIÊN, KHÔNG TRUNCATE, THẤY TOÀN BỘ CHỮ */}
+                            {/* Sản phẩm hoặc Dịch vụ thi công khảo sát */}
                             <td className="py-3 px-3 align-middle">
-                              <div className="text-white font-semibold text-xs sm:text-sm leading-relaxed break-words whitespace-normal">
-                                {ld.product_name || 'Tư vấn tổng quan'}
-                              </div>
+                              {(() => {
+                                if (ld.lead_type === 'SERVICE_SURVEY' || ld.service_type) {
+                                  const serviceLabels = {
+                                    SERVICE_SURVEY_REQUEST: 'Thi công & Khảo sát',
+                                    INSTALLATION_REQUEST: 'Lắp đặt / Di dời',
+                                    MAINTENANCE_REQUEST: 'Bảo trì & Bảo dưỡng',
+                                    REPAIR_REQUEST: 'Sửa chữa & Sự cố'
+                                  };
+                                  const label = serviceLabels[ld.service_type] || 'Dịch vụ thi công';
+                                  return (
+                                    <div
+                                      onClick={() => setSelectedLeadDetail(ld)}
+                                      className="group cursor-pointer select-none space-y-1"
+                                      title="Nhấn để xem chi tiết yêu cầu khảo sát thi công"
+                                    >
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-amber-300 font-bold text-[11px]">
+                                          🛠️ {label}
+                                        </span>
+                                        {ld.scale_or_quantity && (
+                                          <span className="px-1.5 py-0.5 rounded bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[10px]">
+                                            {ld.scale_or_quantity}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {ld.survey_address && (
+                                        <div className="text-xs text-slate-200 flex items-center gap-1 break-words">
+                                          <span>📍</span>
+                                          <span className="font-medium text-white">{ld.survey_address}</span>
+                                        </div>
+                                      )}
+                                      {ld.expected_time && (
+                                        <div className="text-[11px] text-cyan-300/80">
+                                          ⏰ Dự kiến: {ld.expected_time}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+
+                                let prods = [];
+                                try {
+                                  if (ld.products_json) {
+                                    prods = typeof ld.products_json === 'string' ? JSON.parse(ld.products_json) : ld.products_json;
+                                  }
+                                } catch (e) {}
+
+                                const isUndetermined = !ld.product_name || ld.product_name === 'Sản phẩm tổng quan' || ld.product_name === 'Chưa xác định sản phẩm';
+                                const primaryName = isUndetermined ? 'Chưa xác định sản phẩm' : ld.product_name;
+                                const additionalCount = prods.length > 1 ? prods.length - 1 : 0;
+
+                                return (
+                                  <div
+                                    onClick={() => setSelectedLeadDetail(ld)}
+                                    className="group cursor-pointer select-none"
+                                    title="Nhấn để xem chi tiết tất cả sản phẩm & nội dung tư vấn"
+                                  >
+                                    <div className={`text-xs sm:text-sm leading-relaxed break-words whitespace-normal font-semibold ${
+                                      isUndetermined ? 'text-amber-300/80 italic' : 'text-white group-hover:text-cyan-300 transition-colors'
+                                    }`}>
+                                      {primaryName}
+                                      {additionalCount > 0 && (
+                                        <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-md bg-cyan-950/90 border border-cyan-400/50 text-cyan-300 text-[10px] font-bold shadow-sm">
+                                          +{additionalCount} sản phẩm
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Brand & Model tags */}
+                                    {(ld.brand || ld.model) && (
+                                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                        {ld.brand && (
+                                          <span className="px-1.5 py-0.5 rounded bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[10px] font-medium">
+                                            {ld.brand}
+                                          </span>
+                                        )}
+                                        {ld.model && (
+                                          <span className="px-1.5 py-0.5 rounded bg-purple-950/80 border border-purple-500/40 text-purple-300 text-[10px] font-mono">
+                                            {ld.model}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
 
                             {/* Nhu cầu: XUỐNG DÒNG, KHÔNG BỊ CẮT */}
@@ -1118,17 +1222,39 @@ export const OwnerDashboard = ({
                                 onChange={(e) => handleUpdateLeadStatus(ld.id, e.target.value)}
                                 className="w-full bg-[#0b2046] border border-cyan-500/40 text-[11px] sm:text-xs font-bold rounded-xl px-2 py-1.5 text-white outline-none focus:border-cyan-300 shadow-sm cursor-pointer"
                               >
-                                <option value="NEW – WAITING FOR OWNER CONTACT">Mới - Chờ gọi</option>
+                                {/* 9 trạng thái Lead Dịch vụ (Theo yêu cầu chuẩn) */}
+                                <option value="Mới tiếp nhận">Mới tiếp nhận</option>
+                                <option value="Chờ liên hệ">Chờ liên hệ</option>
+                                <option value="Đang sắp xếp khảo sát">Đang sắp xếp khảo sát</option>
+                                <option value="Đã khảo sát">Đã khảo sát</option>
+                                <option value="Đang lập báo giá">Đang lập báo giá</option>
+                                <option value="Đã gửi báo giá">Đã gửi báo giá</option>
+                                <option value="Khách đồng ý">Khách đồng ý</option>
+                                <option value="Không thực hiện">Không thực hiện</option>
+                                <option value="Đã hoàn thành">Đã hoàn thành</option>
+                                {/* Trạng thái cũ */}
+                                <option value="NEW – WAITING FOR OWNER CONTACT">Mới - Chờ gọi (Cũ)</option>
                                 <option value="WAITING_CALL">Đang chờ gọi</option>
                                 <option value="CONTACTED">Đã liên hệ</option>
                                 <option value="HIGH_INTEREST">Quan tâm cao</option>
-                                <option value="CLOSED">Hoàn thành</option>
+                                <option value="CLOSED">Đóng / Hoàn thành</option>
                               </select>
                             </td>
 
                             {/* Thao tác */}
                             <td className="py-3 px-3 align-middle text-right">
                               <div className="flex items-center justify-end gap-1 flex-wrap">
+                                {/* Lead Detail Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedLeadDetail(ld)}
+                                  className="inline-flex items-center space-x-0.5 px-2 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-[11px] shadow-sm transition-all active:scale-95"
+                                  title="Xem chi tiết sản phẩm và nội dung tư vấn"
+                                >
+                                  <Eye size={11} />
+                                  <span>Chi tiết</span>
+                                </button>
+
                                 {/* Direct Call */}
                                 <a
                                   href={`tel:${ld.phone}`}
@@ -1754,6 +1880,11 @@ export const OwnerDashboard = ({
           {activeTab === 'learning_center' && (
             <TriAnLearningCenter />
           )}
+
+          {/* TAB 8: TRÍ AI HUMAN BRAIN 5-TIER MEMORY CENTER */}
+          {activeTab === 'human_brain_memory' && (
+            <HumanBrainMemoryCenter />
+          )}
         </div>
       </div>
 
@@ -1816,6 +1947,219 @@ export const OwnerDashboard = ({
                 className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-white font-bold"
               >
                 Đóng cửa sổ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal View Lead Detail & All Products */}
+      {selectedLeadDetail && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-2xl max-h-[85vh] bg-[#07132c] border-2 border-cyan-500/40 rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-[#091b3e] border-b border-cyan-500/30">
+              <div className="flex items-center space-x-2.5">
+                <Eye size={18} className="text-cyan-400" />
+                <h3 className="font-bold text-base text-white font-display">
+                  Chi tiết tư vấn khách hàng: {selectedLeadDetail.customer_name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedLeadDetail(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[#050c1f]">
+              {/* Customer Quick Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-2xl bg-[#091b3e]/80 border border-cyan-500/20">
+                  <span className="text-[11px] text-slate-400 block font-medium">Họ tên & Số điện thoại</span>
+                  <div className="text-sm font-bold text-white mt-0.5">{selectedLeadDetail.customer_name}</div>
+                  <div className="font-mono text-cyan-300 font-bold text-xs mt-0.5">{selectedLeadDetail.phone}</div>
+                  {selectedLeadDetail.email && (
+                    <div className="text-slate-400 text-xs mt-0.5">{selectedLeadDetail.email}</div>
+                  )}
+                </div>
+                <div className="p-3.5 rounded-2xl bg-[#091b3e]/80 border border-cyan-500/20">
+                  <span className="text-[11px] text-slate-400 block font-medium">Thời gian & Nguồn tiếp nhận</span>
+                  <div className="text-xs text-white mt-0.5">
+                    {new Date(selectedLeadDetail.created_time).toLocaleString('vi-VN')}
+                  </div>
+                  <div className="text-xs text-slate-300 mt-0.5">{selectedLeadDetail.website_source || 'TRÍ AI Sales Web Interface'}</div>
+                  <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-900/60 text-cyan-300 border border-cyan-500/30">
+                    {selectedLeadDetail.lead_status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Service Survey Section */}
+              {(selectedLeadDetail.lead_type === 'SERVICE_SURVEY' || selectedLeadDetail.service_type) && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/30 to-blue-950/30 border border-amber-500/40 space-y-3">
+                  <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🛠️</span>
+                    <span>Yêu cầu Dịch vụ Khảo sát & Thi công</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-2.5 rounded-xl bg-[#091b3e] border border-amber-500/20">
+                      <span className="text-[10px] text-slate-400 block font-medium">Hạng mục dịch vụ</span>
+                      <span className="font-bold text-amber-200 mt-0.5 inline-block">
+                        {selectedLeadDetail.service_type === 'SERVICE_SURVEY_REQUEST' ? 'Thi công & Khảo sát công trình' :
+                         selectedLeadDetail.service_type === 'INSTALLATION_REQUEST' ? 'Lắp đặt / Di dời thiết bị' :
+                         selectedLeadDetail.service_type === 'MAINTENANCE_REQUEST' ? 'Bảo trì & Bảo dưỡng định kỳ' :
+                         selectedLeadDetail.service_type === 'REPAIR_REQUEST' ? 'Sửa chữa & Khắc phục sự cố' :
+                         selectedLeadDetail.service_type || 'Thi công lắp đặt'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-[#091b3e] border border-amber-500/20">
+                      <span className="text-[10px] text-slate-400 block font-medium">Địa chỉ công trình</span>
+                      <span className="font-bold text-white mt-0.5 inline-block break-words">
+                        {selectedLeadDetail.survey_address || 'Chưa cung cấp'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-[#091b3e] border border-amber-500/20">
+                      <span className="text-[10px] text-slate-400 block font-medium">Quy mô / Số lượng dự kiến</span>
+                      <span className="font-bold text-cyan-200 mt-0.5 inline-block">
+                        {selectedLeadDetail.scale_or_quantity || 'Chưa xác định'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-[#091b3e] border border-amber-500/20">
+                      <span className="text-[10px] text-slate-400 block font-medium">Thời gian mong muốn</span>
+                      <span className="font-bold text-cyan-200 mt-0.5 inline-block">
+                        {selectedLeadDetail.expected_time || 'Chưa cung cấp'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Interested Products Section */}
+              <div className="p-4 rounded-2xl bg-[#081838] border border-cyan-500/30">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Package size={14} />
+                    <span>Sản phẩm khách quan tâm</span>
+                  </h4>
+                </div>
+
+                {(() => {
+                  let prods = [];
+                  try {
+                    if (selectedLeadDetail.products_json) {
+                      prods = typeof selectedLeadDetail.products_json === 'string'
+                        ? JSON.parse(selectedLeadDetail.products_json)
+                        : selectedLeadDetail.products_json;
+                    }
+                  } catch (e) {}
+
+                  if (prods.length === 0 && selectedLeadDetail.product_name && selectedLeadDetail.product_name !== 'Chưa xác định sản phẩm' && selectedLeadDetail.product_name !== 'Sản phẩm tổng quan') {
+                    prods = [{
+                      name: selectedLeadDetail.product_name,
+                      brand: selectedLeadDetail.brand,
+                      model: selectedLeadDetail.model,
+                      quantity: selectedLeadDetail.quantity || 1
+                    }];
+                  }
+
+                  if (prods.length === 0) {
+                    return (
+                      <div className="py-4 text-center text-amber-300/80 text-xs italic bg-amber-950/20 rounded-xl border border-amber-500/20">
+                        Chưa xác định sản phẩm cụ thể (Khách hàng hỏi chung hoặc chào hỏi).
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {prods.map((p, idx) => (
+                        <div key={idx} className="p-3 rounded-xl bg-[#0b2046] border border-cyan-500/20 flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-bold text-white break-words">{p.name}</div>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {p.brand && (
+                                <span className="px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 text-[10px] font-medium border border-blue-500/30">
+                                  Thương hiệu: {p.brand}
+                                </span>
+                              )}
+                              {p.model && (
+                                <span className="px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 text-[10px] font-mono border border-purple-500/30">
+                                  Model: {p.model}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] text-slate-400 block">Số lượng</span>
+                            <span className="font-bold text-cyan-300 text-sm">{p.quantity || 1}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Requirement & Conversation Summary */}
+              <div className="p-4 rounded-2xl bg-[#081838] border border-cyan-500/30 space-y-3">
+                <div>
+                  <span className="text-[11px] text-slate-400 block font-medium">Nhu cầu khách hàng</span>
+                  <div className="text-xs font-semibold text-cyan-200 mt-0.5">
+                    {selectedLeadDetail.customer_requirement || 'Yêu cầu tư vấn'}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[11px] text-slate-400 block font-medium">Tóm tắt trao đổi</span>
+                  <div className="text-xs text-slate-200 mt-0.5 leading-relaxed bg-[#050c1f] p-3 rounded-xl border border-cyan-500/20">
+                    {selectedLeadDetail.conversation_summary || selectedLeadDetail.notes || 'Không có ghi chú thêm.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-4 bg-[#091b3e] border-t border-cyan-500/20 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <a
+                  href={`tel:${selectedLeadDetail.phone}`}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
+                >
+                  <Phone size={13} />
+                  <span>Gọi {selectedLeadDetail.phone}</span>
+                </a>
+
+                <a
+                  href={`https://zalo.me/${selectedLeadDetail.phone}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
+                >
+                  <span>Mở Zalo</span>
+                </a>
+
+                {selectedLeadDetail.conversation_id && (
+                  <button
+                    onClick={() => {
+                      const leadToView = selectedLeadDetail;
+                      setSelectedLeadDetail(null);
+                      handleViewConversation(leadToView.conversation_id, leadToView);
+                    }}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md transition-all active:scale-95"
+                  >
+                    <MessageSquare size={13} />
+                    <span>Xem lịch sử tư vấn</span>
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={() => setSelectedLeadDetail(null)}
+                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-white font-bold"
+              >
+                Đóng
               </button>
             </div>
           </div>

@@ -695,13 +695,21 @@ export class LearningIngestionEngine {
       return null;
     }
 
-    // Query active & approved knowledge strictly for this tenant or shared 'default'
-    const entries = await db.all(`
-      SELECT * FROM learning_knowledge_entries
-      WHERE approval_status = 'APPROVED' AND is_active = 1
-        AND (org_id = ? OR org_id = 'default')
-      ORDER BY updated_at DESC
-    `, [orgId]);
+    // Strictly enforce tenant isolation:
+    // If a tenant explicitly queries (e.g. 'org_other_tenant', 'tenant_alpha'),
+    // it must ONLY access its own knowledge and never leak 'default' or another tenant's private knowledge!
+    const isGlobalTenant = (!orgId || orgId === 'default' || orgId === 'org_default' || orgId === 'global');
+    const sql = isGlobalTenant
+      ? `SELECT * FROM learning_knowledge_entries
+         WHERE approval_status = 'APPROVED' AND is_active = 1
+           AND (org_id = 'default' OR org_id = 'org_default')
+         ORDER BY updated_at DESC`
+      : `SELECT * FROM learning_knowledge_entries
+         WHERE approval_status = 'APPROVED' AND is_active = 1
+           AND org_id = ?
+         ORDER BY updated_at DESC`;
+    const params = isGlobalTenant ? [] : [orgId];
+    const entries = await db.all(sql, params);
 
     if (!entries || entries.length === 0) return null;
 

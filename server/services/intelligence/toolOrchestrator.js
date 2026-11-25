@@ -17,6 +17,7 @@ import { ExcelParser } from '../parsers/excelParser.js';
 import WebSearchService from '../webSearchService.js';
 import LiveWebsiteRetrieval from './liveWebsiteRetrieval.js';
 import MemoryEngine from './memoryEngine.js';
+import ActiveProductContext from './activeProductContext.js';
 
 export class ToolOrchestrator {
   /**
@@ -74,61 +75,69 @@ export class ToolOrchestrator {
    */
   static async executeQuotation(params, meta = {}) {
     return await this.executeWithTelemetry('quotation_engine', async () => {
-      const { productName, quantity = 1, customerInfo = {}, conversationId } = params;
+      const {
+        productName,
+        ordinal = null,
+        quantity = 1,
+        customerInfo = {},
+        conversationId,
+        selectedProduct = null,
+        db: dbInstance
+      } = params;
 
-      let matchedProds = await QuotationService.searchSupplierCatalog({ query: productName, limit: 3 });
+      // 1. Resolve product using ActiveProductContext
+      const resolved = await ActiveProductContext.resolveForQuotation({
+        conversationId,
+        requestedQuantity: quantity,
+        ordinal,
+        explicitProductName: productName,
+        selectedProduct,
+        database: dbInstance || db
+      });
 
-      if (matchedProds.length === 0) {
-        const words = productName.split(/\s+/).filter(w => w.length > 2);
-        for (const w of words) {
-          matchedProds = await QuotationService.searchSupplierCatalog({ query: w, limit: 3 });
-          if (matchedProds.length > 0) break;
-        }
+      if (resolved.status === 'NEED_CLARIFICATION') {
+        return {
+          status: 'NEED_CLARIFICATION',
+          message: resolved.message,
+          product: null,
+          quote: null
+        };
       }
 
-      if (matchedProds.length === 0) {
-        const dbProds = await db.all(`
-          SELECT * FROM products 
-          WHERE is_active = 1 AND is_approved = 1 AND (name LIKE ? OR field LIKE ?)
-          ORDER BY price ASC LIMIT 3
-        `, [`%${productName}%`, `%${productName}%`]);
-
-        matchedProds = dbProds.map(dp => ({
-          id: dp.id,
-          name: dp.name,
-          sku: dp.sku || `SKU-${dp.id}`,
-          brand: dp.group_name || 'Chính hãng',
-          category: dp.field,
-          salePrice: dp.price,
-          unit: 'cái',
-          priceConfirmationLevel: 'SUPPLIER_VERIFIED',
-          specs: {}
-        }));
+      if (resolved.status === 'PRICE_UNVERIFIED') {
+        return {
+          status: 'PRICE_UNVERIFIED',
+          message: resolved.message,
+          product: resolved.product,
+          quote: null
+        };
       }
 
-      if (matchedProds.length > 0) {
-        const p = matchedProds[0];
-        const quote = await QuotationService.createQuotation({
-          customerName: customerInfo.name || 'Quý Khách Hàng',
-          customerPhone: customerInfo.phone || '',
-          customerCompany: customerInfo.company || '',
-          conversationId,
-          items: [{
-            productId: p.id,
-            productName: p.name,
-            sku: p.sku,
-            quantity,
-            unit: p.unit || 'cái',
-            unitPrice: p.salePrice,
-            priceType: p.priceConfirmationLevel || 'REFERENCE_ONLY'
-          }],
-          vatPercent: 10
-        });
+      const p = resolved.product;
+      const quote = await QuotationService.createQuotation({
+        customerName: customerInfo?.name || 'Quý Khách Hàng',
+        customerPhone: customerInfo?.phone || '',
+        customerCompany: customerInfo?.company || '',
+        conversationId,
+        items: [{
+          productId: p.id,
+          productName: p.name,
+          sku: p.sku || '',
+          specsSnippet: p.configuration || '',
+          quantity: p.quantity || quantity || 1,
+          unit: p.unit || 'cái',
+          unitPrice: p.price,
+          priceType: p.priceType || 'REFERENCE_ONLY'
+        }],
+        vatPercent: 10
+      });
 
-        return { product: p, quote };
-      }
-
-      return null;
+      return {
+        status: 'SUCCESS',
+        product: p,
+        quote,
+        quotationMarkdown: quote.markdown
+      };
     }, { ...meta, timeoutMs: 3000 });
   }
 
