@@ -39,13 +39,15 @@ import {
   BookOpen,
   Package,
   Eye,
-  Brain
+  Brain,
+  Calendar
 } from 'lucide-react';
 import KnowledgeCenter from './admin/KnowledgeCenter';
 import SupplierWebsiteCenter from './admin/SupplierWebsiteCenter';
 import CentralBrainManagement from './admin/CentralBrainManagement';
 import TriAnLearningCenter from './admin/TriAnLearningCenter';
 import HumanBrainMemoryCenter from './admin/HumanBrainMemoryCenter';
+import AssistantManager from './AssistantManager';
 
 export const OwnerDashboard = ({
   isOpen = false,
@@ -946,6 +948,18 @@ export const OwnerDashboard = ({
           >
             <Brain size={16} />
             <span>TRÍ AI – Trí Nhớ 5 Tầng</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('assistant')}
+            className={`flex items-center space-x-2 px-5 py-3 rounded-t-2xl font-bold transition-all text-xs sm:text-sm ${
+              activeTab === 'assistant'
+                ? 'bg-gradient-to-r from-cyan-400 via-indigo-300 to-teal-400 text-slate-950 shadow-[0_0_20px_rgba(99,102,241,0.5)]'
+                : 'text-cyan-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Calendar size={16} />
+            <span>TRÍ AI – Trợ Lý & Lịch</span>
           </button>
         </div>
 
@@ -1884,6 +1898,11 @@ export const OwnerDashboard = ({
           {/* TAB 8: TRÍ AI HUMAN BRAIN 5-TIER MEMORY CENTER */}
           {activeTab === 'human_brain_memory' && (
             <HumanBrainMemoryCenter />
+          )}
+
+          {/* TAB 9: TRÍ AI PERSONAL ASSISTANT & SMART REMINDER (MASTER PROMPT 03) */}
+          {activeTab === 'assistant' && (
+            <AssistantManager />
           )}
         </div>
       </div>

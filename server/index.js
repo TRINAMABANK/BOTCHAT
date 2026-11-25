@@ -14,6 +14,7 @@ import learningRoutes from './routes/learningRoutes.js';
 import memoryRoutes from './routes/memoryRoutes.js';
 import secretaryRoutes from './routes/secretaryRoutes.js';
 import { ReminderScheduler } from './services/secretary/reminderScheduler.js';
+import { SmartSchedulerDaemon } from './services/assistant/smartSchedulerDaemon.js';
 const SalesEngine = SalesEngineAdapter;
 import { testGeminiConnection, analyzeProductFromWebpage } from './geminiService.js';
 import { requireAdmin, optionalAuth } from './middleware/authMiddleware.js';
@@ -969,6 +970,7 @@ async function start() {
   try {
     await initDatabase();
     ReminderScheduler.start();
+    SmartSchedulerDaemon.start();
     app.listen(PORT, () => {
       console.log(`
 ========================================================================

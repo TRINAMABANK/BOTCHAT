@@ -13,6 +13,16 @@ import { NotificationEngine } from '../services/secretary/notificationEngine.js'
 import { TaskEngine } from '../services/secretary/taskEngine.js';
 import { ReminderEngine } from '../services/secretary/reminderEngine.js';
 import { SecretaryAgent } from '../services/secretary/secretaryAgent.js';
+import {
+  CalendarEngine,
+  RecurringScheduleEngine,
+  FollowUpEngine,
+  MultiChannelNotificationEngine,
+  DailyBriefingEngine,
+  SmartSchedulerEngine,
+  PersonalAssistantEngine,
+  TaskManagementEngine
+} from '../services/assistant/index.js';
 
 const router = express.Router();
 
@@ -172,6 +182,215 @@ router.patch('/tasks/:id', requireAdmin, async (req, res) => {
     res.json({ success: true, task: updated });
   } catch (err) {
     console.error('[API TASKS UPDATE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// 3. CALENDAR & ASSISTANT ENGINES API (MASTER PROMPT 03)
+// -----------------------------------------------------------------------------
+
+// GET /api/assistant/calendar
+router.get('/assistant/calendar', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const { startDate, endDate, status } = req.query;
+    const events = await CalendarEngine.getEvents({ userId, startDate, endDate, status });
+    res.json({ success: true, count: events.length, events });
+  } catch (err) {
+    console.error('[API CALENDAR GET ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/assistant/calendar
+router.post('/assistant/calendar', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const event = await CalendarEngine.createEvent({ ...req.body, userId });
+    res.json({ success: true, event });
+  } catch (err) {
+    console.error('[API CALENDAR CREATE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/assistant/calendar/:id
+router.put('/assistant/calendar/:id', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const updated = await CalendarEngine.updateEvent(req.params.id, req.body, userId);
+    res.json({ success: true, event: updated });
+  } catch (err) {
+    console.error('[API CALENDAR UPDATE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/assistant/calendar/:id
+router.delete('/assistant/calendar/:id', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    await CalendarEngine.deleteEvent(req.params.id, userId);
+    res.json({ success: true, message: 'Đã hủy sự kiện thành công.' });
+  } catch (err) {
+    console.error('[API CALENDAR DELETE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/assistant/recurring
+router.get('/assistant/recurring', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const schedules = await RecurringScheduleEngine.getSchedules({ userId });
+    res.json({ success: true, schedules });
+  } catch (err) {
+    console.error('[API RECURRING GET ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/assistant/recurring
+router.post('/assistant/recurring', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const schedule = await RecurringScheduleEngine.createSchedule({ ...req.body, userId });
+    res.json({ success: true, schedule });
+  } catch (err) {
+    console.error('[API RECURRING CREATE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/assistant/recurring/:id
+router.delete('/assistant/recurring/:id', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    await RecurringScheduleEngine.deactivateSchedule(req.params.id, userId);
+    res.json({ success: true, message: 'Đã hủy lịch định kỳ thành công.' });
+  } catch (err) {
+    console.error('[API RECURRING DEACTIVATE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/assistant/follow-ups
+router.get('/assistant/follow-ups', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const rules = await FollowUpEngine.getActiveRules({ userId });
+    res.json({ success: true, rules });
+  } catch (err) {
+    console.error('[API FOLLOW UPS GET ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/assistant/follow-ups
+router.post('/assistant/follow-ups', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const rule = await FollowUpEngine.createFollowUpRule({ ...req.body, userId });
+    res.json({ success: true, rule });
+  } catch (err) {
+    console.error('[API FOLLOW UP CREATE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/assistant/follow-ups/:id
+router.delete('/assistant/follow-ups/:id', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    await FollowUpEngine.cancelRule(req.params.id, userId);
+    res.json({ success: true, message: 'Đã hủy theo dõi thành công.' });
+  } catch (err) {
+    console.error('[API FOLLOW UP CANCEL ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/assistant/preferences
+router.get('/assistant/preferences', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const preferences = await MultiChannelNotificationEngine.getUserPreferences(userId);
+    res.json({ success: true, preferences });
+  } catch (err) {
+    console.error('[API PREFERENCES GET ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/assistant/preferences
+router.put('/assistant/preferences', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const preferences = await MultiChannelNotificationEngine.updateUserPreferences(userId, req.body);
+    res.json({ success: true, preferences });
+  } catch (err) {
+    console.error('[API PREFERENCES UPDATE ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/assistant/briefing/morning
+router.get('/assistant/briefing/morning', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const briefing = await DailyBriefingEngine.generateMorningBriefing(userId);
+    res.json({ success: true, briefing });
+  } catch (err) {
+    console.error('[API MORNING BRIEFING ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/assistant/briefing/evening
+router.get('/assistant/briefing/evening', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const recap = await DailyBriefingEngine.generateEveningRecap(userId);
+    res.json({ success: true, recap });
+  } catch (err) {
+    console.error('[API EVENING RECAP ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/assistant/scheduler/free-slots
+router.get('/assistant/scheduler/free-slots', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const { date, durationMinutes } = req.query;
+    const slots = await SmartSchedulerEngine.findFreeSlots({
+      userId,
+      date: date ? new Date(date) : new Date(),
+      durationMinutes: durationMinutes ? parseInt(durationMinutes, 10) : 60
+    });
+    res.json({ success: true, slots });
+  } catch (err) {
+    console.error('[API FREE SLOTS ERROR]', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/assistant/chat (Trực tiếp tương tác với PersonalAssistantEngine)
+router.post('/assistant/chat', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id || 'owner_tri';
+    const { message } = req.body;
+    const ipAddress = req.ip || req.connection?.remoteAddress || '127.0.0.1';
+    const result = await PersonalAssistantEngine.handleMessage({
+      userId,
+      text: message,
+      role: 'OWNER',
+      ipAddress
+    });
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error('[API ASSISTANT CHAT ERROR]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
