@@ -42,6 +42,7 @@ import { ServiceConsultant } from './serviceConsultant.js';
 import { KnowledgeGraphEngine } from './intelligence/knowledgeGraphEngine.js';
 import { DeepResearchEngine } from './intelligence/deepResearchEngine.js';
 import { MetacognitionEngine } from './intelligence/metacognitionEngine.js';
+import { DomainRegistry } from './domains/domainRegistry.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -1059,8 +1060,36 @@ export class CentralBrainService {
       });
     }
 
+    // 0C-DOMAINS. ALL-DOMAIN SPECIALIZED CONSULTATION (Stage 5)
+    const identifiedDomain = DomainRegistry.identifyDomain(message, context);
+    if (identifiedDomain && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery && !isLiveWebSearch && !slots.productName) {
+      toolsUsed.push('domain_registry', identifiedDomain.toLowerCase());
+      const domainResult = DomainRegistry.executeDomainConsultation(identifiedDomain, message, context);
+
+      if (domainResult.potentialProductNeed || domainResult.targetProductCategory) {
+        ContextEngine.updateSessionContext(context.conversationId, {
+          lastSpecializedDomain: identifiedDomain,
+          domainProductCategory: domainResult.targetProductCategory || domainResult.potentialProductNeed
+        });
+      }
+
+      return ResponseEngine.formatResponse({
+        replyText: domainResult.consultationText,
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'DOMAIN_EXPERT_RESOLVED',
+        citations: [{
+          source: 'domain_expert',
+          label: `[Quy Chuẩn Chuyên Ngành: ${identifiedDomain}]`
+        }],
+        toolsUsed: [...new Set(toolsUsed)],
+        confidenceTag: 'DOCTOR_LEVEL_DOMAIN_VERIFIED'
+      });
+    }
+
     // 0B. Greeting & Conversational Routing (Polite Personal Assistant)
-    const isGreeting = (primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || primaryIntent === 'GENERAL_CONVERSATION' || /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim())) && plan?.capability !== 'DOCTOR_RESEARCH' && plan?.complexity !== 'DEEP_COGNITIVE';
+    const isGreeting = (primaryIntent === 'GREETING' || primaryIntent === 'IDENTITY_INQUIRY' || primaryIntent === 'GENERAL_CONVERSATION' || /^(hi|hello|chào|chao|alo|xin chào|xin chao|ê|hey|hê lô|bạn là ai|ban la ai|em là ai|em tên gì|bạn tên gì|khỏe không|khoe khong|chúc|cảm ơn|cam on|thanks|thank you|ok|oke|okie)(\s.*)?$/i.test(message.trim())) && plan?.capability !== 'DOCTOR_RESEARCH' && plan?.complexity !== 'DEEP_COGNITIVE' && !identifiedDomain;
     if (isGreeting && !isQuotationRequest && !isDocExplicitQuery && !isExcelQuery && !isLiveWebSearch) {
       return await AppointmentHandler.handleGeneralChat(context);
     }

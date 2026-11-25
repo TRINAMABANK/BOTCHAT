@@ -625,7 +625,7 @@ export class IntentEngine {
     }
 
     // 3. APPOINTMENT INTENT (Hẹn gặp, đặt lịch, hẹn ăn uống, cà phê, đi nhậu, công việc)
-    const isAppointmentExplicit = /(?:can\s+|muon\s+|xin\s+)?(?:hen\b|dat\s+lich|sap\s+xep\s+cuoc\s+hen|gap\s+mat|hen\s+gap|gap\s+anh|gap\s+chi|di\s+nhau|di\s+ca\s+phe|di\s+cafe|uong\s+ca\s+phe|an\s+trua|an\s+toi|di\s+an|hen\s+ho|ban\s+cong\s+viec|hop\s+mat|trao\s+doi\s+cong\s+viec|noi\s+chuyen\s+cong\s+viec)\b/i.test(unaccented);
+    const isAppointmentExplicit = /(?:can\s+|muon\s+|xin\s+)?\b(?:hen\b|dat\s+lich|sap\s+xep\s+cuoc\s+hen|gap\s+mat|hen\s+gap|gap\s+anh|gap\s+chi|di\s+nhau|di\s+ca\s+phe|di\s+cafe|uong\s+ca\s+phe|an\s+trua|an\s+toi|di\s+an|hen\s+ho|ban\s+cong\s+viec|hop\s+mat|trao\s+doi\s+cong\s+viec|noi\s+chuyen\s+cong\s+viec)\b/i.test(unaccented);
     const isAppointmentFollowUp = /(?:vay\s+|the\s+|thi\s+)?(?:dat\s+(?:ngay\s+do|hom\s+do|gio\s+do|lich\s+do)|chot\s+(?:lich|ngay|gio)|hen\s+(?:anh\s+ay|chi\s+ay|ngay\s+do|hom\s+do)|dat\s+lich\s+ngay\s+do)\b/i.test(unaccented);
 
     // 4. SCHEDULE QUERY INTENT (Tra cứu lịch cá nhân, kiểm tra lịch làm việc, kiểm tra lịch trống, xem lịch đã đặt)
@@ -841,7 +841,8 @@ export class IntentEngine {
       };
     }
 
-    const isPriceQuery = /(giá bao nhiêu|gia bao nhieu|bao nhiêu tiền|bao nhieu tien|giá cả|gia ca|chi phí|tầm giá|mấy tiền)/i.test(norm);
+    const isTcoOrFinancial = /(?:tco|chi\s+phí\s+sở\s+hữu|chi\s+phí\s+vận\s+hành|chi\s+phí\s+đầu\s+tư|phân\s+tích\s+chi\s+phí|dòng\s+tiền)/i.test(norm);
+    const isPriceQuery = !isTcoOrFinancial && /(giá bao nhiêu|gia bao nhieu|bao nhiêu tiền|bao nhieu tien|giá cả|gia ca|chi phí|tầm giá|mấy tiền)/i.test(norm);
     if (isPriceQuery) {
       return {
         primaryIntent: 'PRICE_INQUIRY',
