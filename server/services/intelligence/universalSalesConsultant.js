@@ -389,7 +389,7 @@ export class UniversalSalesConsultant {
     const isGenericProduct = !explicitProduct || /^(hàng|hang|sản phẩm|san pham|đồ|do)$/i.test(explicitProduct.trim());
     const combinedMsg = (message + ' ' + unaccented).toLowerCase();
     if (!detectedCategory && isGenericProduct && !explicitModel && !budget && !isViewAll) {
-      if (/(cần mua|can mua|muốn mua|muon mua|tư vấn|tu van|bán gì|ban gi|có gì bán|co gi ban|xem hàng|xem hang|mua đồ|mua do|tìm hàng|tim hang|mua hàng|mua hang)/i.test(combinedMsg)) {
+      if (/(cần mua|can mua|muốn mua|muon mua|tư vấn mua|tu van mua|tư vấn sản phẩm|tu van san pham|tư vấn hàng|tu van hang|bán gì|ban gi|có gì bán|co gi ban|xem hàng|xem hang|mua đồ|mua do|tìm hàng|tim hang|mua hàng|mua hang|shop có gì|shop co gi)/i.test(combinedMsg)) {
         return ResponseEngine.formatResponse({
           replyText: `Dạ chào bạn! Hiện tại shop đang cung cấp đầy đủ các dòng sản phẩm chất lượng chính hãng:\n\n` +
             `• 💻 **Thiết bị công nghệ:** Laptop doanh nhân (Lenovo ThinkPad, Dell, Asus), PC để bàn, Màn hình vi tính.\n` +

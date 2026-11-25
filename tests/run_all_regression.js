@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 
 const suites = [
+  'tests/test_natural_human_conversation_suite.js',
   'tests/test_personal_assistant_suite.js',
   'tests/test_doctor_level_benchmark.js',
   'tests/test_cognitive_core_stage2.js',
@@ -47,7 +48,7 @@ summary.forEach(s => console.log(`  [${s.status}] ${s.suite} (${s.duration}s)`))
 console.log('========================================================================');
 
 if (allPassed) {
-  console.log('🌟 ALL 12 TEST SUITES PASSED 100%! ZERO REGRESSION CONFIRMED.');
+  console.log(`🌟 ALL ${suites.length} TEST SUITES PASSED 100%! ZERO REGRESSION CONFIRMED.`);
   process.exit(0);
 } else {
   console.error('💥 REGRESSION DETECTED! PLEASE FIX ERRORS.');

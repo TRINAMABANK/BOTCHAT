@@ -9,6 +9,7 @@
  */
 
 import { VerificationEngine } from './verificationEngine.js';
+import { NaturalHumanConversationEngine } from './naturalHumanConversationEngine.js';
 
 export class ResponseEngine {
   /**
@@ -44,6 +45,19 @@ export class ResponseEngine {
         userMessage: params.message
       });
     }
+
+    // 1C. NATURAL HUMAN CONVERSATION: Strip robotic boilerplate and unsolicited sales pushes
+    const hasSalesIntent = Boolean(
+      params.intentResult?.flags?.isSales ||
+      params.recommendedProduct ||
+      params.revealCatalog ||
+      params.stage === 'PRICE_QUOTED' ||
+      params.stage === 'FORMAL_QUOTATION_GENERATED'
+    );
+    cleanedReply = NaturalHumanConversationEngine.sanitizeResponse(cleanedReply, {
+      hasExplicitSalesIntent: hasSalesIntent,
+      isSalesContext: Boolean(params.recommendedProduct)
+    });
 
     // 2. Append confidence and time badge if live web was extracted
     if (confidenceTag && !cleanedReply.includes('Lưu ý về nguồn giá')) {

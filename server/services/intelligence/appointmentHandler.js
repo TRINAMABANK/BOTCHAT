@@ -11,6 +11,7 @@
 
 import { ResponseEngine } from './responseEngine.js';
 import MemoryEngine from './memoryEngine.js';
+import { NaturalHumanConversationEngine } from './naturalHumanConversationEngine.js';
 
 export class AppointmentHandler {
   /**
@@ -193,6 +194,22 @@ export class AppointmentHandler {
     } else if (/(tạm biệt|tam biet|bye|bai bai)/i.test(norm)) {
       reply = 'Dạ tạm biệt bạn nhé! Chúc bạn một ngày tốt lành và hẹn gặp lại bạn trong những lần trò chuyện tới ạ!';
     } else {
+      // Nếu câu hỏi có nội dung tìm hiểu kiến thức hoặc câu hỏi thực chất, gọi NaturalHumanConversationEngine
+      const isSubstantiveQuestion = norm.split(/\s+/).length > 3 || 
+        /(tại sao|vì sao|làm sao|thế nào|như thế nào|là gì|có nên|khác nhau|hướng dẫn|nguyên nhân)/i.test(norm);
+
+      if (isSubstantiveQuestion) {
+        const naturalRes = await NaturalHumanConversationEngine.handleConversation(params);
+        return ResponseEngine.formatResponse({
+          replyText: naturalRes.replyText,
+          revealCatalog: false,
+          recommendedField: null,
+          recommendedProduct: null,
+          stage: naturalRes.stage || 'NATURAL_HUMAN_CONVERSATION',
+          toolsUsed: naturalRes.toolsUsed || ['natural_human_conversation_engine']
+        });
+      }
+
       const cName = customerInfo?.name;
       const cPronoun = customerInfo?.pronoun;
       const cAddressing = customerInfo?.addressing || (cPronoun ? `${cPronoun} ${cName}` : cName);

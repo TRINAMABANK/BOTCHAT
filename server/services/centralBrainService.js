@@ -43,6 +43,7 @@ import { KnowledgeGraphEngine } from './intelligence/knowledgeGraphEngine.js';
 import { DeepResearchEngine } from './intelligence/deepResearchEngine.js';
 import { MetacognitionEngine } from './intelligence/metacognitionEngine.js';
 import { DomainRegistry } from './domains/domainRegistry.js';
+import { NaturalHumanConversationEngine } from './intelligence/naturalHumanConversationEngine.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -655,9 +656,12 @@ export class CentralBrainService {
     if (intentResult.primaryIntent !== 'STAFF_HANDOFF' && !SmartSalesConsultant.isStaffHandoff(unaccentedMsg)) {
       const approvedCurated = await LearningIngestionEngine.lookupApprovedKnowledge(trimmedMsg, orgId);
       if (approvedCurated && approvedCurated.standard_answer) {
+        const productTail = approvedCurated.related_product_id
+          ? `\n\nThông tin chi tiết về sản phẩm liên quan đã được mở sẵn ở khung bên cạnh để bạn dễ dàng theo dõi nhé ạ!`
+          : '';
         return ResponseEngine.formatResponse({
-          replyText: `Dạ, về câu hỏi của bạn:\n\n${approvedCurated.standard_answer}\n\nThông tin chi tiết và các sản phẩm liên quan đã được mở sẵn ở **Cột 2**, bạn có thể tham khảo thêm nhé ạ!`,
-          revealCatalog: true,
+          replyText: `Dạ, về câu hỏi của bạn:\n\n${approvedCurated.standard_answer}${productTail}`,
+          revealCatalog: Boolean(approvedCurated.related_product_id),
           recommendedField: approvedCurated.related_topic || null,
           recommendedProduct: approvedCurated.related_product_id ? { id: approvedCurated.related_product_id, name: approvedCurated.related_product_name } : null,
           stage: 'LEARNING_CENTER_RESOLVED',
@@ -1511,7 +1515,7 @@ Nguyên tắc:
         const guaranteeLine = isFood
           ? `🛡️ **Cam kết:** Chính hãng 100%, Date mới nhất (Hỗ trợ 1 đổi 1 trong 7 ngày nếu lỗi NSX hoặc bao bì).`
           : `🛡️ **Bảo hành:** Chính hãng **${targetProd.warranty_months || 12} tháng** (1 đổi 1 trong 7 ngày đầu nếu lỗi NSX).`;
-        const reply = `Dạ, giá niêm yết chính thức của sản phẩm **${targetProd.name}** tại shop hiện là **${formattedPrice}** ạ.\n\n${guaranteeLine}\n📦 **Tình trạng:** **Có sẵn tại kho**, sẵn sàng giao ngay.\n\nToàn bộ thông số chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, bạn có thể tự xem chi tiết ở Cột 2 nhé ạ!\n\nBạn có muốn em hỗ trợ đặt mua hay tư vấn thêm ưu đãi cho sản phẩm này không ạ?`;
+        const reply = `Dạ, giá niêm yết chính thức của **${targetProd.name}** hiện là **${formattedPrice}** ạ.\n\n${guaranteeLine}\n📦 **Tình trạng:** **Có sẵn tại kho**, sẵn sàng giao ngay.\n\nThông số kỹ thuật chi tiết đã được mở sẵn ở khung bên cạnh để bạn dễ dàng theo dõi. Nếu bạn cần em giải thích thêm về thông số kỹ thuật nào, cứ nhắn em hỗ trợ nhé!`;
         return ResponseEngine.formatResponse({
           replyText: reply,
           revealCatalog: true,
@@ -1525,6 +1529,29 @@ Nguyên tắc:
           toolsUsed
         });
       }
+    }
+
+    // 3D. NATURAL HUMAN CONVERSATION ENGINE (MASTER CONVERSATION UPGRADE)
+    // Nếu khách KHÔNG có nhu cầu mua hàng, KHÔNG có tên sản phẩm cụ thể và KHÔNG yêu cầu báo giá:
+    // TUYỆT ĐỐI không ép vào Sales Engine để tránh câu trả lời máy móc và quảng cáo gượng ép!
+    const naturalContext = NaturalHumanConversationEngine.analyzeConversationContext({
+      message,
+      context
+    });
+
+    if (!naturalContext.hasExplicitSalesIntent && !slots.productName && !selectedProduct && !isQuotationRequest) {
+      toolsUsed.push('natural_human_conversation_engine');
+      const humanRes = await NaturalHumanConversationEngine.handleConversation(context);
+      return ResponseEngine.formatResponse({
+        replyText: humanRes.replyText,
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: humanRes.stage || 'NATURAL_HUMAN_CONVERSATION',
+        toolsUsed: [...new Set([...toolsUsed, ...(humanRes.toolsUsed || [])])],
+        intentResult,
+        message
+      });
     }
 
     // 4. BÁN HÀNG & TƯ VẤN SẢN PHẨM & CHAT SHOP (CORE DEFAULT CHO TOÀN BỘ CÂU HỎI CÒN LẠI)
