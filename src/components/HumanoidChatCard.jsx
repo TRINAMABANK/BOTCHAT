@@ -404,10 +404,16 @@ export const HumanoidChatCard = ({
                       </div>
                     )}
 
-                    {/* Quick Action Chips (e.g. "🧹 Xóa nội dung chat", "Xem sản phẩm", v.v.) */}
-                    {!isUser && isLatest && (msg.suggestedActions || msg.metadata?.suggestedActions) && (msg.suggestedActions || msg.metadata?.suggestedActions).length > 0 && (
+                    {/* Quick Confirmation Chips (Chỉ hiển thị các nút xác nhận reset an toàn, không hiển thị nút chức năng nghiệp vụ) */}
+                    {!isUser && isLatest && (msg.suggestedActions || msg.metadata?.suggestedActions) && (
+                      (msg.suggestedActions || msg.metadata?.suggestedActions).filter(act => 
+                        act.action === 'reset_chat' || act.action === 'request_reset_chat' || act.action === 'cancel_reset'
+                      )
+                    ).length > 0 && (
                       <div className="mt-2.5 pt-2 border-t border-cyan-500/20 flex flex-wrap gap-1.5 items-center">
-                        {(msg.suggestedActions || msg.metadata?.suggestedActions).map((act, actIdx) => (
+                        {(msg.suggestedActions || msg.metadata?.suggestedActions)
+                          .filter(act => act.action === 'reset_chat' || act.action === 'request_reset_chat' || act.action === 'cancel_reset')
+                          .map((act, actIdx) => (
                           <button
                             key={act.id || actIdx}
                             type="button"
@@ -418,8 +424,6 @@ export const HumanoidChatCard = ({
                                 if (onQuickPrompt) onQuickPrompt('Xóa nội dung chat');
                               } else if (act.action === 'cancel_reset') {
                                 if (onQuickPrompt) onQuickPrompt('Tiếp tục trò chuyện');
-                              } else {
-                                if (onQuickPrompt) onQuickPrompt(act.label);
                               }
                             }}
                             className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all transform active:scale-95 flex items-center space-x-1 cursor-pointer ${

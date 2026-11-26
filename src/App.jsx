@@ -766,13 +766,13 @@ export const App = () => {
                 </span>
               </h1>
               <p className="hidden sm:block text-[11px] md:text-xs text-cyan-200/90 font-medium truncate">
-                Trợ lý bán hàng thông minh • Tư vấn - Báo giá
+                One Brain – Unified Memory – Conversational-First
               </p>
             </div>
           </div>
 
-          {/* Right Action Tools matching Mockup: 24/7 pill + Hướng dẫn + Bell(3) + User Avatar */}
-          <div className="flex items-center space-x-1.5 sm:space-x-2.5 relative flex-shrink-0">
+          {/* Right Action Tools: 24/7 pill + User Avatar (Admin Portal Trigger) */}
+          <div className="flex items-center space-x-2 sm:space-x-3 relative flex-shrink-0">
             {/* Status Pill: Đang hoạt động 24/7 */}
             <div className="flex items-center space-x-1 sm:space-x-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs shadow-[0_0_12px_rgba(16,185,129,0.25)]">
               <span className="relative flex h-2 w-2">
@@ -782,70 +782,18 @@ export const App = () => {
               <span className="hidden sm:inline font-medium text-[11px] md:text-xs">Đang hoạt động 24/7</span>
             </div>
 
-            {/* Nút Nhắc việc (Thay thế nút Hướng dẫn) */}
+            {/* User Avatar Circle (Opens Owner Dashboard / Admin Login) */}
             <button
-              onClick={() => {
-                fetchFullNotifications();
-                setIsReminderModalOpen(true);
-              }}
-              className="relative flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-[#0C1B3E] hover:bg-[#102454] border border-cyan-500/30 text-cyan-200 text-xs font-semibold shadow-md transition-all active:scale-95 cursor-pointer"
-              title="Xem thông báo nhắc việc của Thư ký riêng"
+              onClick={handleOpenDashboard}
+              className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-600 border border-cyan-400 flex items-center justify-center text-white shadow-[0_0_10px_rgba(0,240,255,0.4)] hover:scale-105 transition-all cursor-pointer"
+              title="Quản trị chủ nhân / Thiết lập tài khoản"
             >
-              <Bell size={14} className={`flex-shrink-0 ${unreadNotifCount > 0 ? 'text-amber-400 animate-bounce' : 'text-cyan-400'}`} />
-              <span className="hidden sm:inline">Nhắc việc</span>
+              <User size={15} />
               {unreadNotifCount > 0 && (
-                <span className="flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-md">
+                <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white shadow-md">
                   {unreadNotifCount}
                 </span>
               )}
-            </button>
-
-            {/* Catalog Toggle Button (Bật/tắt Cột 2 mọi lúc trên máy tính, laptop, tablet, điện thoại) */}
-            <button
-              onClick={() => {
-                const nextState = !isCatalogRevealed;
-                setIsCatalogRevealed(nextState);
-                if (nextState) {
-                  setMobileViewTab('catalog');
-                }
-              }}
-              className={`flex items-center space-x-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full border text-xs font-semibold shadow-md transition-all active:scale-95 cursor-pointer ${
-                isCatalogRevealed
-                  ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400 shadow-[0_0_12px_rgba(0,240,255,0.4)]'
-                  : 'bg-[#0C1B3E] hover:bg-[#102454] border-cyan-500/30 text-cyan-200'
-              }`}
-              title={isCatalogRevealed ? 'Đang mở Cột 2 - Nhấn để ẩn' : 'Mở Cột 2 xem danh mục & sản phẩm'}
-            >
-              <ShoppingCart size={14} className={isCatalogRevealed ? 'text-cyan-300' : 'text-cyan-400'} />
-              <span className="hidden sm:inline">Sản phẩm ({products.length})</span>
-              <span className="sm:hidden inline">SP ({products.length})</span>
-            </button>
-
-            {/* CTA Button: Yêu cầu chủ nhân gọi lại (Thay thế nút Thông báo hệ thống) */}
-            <button
-              onClick={() => {
-                setSelectedProduct(null);
-                setIsPhoneModalOpen(true);
-              }}
-              className="flex items-center space-x-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-[#7c1598] via-[#a21caf] to-[#6b21a8] hover:from-[#931bad] hover:to-[#7e22ce] text-white text-xs font-bold border border-fuchsia-400/60 shadow-[0_0_18px_rgba(192,38,211,0.55)] transition-all active:scale-95 group"
-              title="Yêu cầu chủ nhân gọi lại tư vấn trực tiếp"
-            >
-              <span className="relative flex h-2 w-2 flex-shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-fuchsia-300 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-              </span>
-              <PhoneCall size={14} className="text-white flex-shrink-0 group-hover:rotate-12 transition-transform" />
-              <span className="hidden sm:inline tracking-wide">Yêu cầu chủ nhân gọi lại</span>
-              <span className="sm:hidden inline tracking-tight">Gọi lại</span>
-            </button>
-
-            {/* User Avatar Circle (Opens Owner Dashboard) */}
-            <button
-              onClick={handleOpenDashboard}
-              className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-600 border border-cyan-400 flex items-center justify-center text-white shadow-[0_0_10px_rgba(0,240,255,0.4)] hover:scale-105 transition-all"
-              title="Quản trị chủ nhân / Tài khoản"
-            >
-              <User size={15} />
             </button>
           </div>
         </div>

@@ -524,6 +524,30 @@ export class UniversalSalesConsultant {
       toolsUsed: ['universal_sales_consultant']
     });
   }
+
+  /**
+   * Xử lý phản đối bán hàng có hệ thống theo khung LEAR (Kịch bản 2)
+   */
+  static handleObjection({ objectionType = 'HIGH_PRICE', rawMessage = '', product = null, context = {} }) {
+    const productName = product ? (product.name || product.active_product_name) : 'dòng máy đếm tiền & thiết bị chuyên dụng';
+
+    return ResponseEngine.formatResponse({
+      replyText: `Dạ, khi khách hàng phản hồi về việc "giá cao quá", đây là cơ hội tuyệt vời để chúng ta khẳng định **giá trị thực tế** thay vì chỉ cạnh tranh về giá đơn thuần ạ. Anh/chị có thể tư vấn lại cho khách theo 3 luận điểm cốt lõi sau nhé:\n\n` +
+        `1. 🤝 **Đồng cảm và thấu hiểu:**\n` +
+        `   *"Dạ em rất hiểu băn khoăn về chi phí đầu tư ban đầu của anh/chị. Với thiết bị kiểm đếm tài chính, việc tính toán hiệu quả kinh tế là hoàn toàn chính xác ạ."*\n\n` +
+        `2. 🛡️ **Tái định vị giá trị & Tổng chi phí sở hữu (TCO):**\n` +
+        `   • **Bảo vệ dòng tiền tuyệt đối:** Dòng máy **${productName}** sử dụng cụm cảm biến hồng ngoại và từ tính đa điểm thế hệ mới, tỷ lệ bắt tiền giả và tiền lẫn loại đạt 99.9%, ngăn ngừa rủi ro thất thoát tài chính lớn hơn nhiều lần khoản chênh lệch giá máy.\n` +
+        `   • **Độ bền cơ học vượt trội:** Khung sườn chịu tải và bánh răng bằng thép tôi luyện, hoạt động ổn định 5-7 năm, không bị gião kẹt hay mòn bánh răng nhựa như các dòng giá rẻ trên thị trường.\n` +
+        `   • **Tiết kiệm chi phí bảo trì:** Độ bền cao giúp tiết kiệm 40% chi phí sửa chữa và thay thế linh kiện định kỳ.\n\n` +
+        `3. 💎 **Cam kết vàng & Hậu mãi:**\n` +
+        `   *"Bên em cam kết hàng chính hãng 100%, bảo hành tận nơi 12 tháng và hỗ trợ 1 đổi 1 trong 7 ngày đầu nếu có lỗi nhà sản xuất."*\n\n` +
+        `Anh/chị có thể áp dụng ngay cách chia sẻ này để thuyết phục khách hàng nhé ạ!`,
+      revealCatalog: false,
+      recommendedProduct: null,
+      stage: 'OBJECTION_HANDLING_RESOLVED',
+      toolsUsed: ['sales_intelligence_objection_handling']
+    });
+  }
 }
 
 export default UniversalSalesConsultant;

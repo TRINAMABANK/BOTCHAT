@@ -92,7 +92,7 @@ export class SmartReminderEngine {
       [reminderId, userId]
     );
     if (!row) return null;
-    return ReminderEngine._formatReminderRow(row);
+    return SmartReminderEngine._formatReminderRow(row);
   }
 
   /**
@@ -154,7 +154,22 @@ export class SmartReminderEngine {
        ORDER BY r.remind_at ASC`,
       [beforeIso]
     );
-    return rows.map(r => ReminderEngine._formatReminderRow(r));
+    return rows.map(r => SmartReminderEngine._formatReminderRow(r));
+  }
+
+  static _formatReminderRow(row) {
+    if (!row) return null;
+    return {
+      reminderId: row.reminder_id,
+      taskId: row.task_id,
+      taskTitle: row.task_title || row.title,
+      ownerId: row.owner_id,
+      remindAt: row.remind_at,
+      status: row.status,
+      createdAt: row.created_at,
+      taskDueAt: row.task_due_at,
+      taskPriority: row.task_priority
+    };
   }
 
   /**

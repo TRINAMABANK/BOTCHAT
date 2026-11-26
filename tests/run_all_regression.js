@@ -13,7 +13,11 @@ const suites = [
   'tests/test_service_survey_suite.js',
   'tests/test_brain_2_1_master_suite.js',
   'tests/test_universal_sales_and_secretary_suite.js',
-  'tests/test_security_audit_hardening.js'
+  'tests/test_security_audit_hardening.js',
+  'tests/test_unified_memory_core.js',
+  'tests/test_autonomy_approval.js',
+  'tests/test_conversational_first_acceptance_suite.js',
+  'tests/test_continuous_evaluation_suite.js'
 ];
 
 console.log('========================================================================');

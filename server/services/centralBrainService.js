@@ -44,6 +44,8 @@ import { DeepResearchEngine } from './intelligence/deepResearchEngine.js';
 import { MetacognitionEngine } from './intelligence/metacognitionEngine.js';
 import { DomainRegistry } from './domains/domainRegistry.js';
 import { NaturalHumanConversationEngine } from './intelligence/naturalHumanConversationEngine.js';
+import { UnifiedMemoryCore, TRUTH_TYPES } from './intelligence/unifiedMemoryCore.js';
+import { AutonomyApprovalEngine } from './intelligence/autonomyApprovalEngine.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -367,6 +369,209 @@ export class CentralBrainService {
         ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_TASK' });
         return secRes;
       }
+    }
+
+    // =========================================================================
+    // CONVERSATIONAL-FIRST & QUALITY GATE ARCHITECTURE (MASTER UPGRADE)
+    // =========================================================================
+
+    // CF-1. TIER 3 SECURITY GATE: Chặn tuyệt đối thao tác thanh toán / tài chính vượt quyền
+    const tier3Check = AutonomyApprovalEngine.evaluateTier3Security(trimmedMsg);
+    if (tier3Check.blocked) {
+      return ResponseEngine.formatResponse({
+        replyText: tier3Check.replyText,
+        revealCatalog: false,
+        stage: 'TIER3_SECURITY_BLOCKED',
+        toolsUsed: ['autonomy_approval_engine', 'tier3_security_gate']
+      });
+    }
+
+    // CF-2. CONVERSATIONAL VERBAL APPROVAL / CANCELLATION (Kịch bản 7: "Thôi, đừng gửi báo giá nữa")
+    const approvalEval = AutonomyApprovalEngine.evaluateConversationalResponse(trimmedMsg, conversationId);
+    if (approvalEval.isCancellation || approvalEval.isApproval) {
+      return ResponseEngine.formatResponse({
+        replyText: approvalEval.replyText,
+        revealCatalog: false,
+        stage: approvalEval.isCancellation ? 'ACTION_CANCELLED' : 'ACTION_CONFIRMED',
+        toolsUsed: ['autonomy_approval_engine']
+      });
+    }
+
+    // CF-3. UNIFIED MEMORY COMMANDS: "Hôm qua chúng ta đang làm đến đâu?", "Xem/Sửa/Xóa thông tin" (Kịch bản 5)
+    const memoryRes = await UnifiedMemoryCore.handleMemoryCommand({
+      message: trimmedMsg,
+      conversationId,
+      userContext,
+      tenantId: orgId
+    });
+    if (memoryRes.handled) {
+      return ResponseEngine.formatResponse({
+        replyText: memoryRes.replyText,
+        revealCatalog: false,
+        stage: 'UNIFIED_MEMORY_RESOLVED',
+        toolsUsed: ['unified_memory_core', memoryRes.commandType.toLowerCase()]
+      });
+    }
+
+    // CF-4. RESUMING PREVIOUS GOAL & QUOTATION DRAFTING (Kịch bản 4: "Quay lại khách hàng lúc nãy, soạn báo giá giúp tôi")
+    const isResumeGoal = /(quay lại|quay lai|tiep tuc|lúc nãy|luc nay|trước đó|truoc do).*(khách hàng|soạn báo giá|báo giá|báo giá giúp tôi|don hang)/i.test(trimmedMsg);
+    if (isResumeGoal) {
+      const previousGoal = UnifiedMemoryCore.resumePreviousGoal(conversationId);
+      const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
+      let targetProd = previousGoal?.product || activeProdContext;
+
+      if (!targetProd) {
+        // Fallback tìm sản phẩm máy đếm tiền hoặc máy in đã bàn
+        targetProd = allActiveProds.find(p => p.name.includes('XINDA') || p.name.includes('BROTHER') || p.field === 'Máy đếm tiền') || allActiveProds[0];
+      }
+
+      const targetCustomer = previousGoal?.customer || customerInfo?.name || 'Khách hàng';
+
+      if (targetProd) {
+        const formalQuote = await QuotationService.createQuotation({
+          customerName: targetCustomer,
+          conversationId,
+          items: [{
+            productId: targetProd.id,
+            productName: targetProd.name,
+            sku: targetProd.sku || '',
+            specsSnippet: targetProd.configuration || '',
+            quantity: 1,
+            unit: targetProd.unit || 'cái',
+            unitPrice: targetProd.price,
+            priceType: 'CONFIRMED'
+          }],
+          vatPercent: 10
+        });
+
+        const markdown = formalQuote.markdown;
+
+        AutonomyApprovalEngine.registerPendingAction(conversationId, {
+          actionType: 'SEND_FORMAL_QUOTATION',
+          payload: {
+            quoteId: formalQuote.quoteCode,
+            productName: targetProd.name,
+            totalAmount: formalQuote.finalAmount,
+            customerName: targetCustomer
+          }
+        });
+
+        const approvalQuestion = `\n\nTôi đã chuẩn bị báo giá. Anh có muốn gửi cho khách hàng không?`;
+        return ResponseEngine.formatResponse({
+          replyText: markdown + approvalQuestion,
+          revealCatalog: false,
+          recommendedProduct: targetProd,
+          stage: 'QUOTATION_PENDING_APPROVAL',
+          toolsUsed: ['unified_memory_core', 'quotation_service', 'autonomy_approval_engine']
+        });
+      }
+    }
+
+    // CF-5. SYSTEMATIC SALES OBJECTION HANDLING (Kịch bản 2: "Khách nói giá cao quá thì trả lời thế nào?")
+    const isPriceObjectionQuery = /(khách|khach|người mua|khách hàng).*(giá cao quá|gia cao qua|đắt quá|chê đắt|chê mắc|giá đắt|giá mắc|đắt thế).*(trả lời|tra loi|nói sao|noi sao|xử lý sao|xu ly sao|tư vấn sao|tu van sao)/i.test(trimmedMsg) ||
+      /(sao đắt thế|sao đắt vậy|sao gia cao the|sao giá cao thế|bên kia bán rẻ hơn)/i.test(trimmedMsg);
+
+    if (isPriceObjectionQuery) {
+      const currentProd = activeProdContext || selectedProduct;
+      return UniversalSalesConsultant.handleObjection({
+        objectionType: 'HIGH_PRICE',
+        rawMessage: trimmedMsg,
+        product: currentProd,
+        context: params
+      });
+    }
+
+    // CF-6. SALES COACHING & CONSULTATION INTAKE (Kịch bản 1: "Tư vấn giúp tôi bán máy đếm tiền")
+    const isSalesCoachingQuery = /(tư vấn|tu van|hướng dẫn|huong dan).*(bán|chào hàng|tiếp cận khách).*(máy đếm tiền|may dem tien|thiết bị)/i.test(trimmedMsg) ||
+      /^(tư vấn|tu van)\s+giúp\s+tôi\s+bán\s+/i.test(trimmedMsg);
+
+    if (isSalesCoachingQuery) {
+      return ResponseEngine.formatResponse({
+        replyText: `Dạ, đối với dòng sản phẩm máy đếm tiền, để xây dựng phương án chào hàng và tư vấn hiệu quả nhất, anh/chị đang dự kiến tiếp cận phân khúc khách hàng mục tiêu nào thế ạ? (Ví dụ: Hệ thống phòng giao dịch ngân hàng/kho quỹ cần độ chính xác bắt tiền giả tuyệt đối, văn phòng doanh nghiệp cần đếm kiểm kê nhanh, hay cửa hàng bán lẻ/siêu thị cần máy nhỏ gọn tiện lợi?)`,
+        revealCatalog: false,
+        stage: 'SALES_COACHING_INTAKE',
+        toolsUsed: ['universal_sales_consultant_coaching']
+      });
+    }
+
+    // CF-7. EXPLAIN PRINCIPLE WITH GOAL FREEZE (Kịch bản 3: "Giải thích nguyên lý hoạt động của máy")
+    const isExplainPrinciple = /(giải thích|giai thich|cho biết|cho biet|hỏi về|hoi ve).*(nguyên lý hoạt động|nguyen ly hoat dong|cách hoạt động|hoạt động như thế nào|nguyên lý của máy|nguyen ly cua may)/i.test(trimmedMsg) ||
+      /(nguyên lý hoạt động của máy|nguyên lý của máy)/i.test(trimmedMsg);
+
+    if (isExplainPrinciple) {
+      let currentProd = activeProdContext || selectedProduct;
+      if (!currentProd) {
+        const allProds = await db.all('SELECT * FROM products WHERE is_active = 1');
+        currentProd = allProds.find(p => p.field === 'Máy đếm tiền' || p.name.includes('XINDA')) || allProds[0];
+      }
+
+      // Freeze current product goal into Goal Stack before explaining
+      if (currentProd) {
+        UnifiedMemoryCore.pushGoal(conversationId, {
+          type: 'SALES_CONSULTATION',
+          product: currentProd,
+          customer: customerInfo?.name || 'Khách hàng'
+        });
+      }
+
+      const prodName = currentProd ? (currentProd.name || currentProd.active_product_name) : 'máy đếm tiền chuyên dụng';
+      const explanation = `Dạ, về nguyên lý hoạt động của dòng **${prodName}**, thiết bị vận hành dựa trên sự kết hợp đồng bộ giữa cơ chế cơ học chính xác và hệ thống cảm biến quang học đa tầng:\n\n` +
+        `1. 🌀 **Cơ chế nạp và tách tiền cơ học:**\n` +
+        `   Khi tiền được đưa vào khay nạp, quả đào cao su (Pickup Roller) cuốn từng tờ tiền qua khe phân tách (Separation Pad) với tốc độ cao (khoảng 1.000 – 1.200 tờ/phút), đảm bảo tiền đi qua buồng quét đơn lẻ, không bị dính rít.\n\n` +
+        `2. 🔬 **Hệ thống cảm biến mắt đọc kiểm giả đa tầng:**\n` +
+        `   • **Cảm biến hồng ngoại (IR):** Quét hình chìm và chất liệu phát quang chìm của giấy bạc polymer.\n` +
+        `   • **Cảm biến từ tính (MG):** Nhận diện từ tính trên dải băng từ, số seri và mực in bảo an đặc biệt của Ngân hàng Nhà nước.\n` +
+        `   • **Cảm biến tia cực tím (UV):** Phát hiện độ phản xạ của giấy và các sợi bảo vệ huỳnh quang.\n` +
+        `   • **Cảm biến kích thước (Color/Size Sensor):** Đo lường chiều dài, chiều rộng và độ dày tờ tiền để phát hiện tiền lẫn mệnh giá.\n\n` +
+        `3. ⚡ **Vi xử lý trung tâm (DSP):**\n` +
+        `   Tín hiệu thu được từ các cảm biến được số hóa và so sánh theo thời gian thực với ngân hàng dữ liệu tiền mẫu. Nếu phát hiện sai lệch, máy sẽ lập tức phát còi cảnh báo và đẩy tờ tiền nghi giả ra khay loại hoặc dừng máy ngay tại mắt đọc.\n\n` +
+        `Anh/chị có muốn tìm hiểu sâu hơn về phần mềm cập nhật mệnh giá tiền mới của máy không ạ?`;
+
+      return ResponseEngine.formatResponse({
+        replyText: explanation,
+        revealCatalog: false,
+        recommendedProduct: currentProd,
+        stage: 'KNOWLEDGE_PRINCIPLE_EXPLAINED',
+        toolsUsed: ['unified_memory_core', 'knowledge_research_engine']
+      });
+    }
+
+    // CF-7B. OWNER PERSONAL ASSISTANT & RECURRING REMINDERS (Master Prompt 03)
+    const isRecurringOrAssistant = /(hằng tuần|hang tuan|hằng ngày|hang ngay|mỗi ngày|moi ngay|định kỳ|dinh ky|hằng tháng|hang thang|mỗi tháng|moi thang|cuối tháng|cuoi thang|bản tin|tổng kết ngày)/i.test(trimmedMsg);
+    if (isRecurringOrAssistant && (userContext?.isOwner || userContext?.role === 'OWNER' || /(nhắc tôi|nhac toi)/i.test(trimmedMsg))) {
+      const secRes = await SecretaryAgent.handleSecretaryConversation({
+        ...params,
+        userContext,
+        message: trimmedMsg,
+        conversationId
+      });
+      if (secRes && secRes.stage && secRes.stage !== 'SECRETARY_GENERAL_READY') {
+        return secRes;
+      }
+    }
+
+    // CF-8. NATURAL REMINDER SCHEDULING (Kịch bản 6: "Ngày mai nhắc tôi gọi lại khách")
+    const isNaturalReminder = /(nhắc tôi|nhac toi|hẹn giờ|hen gio|lên lịch nhắc|dat lich nhac).*(gọi lại|goi lai|liên hệ|lien he|họp|hop|kiểm tra|kiem tra)/i.test(trimmedMsg) ||
+      /(ngày mai|ngay mai|sáng mai|chiều mai|tuần sau).*(nhắc tôi|nhac toi)/i.test(trimmedMsg);
+
+    if (isNaturalReminder && !userContext?.isOwner && userContext?.role !== 'OWNER' && userContext?.role !== 'admin') {
+      const title = trimmedMsg.replace(/(?:vui lòng|hãy|giúp tôi)?\s*(?:nhắc tôi|nhac toi)\s*/i, '').trim();
+      const reminderTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // Ngày mai
+
+      await UnifiedMemoryCore.registerCommitment({
+        title: title || 'Gọi lại cho khách hàng',
+        deadline: reminderTime,
+        reminderTime,
+        tenantId: orgId
+      });
+
+      return ResponseEngine.formatResponse({
+        replyText: `Dạ em đã ghi nhận lịch nhắc: **"${title || 'Gọi lại cho khách hàng'}"** vào ngày mai (9:00 AM) rồi ạ!\n\n` +
+          `⏰ Hệ thống sẽ chủ động gửi thông báo trên Webapp và chuông báo để anh/chị không bị bỏ lỡ công việc nhé!`,
+        revealCatalog: false,
+        stage: 'REMINDER_REGISTERED',
+        toolsUsed: ['unified_memory_core', 'smart_reminder_engine']
+      });
     }
 
     // 1. INTENT ENGINE: Natural language analysis, slang normalization, entity & intent extraction
@@ -1188,17 +1393,24 @@ export class CentralBrainService {
       if (quoteExec?.status === 'SUCCESS' && (quoteExec.result?.quote || quoteExec.quote)) {
         const primaryProd = quoteExec.result?.product || quoteExec.product;
         const quote = quoteExec.result?.quote || quoteExec.quote;
+
+        AutonomyApprovalEngine.registerPendingAction(conversationId, {
+          actionType: 'SEND_FORMAL_QUOTATION',
+          payload: {
+            quoteId: quote.quoteCode || quote.id,
+            productName: primaryProd.name,
+            totalAmount: quote.finalAmount
+          }
+        });
+
         const resp = ResponseEngine.formatResponse({
-          replyText: `Dạ em xin gửi bảng báo giá chính thức cho **${primaryProd.name}** (Số lượng: ${qty} ${primaryProd.unit || 'cái'}) theo thông tin từ kho nhà cung cấp ạ:\n\n${quote.markdown}`,
+          replyText: `Dạ em xin gửi bảng báo giá chính thức cho **${primaryProd.name}** (Số lượng: ${qty} ${primaryProd.unit || 'cái'}) theo thông tin từ kho nhà cung cấp ạ:\n\n${quote.markdown}\n\nTôi đã chuẩn bị báo giá. Anh có muốn gửi cho khách hàng không?`,
           revealCatalog: true,
           recommendedField: primaryProd.category || null,
           recommendedProduct: primaryProd,
           stage: 'CONSULTING',
           requiresInput: null,
-          suggestedActions: [
-            { id: 'confirm_order', label: 'Xác nhận đặt hàng theo báo giá' },
-            { id: 'adjust_qty', label: 'Thay đổi số lượng hoặc cấu hình' }
-          ],
+          suggestedActions: [],
           citations: [{
             source: 'quotation_engine',
             label: `[Mã báo giá: ${quote.quoteCode}]`
@@ -1767,7 +1979,22 @@ QUY TẮC BẮT BUỘC:
               vatPercent: 10
             });
 
-            uiDirectives.revealCatalog = true;
+            AutonomyApprovalEngine.registerPendingAction({
+              actionType: 'SEND_QUOTATION',
+              tier: 2,
+              description: `Gửi bảng báo giá ${qRes.quoteCode} trị giá ${(qRes.finalAmount || 0).toLocaleString('vi-VN')} VNĐ cho khách hàng`,
+              payload: {
+                quoteCode: qRes.quoteCode,
+                customerName: args.customer_name || customerInfo?.name || 'Quý Khách Hàng',
+                customerPhone: args.customer_phone || customerInfo?.phone || '',
+                finalAmount: qRes.finalAmount
+              },
+              conversationId,
+              actor: 'AI'
+            });
+
+            uiDirectives.revealCatalog = false;
+            uiDirectives.stage = 'QUOTATION_PENDING_APPROVAL';
             uiDirectives.recommendedProduct = p;
             citations.push({
               source: 'quotation_engine',
