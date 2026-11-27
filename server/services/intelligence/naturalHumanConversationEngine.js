@@ -383,6 +383,10 @@ Bạn đang muốn tìm hiểu sâu về phương diện toán học, ý nghĩa 
       .replace(/([.!?])\s*\n\s*([.!?])/g, '$1')
       .trim();
 
+    if (!cleaned || cleaned.length < 15) {
+      cleaned = 'Dạ, em hiểu câu hỏi của anh/chị. Dòng sản phẩm này có độ hoàn thiện tốt, đáp ứng rất ổn định nhu cầu sử dụng thực tế. Anh/Chị cần em làm rõ thêm về tính năng hay thông số nào không ạ?';
+    }
+
     return cleaned;
   }
 }

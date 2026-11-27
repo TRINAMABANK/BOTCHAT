@@ -4,7 +4,7 @@ import { Volume2, VolumeX, Sparkles, ShieldCheck, Activity, Cpu } from 'lucide-r
 export const HumanoidRobot3D = ({
   botState = 'idle', // 'idle' | 'listening' | 'thinking' | 'speaking' | 'success' | 'error'
   robotModel = 'cyber_valkyrie', // 'cyber_valkyrie' | 'tron_humanoid' | 'quantum_sphere' | 'nano_sentinel'
-  botName = 'TRÍ AI SALES ROBOT',
+  botName = 'TRÍ AI ULTIMATE ROBOT',
   ownerName = 'Quang Nhựt Trí',
   isSpeakingAudio = false,
   onToggleSound

@@ -187,9 +187,16 @@ export class ContextEngine {
       resolved.resolvedTimeSpec = session.lastTimeSpec || extraContext.timeSpec || null;
     }
 
-    // 5B. Product reference resolution ("máy này", "sản phẩm này", "loại này", "mẫu này", "chiếc này", "nó", "con này")
-    if (/(?:may\s+nay|san\s+pham\s+nay|loai\s+nay|mau\s+nay|chiec\s+nay|hop\s+nay|con\s+nay|cai\s+nay|mon\s+nay|\bno\b)\b/i.test(unaccented)) {
+    // 5B. Product reference resolution ("máy này", "sản phẩm này", "loại này", "mẫu này", "chiếc này", "nó", "con này", "cái đó", "con đó", "mẫu đó", "loại đó")
+    if (/(?:may\s+nay|san\s+pham\s+nay|loai\s+nay|mau\s+nay|chiec\s+nay|hop\s+nay|con\s+nay|cai\s+nay|mon\s+nay|cai\s+do|con\s+do|mau\s+do|loai\s+do|may\s+do|chiec\s+do|\bno\b)\b/i.test(unaccented)) {
       resolved.resolvedProduct = session.lastProduct || extraContext.selectedProduct || null;
+      resolved.hasPronounReference = true;
+    }
+
+    // 5B.2 Alternative inquiry resolution ("còn loại nào khác", "còn mẫu nào khác", "còn phương án kia")
+    if (/(?:con\s+loai\s+nao\s+khac|con\s+mau\s+nao\s+khac|co\s+loai\s+nao\s+khac|co\s+mau\s+nao\s+khac|phuong\s+an\s+khac|phuong\s+an\s+kia|lua\s+chon\s+khac)\b/i.test(unaccented)) {
+      resolved.isAlternativeRequest = true;
+      resolved.referenceCategory = session.lastProduct?.field || extraContext.selectedProduct?.field || null;
     }
 
     // 5C. Person reference resolution ("anh ấy", "người ấy", "sếp ấy")
@@ -197,11 +204,21 @@ export class ContextEngine {
       resolved.resolvedPerson = session.lastTargetPerson || 'anh Trí';
     }
 
-    // 5D. Context Correction Detection ("không phải, tôi tên...", "tôi hỏi laptop chứ không phải...")
-    const correctionMatch = lower.match(/(?:không\s+phải|khong\s+phai|nhầm\s+rồi|nham\s+roi|đổi\s+lại|doi\s+lai)[,\s]+(?:tôi|mình|em)\s+(?:tên|hỏi|cần)\s+(.*)/i);
-    if (correctionMatch) {
+    // 5D. Context Correction & Clarification Detection
+    // ("không phải ý anh", "ý anh không phải vậy", "không phải, tôi tên...", "tôi hỏi laptop chứ không phải...")
+    const isGentleCorrection = /(?:khong\s+phai\s+y\s+(?:anh|chi|toi|em|minh)|y\s+(?:anh|chi|toi|em|minh)\s+khong\s+phai|khong\s+dung\s+y|hieu\s+nham\s+y)\b/i.test(unaccented);
+    const correctionMatch = lower.match(/(?:không\s+phải|khong\s+phai|nhầm\s+rồi|nham\s+roi|đổi\s+lại|doi\s+lai)[,\s]+(?:tôi|mình|em|anh|chị)\s+(?:tên|hỏi|cần|muốn|nói)\s+(.*)/i);
+    if (isGentleCorrection || correctionMatch) {
       resolved.isCorrection = true;
-      resolved.correctionDetail = correctionMatch[1]?.trim();
+      resolved.correctionType = isGentleCorrection ? 'INTENT_MISUNDERSTANDING' : 'FIELD_VALUE_UPDATE';
+      resolved.correctionDetail = correctionMatch ? correctionMatch[1]?.trim() : 'USER_DISAVOWED_PREVIOUS_INFERENCE';
+    }
+
+    // 5E. Topic Resumption Detection ("quay lại máy in lúc nãy", "quay lại chuyện lúc nãy")
+    const resumptionMatch = unaccented.match(/(?:quay\s+lai|tiep\s+tuc)\s+(.+?)(?:\s+luc\s+nay|\s+truoc\s+do|$)/i);
+    if (resumptionMatch && resumptionMatch[1]) {
+      resolved.isTopicResumption = true;
+      resolved.resumptionTarget = resumptionMatch[1].trim();
     }
 
     return resolved;

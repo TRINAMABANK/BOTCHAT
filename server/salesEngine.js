@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import db from './db.js';
 import { callGemini } from './geminiService.js';
 import { CrmLeadService } from './services/crmLeadService.js';
+import { MultiThreadConversationEngine } from './services/intelligence/multiThreadConversationEngine.js';
 
 /**
  * Call an OpenAI-compatible Chat Completions endpoint using server-side credentials.
@@ -451,8 +452,17 @@ const STOP_WORDS = new Set([
  */
 function extractCoreProductQuery(rawMsg) {
   if (!rawMsg || typeof rawMsg !== 'string') return '';
+  const cleanLower = rawMsg.toLowerCase();
+  const unaccented = removeVietnameseTones(rawMsg).toLowerCase();
+
   // Nếu là câu chào, xưng tên hoặc hỏi thăm sức khoẻ, tuyệt đối không tách sản phẩm
-  if (isCustomerNameDeclaration(rawMsg) || isGreetingMessage(removeVietnameseTones(rawMsg)) || isHealthInquiry(removeVietnameseTones(rawMsg))) {
+  if (isCustomerNameDeclaration(rawMsg) || isGreetingMessage(unaccented) || isHealthInquiry(unaccented)) {
+    return '';
+  }
+
+  // NON-SALES DOMAIN GUARD: Tuyệt đối không coi các câu hỏi về tài chính, thời tiết, văn bản, lập trình, đời sống là câu hỏi sản phẩm
+  const nonSalesDomain = /(?:chứng khoán|chung khoan|cổ phiếu|co phieu|vnindex|vcb|hpg|fpt|đầu tư tài chính|dau tu tai chinh|trái phiếu|trai phieu|quỹ đầu tư|thị trường tài chính|thời tiết|thoi tiet|dự báo thời tiết|du bao thoi tiet|trời mưa|nhiệt độ|soạn công văn|soan cong van|thông báo nội bộ|thong bao noi bo|biên bản|bien ban|viết thư|lỗi code|loi code|lập trình|lap trinh|viết code|viet code|sửa bug|sua bug|python|javascript|tâm sự|tam su|buồn quá|buon qua|phong thủy|phong thuy|sức khỏe|suc khoe|y tế|y te)/i;
+  if (nonSalesDomain.test(cleanLower) || nonSalesDomain.test(unaccented)) {
     return '';
   }
   let s = rawMsg.trim();
@@ -513,8 +523,6 @@ const CATALOG_OVERVIEW_KEYWORDS = [
   'co nhung mat hang gi',
   'co nhung mat hang',
   'co nhung gi',
-  'co gi khong',
-  'co gi',
   'shop co gi',
   'shop ban gi',
   'ben ban co gi',
@@ -532,26 +540,13 @@ const CATALOG_OVERVIEW_KEYWORDS = [
   'cho xem danh muc',
   'cac san pham',
   'tat ca san pham',
-  'xem tat ca',
+  'xem tat ca san pham',
   'cac linh vuc',
   'nganh hang',
   'tu van san pham',
-  'tu van giup toi',
-  'tu van giup minh',
-  'tu van giup em',
-  'tu van giup anh',
-  'tu van cho toi',
-  'tu van cho minh',
-  'tu van cho em',
-  'tu van cho anh',
-  'tu van giup',
-  'tu van dum',
-  'can tu van',
-  'muon tu van',
-  'tu van gi',
-  'tu van hang',
-  'tu van di',
-  'tu van',
+  'tu van mua hang',
+  'tu van chon mua',
+  'tu van mat hang',
   'xem san pham',
   'cho xem san pham',
   'gioi thieu san pham'
@@ -563,6 +558,21 @@ const CATALOG_OVERVIEW_KEYWORDS = [
 function isCatalogOverviewQuery(normMsg) {
   if (!normMsg) return false;
   const clean = normMsg.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
+
+  // EXPLICIT NON-SALES EXCLUSION:
+  // If the query pertains to non-sales domains (stocks, weather, memo drafting, coding, general talk),
+  // NEVER classify it as a store catalog overview inquiry!
+  const NON_SALES_OVERVIEW_EXCLUSIONS = [
+    /(?:chung khoan|co phieu|vnindex|vcb|hpg|fpt|dau tu tai chinh|trai phieu|tai chinh|lai suat)/i,
+    /(?:thoi tiet|du bao thoi tiet|nhiet do|troi mua|troi nang)/i,
+    /(?:soan cong van|thong bao noi bo|bien ban|viet thu|hop dong lao dong|van ban hanh chinh)/i,
+    /(?:loi code|lap trinh|viet code|sua bug|python|javascript|react|cai win)/i,
+    /(?:tam su|buon qua|ke chuyen|triet hoc|phong thuy|suc khoe|y te)/i,
+    /(?:ban la ai|em la ai|ban ten gi|khoe khong|hom nay the nao)/i
+  ];
+  if (NON_SALES_OVERVIEW_EXCLUSIONS.some(pattern => pattern.test(clean))) {
+    return false;
+  }
 
   // Nếu câu hỏi có chứa tên thương hiệu, mã máy hoặc loại sản phẩm cụ thể thì KHÔNG PHẢI hỏi tổng quan
   const SPECIFIC_PRODUCT_INDICATORS = [
@@ -594,7 +604,7 @@ function isCatalogOverviewQuery(normMsg) {
     /\b(kinh doanh|ban|co|cung cap)\s+(cai\s+)?gi\b/.test(clean) ||
     /\b(kinh doanh|ban|co|cung cap)\s+(nhung\s+)?(gi|mat hang|san pham|linh vuc)\b/.test(clean) ||
     /\b(co|ban|kinh doanh)\s+(nhung\s+)?(mon|do|hang|gi)\s+(gi|khong|nao)\b/.test(clean) ||
-    /^(?:tu van|tu van giup|tu van ho|can tu van|muon tu van|tu van san pham|tu van mat hang)$/.test(clean)
+    /^(?:tu van san pham|tu van mat hang|tu van chon mua|tu van mua hang)$/.test(clean)
   ) {
     return true;
   }
@@ -1557,6 +1567,21 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
   // If matched a live product (similarity >= 80%) in DB, it's NOT missing!
   if (matchedProducts && matchedProducts.length > 0) return null;
 
+  const clean = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
+
+  // NON-SALES DOMAIN GUARD: Never classify stock, weather, drafting, coding, or life queries as missing store products!
+  const nonSalesPatterns = [
+    /(?:chung khoan|co phieu|vnindex|vcb|hpg|fpt|dau tu tai chinh|trai phieu|tai chinh|lai suat)/i,
+    /(?:thoi tiet|du bao thoi tiet|nhiet do|troi mua|troi nang)/i,
+    /(?:soan cong van|thong bao noi bo|bien ban|viet thu|hop dong lao dong|van ban hanh chinh)/i,
+    /(?:loi code|lap trinh|viet code|sua bug|python|javascript|react|cai win)/i,
+    /(?:tam su|buon qua|ke chuyen|triet hoc|phong thuy|suc khoe|y te)/i,
+    /(?:ban la ai|em la ai|ban ten gi|khoe khong|hom nay the nao)/i
+  ];
+  if (nonSalesPatterns.some(p => p.test(clean) || p.test(normMessage))) {
+    return null;
+  }
+
   // Filter out non-product questions, general queries, budget queries, phone submissions, or comparison questions
   if (
     Boolean(extractPhoneNumber(message)) ||
@@ -1600,7 +1625,6 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
     return null;
   }
 
-  const clean = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
   const isChatOrSysWord = (str) => /(?:chat|noi\s+dung|dung\s+chat|tin\s+nhan|lam\s+moi|xoa)/i.test(str);
 
   // Pattern 1: Inquiring availability ("có bán X không", "có X không", "shop có X không", "bên bạn có X không", "em bán X không")
@@ -2003,6 +2027,87 @@ export class SalesEngine {
       }
     }
 
+    // 4B. NON-SALES TOPIC DELEGATION: If this message is not a sales query, do NOT process through sales catalog
+    const rawCleanMsg = (message || '').trim();
+    const cleanLowerMsg = rawCleanMsg.toLowerCase();
+    const unaccentedMsg = removeVietnameseTones(rawCleanMsg).toLowerCase();
+    const hasExplicitPurchaseVerb = /(?:mua ngay|đặt mua|dat mua|chốt đơn|chot don|báo giá|bao gia)\b/i.test(cleanLowerMsg) ||
+      /(?:mua ngay|dat mua|chot don|bao gia)\b/i.test(unaccentedMsg);
+
+    if (!prevOrderFlow && !selectedProduct && !hasExplicitPurchaseVerb) {
+      // Stock & Finance
+      if (/(?:chứng khoán|chung khoan|cổ phiếu|co phieu|vnindex|vcb|hpg|fpt|đầu tư tài chính|dau tu tai chinh|đầu tư cổ phiếu|trái phiếu|trai phieu)/i.test(cleanLowerMsg) ||
+          /(?:chung khoan|co phieu|vnindex|vcb|hpg|fpt|dau tu chung khoan)/i.test(unaccentedMsg)) {
+        const stockRes = MultiThreadConversationEngine.handleStockInquiry(rawCleanMsg, convId);
+        const botMsgId = `msg_${randomUUID().slice(0, 8)}`;
+        await db.run(
+          `INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, metadata_json, created_at)
+           VALUES (?, ?, 'assistant', 'bot', ?, ?, ?)`,
+          [botMsgId, convId, stockRes.replyText, JSON.stringify({ stage: stockRes.stage, topic: 'FINANCE_STOCK' }), now]
+        );
+        return {
+          success: true,
+          conversationId: convId,
+          messageId: botMsgId,
+          reply: stockRes.replyText,
+          revealCatalog: false,
+          recommendedField: null,
+          recommendedProduct: null,
+          products: [],
+          botState: 'idle',
+          stage: stockRes.stage || 'FINANCE_STOCK_ADVISORY'
+        };
+      }
+
+      // Weather
+      if (/(?:thời tiết|thoi tiet|có mưa không|co mua khong|nhiệt độ|nhiet do|dự báo thời tiết|du bao thoi tiet)/i.test(cleanLowerMsg) ||
+          /(?:thoi tiet|du bao thoi tiet|nhiet do|co mua khong)/i.test(unaccentedMsg)) {
+        const weatherRes = MultiThreadConversationEngine.handleWeatherInquiry(rawCleanMsg, convId);
+        const botMsgId = `msg_${randomUUID().slice(0, 8)}`;
+        await db.run(
+          `INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, metadata_json, created_at)
+           VALUES (?, ?, 'assistant', 'bot', ?, ?, ?)`,
+          [botMsgId, convId, weatherRes.replyText, JSON.stringify({ stage: weatherRes.stage, topic: 'WEATHER_FORECAST' }), now]
+        );
+        return {
+          success: true,
+          conversationId: convId,
+          messageId: botMsgId,
+          reply: weatherRes.replyText,
+          revealCatalog: false,
+          recommendedField: null,
+          recommendedProduct: null,
+          products: [],
+          botState: 'idle',
+          stage: weatherRes.stage || 'WEATHER_FORECAST_RESOLVED'
+        };
+      }
+
+      // Administrative Drafting
+      if (/(?:soạn giúp|soan giup|viết giúp|viet giup|soạn công văn|soan cong van|thông báo nội bộ|thong bao noi bo|biên bản|bien ban|soạn thảo)/i.test(cleanLowerMsg) ||
+          /(?:soan cong van|thong bao noi bo|bien ban|viet thu noi bo)/i.test(unaccentedMsg)) {
+        const adminRes = MultiThreadConversationEngine.handleAdministrativeDrafting(rawCleanMsg, convId);
+        const botMsgId = `msg_${randomUUID().slice(0, 8)}`;
+        await db.run(
+          `INSERT INTO messages (id, conversation_id, sender_type, sender_id, content, metadata_json, created_at)
+           VALUES (?, ?, 'assistant', 'bot', ?, ?, ?)`,
+          [botMsgId, convId, adminRes.replyText, JSON.stringify({ stage: adminRes.stage, topic: 'ADMIN_MEMO' }), now]
+        );
+        return {
+          success: true,
+          conversationId: convId,
+          messageId: botMsgId,
+          reply: adminRes.replyText,
+          revealCatalog: false,
+          recommendedField: null,
+          recommendedProduct: null,
+          products: [],
+          botState: 'idle',
+          stage: adminRes.stage || 'ADMINISTRATIVE_DRAFT_COMPLETED'
+        };
+      }
+    }
+
     // 5. Resolve customer addressing, referenced field, product & quantity
     const normMessage = removeVietnameseTones(message || '');
     const normAction = removeVietnameseTones(actionType || '');
@@ -2363,12 +2468,12 @@ export class SalesEngine {
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
         .join(' ');
 
-      replyText = `Dạ xin chào bạn! 👋 Để tôi có thể phục vụ bạn chu đáo và chuẩn xác nhất, cho tôi xin phép hỏi lại một chút nhé ạ:
+      replyText = `Dạ xin chào bạn! 👋 Để tôi có thể hỗ trợ bạn được chu đáo nhất, cho tôi xin phép hỏi lại một chút nhé ạ:
 
-Từ **"${displayTerm}"** bên trên là **tên của bạn/anh/chị** để tiện xưng hô, hay là **tên sản phẩm** bạn đang cần tìm kiếm ạ?
+Từ **"${displayTerm}"** bạn vừa nhắn là **tên hoặc cách xưng hô** của mình, hay là **sản phẩm** bạn đang quan tâm ạ?
 
-• Nếu là **tên của bạn**: Bạn xác nhận để tôi xin phép được xưng hô đúng tên mình nhé!
-• Nếu là **sản phẩm cần tìm**: Bạn cho tôi biết để tôi kiểm tra nguồn hàng kho và mở bộ sản phẩm ở Cột 2 tư vấn ngay cho bạn ạ!`;
+• Nếu là **tên của bạn**: Bạn cho tôi biết để tôi tiện xưng hô thật thân thiện và chu đáo nhé.
+• Nếu là **sản phẩm cần tìm**: Bạn cứ nhắn thêm thông tin chi tiết hoặc nhu cầu sử dụng, tôi sẽ kiểm tra và tư vấn giải pháp phù hợp nhất ngay cho bạn ạ!`;
 
       customerProfile.name = null;
       missingProductQuery = null;
@@ -2423,7 +2528,7 @@ Từ **"${displayTerm}"** bên trên là **tên của bạn/anh/chị** để ti
         const isBareOrInitialMissingQuery = !hasPriceOrFeature && (cleanWords.length <= 4 || !hasInquiryKeywords);
 
         if (isBareOrInitialMissingQuery) {
-          replyText = `Dạ hiện tại bên em chưa tìm thấy sản phẩm **${missingProductQuery}** trong hệ thống của shop ạ.\n\nCho em xin phép hỏi lại một chút để tiện phục vụ: **'${missingProductQuery}'** là sản phẩm bạn/anh/chị đang tìm kiếm hay là tên của mình để em tiện xưng hô ạ?\n\n- Nếu là sản phẩm bạn đang cần tìm: Bạn có thể để lại **Số điện thoại** để shop kiểm tra nguồn hàng kho và báo giá sớm nhất, hoặc tham khảo các danh mục sản phẩm hiện có ở **Cột 2** nhé ạ.\n- Nếu bạn muốn xưng hô tên khác: Bạn cứ nhắn tên để em tiện phục vụ chu đáo nhất nhé ạ!`;
+          replyText = `Dạ hiện tại bên em chưa tìm thấy sản phẩm **${missingProductQuery}** trong hệ thống của shop ạ.\n\nCho em xin phép hỏi lại một chút: **'${missingProductQuery}'** là tên sản phẩm bạn đang tìm kiếm hay là tên của mình để em tiện xưng hô ạ?\n\n- Nếu là sản phẩm bạn đang cần tìm: Bạn có thể nhắn thêm nhu cầu cụ thể hoặc để lại **Số điện thoại** để shop kiểm tra nguồn hàng và báo giá sớm nhất nhé ạ.\n- Nếu là tên của bạn: Bạn cứ xác nhận để em tiện phục vụ chu đáo nhất ạ!`;
           customerProfile.name = null;
           customerProfile.pendingClarification = {
             term: missingProductQuery,
@@ -3319,6 +3424,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isExplicitButtonAction = Boolean(actionType && actionType !== 'chat');
     const politeAskBanner = '';
     const hasBudgetInQuery = Boolean(extractBudget(normMessage));
+    const coreQuery = extractCoreProductQuery(message);
 
     // 0. Security & Anti-Prompt-Injection
     if (detectSecurityViolation(normMessage)) {
@@ -3708,17 +3814,18 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     const isGreeting = isGreetingMessage(normMessage);
     if (isGreeting) {
       if (!hasAddressingInfo) {
-        return `Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?`;
+        return `Dạ xin chào Anh/Chị! Em là **TRÍ AI**, rất vui được hỗ trợ Anh/Chị. Hôm nay Anh/Chị cần em hỗ trợ thông tin hoặc giải đáp vấn đề gì ạ?`;
       }
-      return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
+      return `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã liên hệ ạ. Em là **TRÍ AI** – rất vui được hỗ trợ ${customerRef}. Hôm nay ${customerRef} cần em hỗ trợ gì ạ?`;
     }
 
     // 12. Intelligent Clarification when request is ambiguous
-    const catalogHighlights = [...new Set(allProducts.map((p) => p.field || p.name).filter(Boolean))]
-      .slice(0, 5)
-      .join(', ');
-    const highlightText = catalogHighlights ? ` (${catalogHighlights})` : '';
-    return `${politeAskBanner}Dạ, tôi rất vui được hỗ trợ ${customerRef}!\n\nTôi là trợ lý bán hàng thông minh và nắm đầy đủ thông tin các sản phẩm${highlightText}.\n\n${capRef} đang quan tâm đến dòng sản phẩm nào hoặc ngân sách khoảng bao nhiêu để tôi tư vấn chuẩn xác nhất ạ?`;
+    const isSalesInterest = /(?:mua|san pham|hang|gia|bao nhieu|tu van san pham|shop|dat hang|bao gia)/i.test(normMessage);
+    if (isSalesInterest) {
+      return `Dạ, em rất vui được hỗ trợ ${customerRef}! ${capRef} đang quan tâm đến dòng sản phẩm nào hoặc tầm ngân sách khoảng bao nhiêu để em hỗ trợ tư vấn chi tiết và chuẩn xác nhất nhé ạ?`;
+    }
+
+    return `Dạ, em là **TRÍ AI**, rất vui được hỗ trợ ${customerRef}! ${capRef} có thể chia sẻ cụ thể hơn câu hỏi hoặc nội dung cần em hỗ trợ để em giải đáp chu đáo nhất nhé ạ!`;
   }
 }
 

@@ -109,9 +109,9 @@ export const ChatStreamWindow = ({
             <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-3 animate-float">
               <Bot size={24} />
             </div>
-            <h4 className="font-semibold text-slate-200 text-sm">Chào mừng bạn đến với TRÍ AI Sales Robot!</h4>
+            <h4 className="font-semibold text-slate-200 text-sm">Chào mừng bạn đến với TRÍ AI!</h4>
             <p className="text-xs text-slate-400 max-w-sm mt-1 leading-relaxed">
-              Tôi là trợ lý bán hàng thông minh. Hãy bấm chọn sản phẩm bên Cột 2 (Product Selector) hoặc nhắn tin trực tiếp để tôi tư vấn nhé!
+              Tôi là TRÍ AI. Bạn có thể nhắn tin hoặc trao đổi bất kỳ chủ đề nào, tôi luôn sẵn sàng hỗ trợ chu đáo nhất!
             </p>
           </div>
         )}

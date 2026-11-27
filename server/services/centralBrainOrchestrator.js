@@ -103,7 +103,8 @@ export class CentralBrainOrchestrator {
 
     // 4A. Check Topic Resumption
     if (pragmaticProfile.communicativeAct === COMMUNICATIVE_ACTS.TOPIC_RESUMPTION ||
-        /(quay lại|quay lai|tiếp tục|tiep tuc|lúc nãy|luc nay|trước đó|truoc do).*(kế hoạch|chuyện|bàn|mua|bán|máy đếm tiền|hợp đồng|khách hàng|soạn báo giá|báo giá)/i.test(pipelineContext.sanitizedText)) {
+        /(quay lại|quay lai|tiếp tục|tiep tuc|lúc nãy|luc nay|trước đó|truoc do).*(kế hoạch|chuyện|bàn|mua|bán|máy đếm tiền|hợp đồng|khách hàng|soạn báo giá|báo giá|máy in|may in|sản phẩm|san pham|mẫu|mau|vấn đề|van de|đề tài|de tai|chủ đề|chu de)/i.test(pipelineContext.sanitizedText) ||
+        /^(quay lại|quay lai)\s+(?:chủ đề|máy in|may in|máy đếm tiền|may dem tien|sản phẩm|san pham|chuyện lúc nãy|kế hoạch lúc nãy)/i.test(pipelineContext.sanitizedText)) {
       MultiThreadConversationEngine.resumeThread(pipelineContext.sessionId);
       const resumed = await this._handleResumeGoal(pipelineContext, params);
       if (resumed) {
@@ -114,7 +115,7 @@ export class CentralBrainOrchestrator {
 
     // 4B. Topic Switch: Stock Market & Financial Investment
     if (pragmaticProfile.targetTopic === 'FINANCE_STOCK' ||
-        /(chứng khoán|cổ phiếu|vnindex|vcb|hpg|fpt|thị trường chứng khoán|đầu tư cổ phiếu)/i.test(pipelineContext.sanitizedText)) {
+        /(chứng khoán|chung khoan|cổ phiếu|co phieu|vn-index|vnindex|vcb|hpg|fpt|thị trường chứng khoán|thi truong chung khoan|đầu tư cổ phiếu|dau tu co phieu|đầu tư tài chính|dau tu tai chinh)/i.test(pipelineContext.sanitizedText)) {
       const stockRes = MultiThreadConversationEngine.handleStockInquiry(pipelineContext.sanitizedText, pipelineContext.sessionId);
       pipelineContext.stagesCompleted.push('4_STOCK_TOPIC_RESOLVED');
       return ResponseEngine.formatResponse({
@@ -127,7 +128,7 @@ export class CentralBrainOrchestrator {
 
     // 4C. Topic Switch: Weather Forecast
     if (pragmaticProfile.targetTopic === 'WEATHER_FORECAST' ||
-        /(thời tiết|thoi tiet|có mưa không|co mua khong).*(hà nội|hồ chí minh|ngày mai|hôm nay)/i.test(pipelineContext.sanitizedText)) {
+        /(thời tiết|thoi tiet|dự báo thời tiết|du bao thoi tiet|có mưa không|co mua khong|nhiệt độ|nhiet do|nắng ấm|nang am|trời nắng|troi nang|có nắng không|co nang khong)/i.test(pipelineContext.sanitizedText)) {
       const weatherRes = MultiThreadConversationEngine.handleWeatherInquiry(pipelineContext.sanitizedText, pipelineContext.sessionId);
       pipelineContext.stagesCompleted.push('4_WEATHER_TOPIC_RESOLVED');
       return ResponseEngine.formatResponse({
@@ -140,7 +141,7 @@ export class CentralBrainOrchestrator {
 
     // 4D. Topic Switch: Administrative Drafting / Internal Memo
     if (pragmaticProfile.targetTopic === 'ADMINISTRATIVE_DRAFTING' ||
-        /(viết giúp|soạn giúp|viết hộ|soan giup).*(thông báo|thong bao|công văn|email nội bộ)/i.test(pipelineContext.sanitizedText)) {
+        /(viết giúp|soạn giúp|viết hộ|soan giup|soạn thảo|soan thao|làm giúp|lam giup|viết|soạn).*(thông báo|thong bao|công văn|cong van|email nội bộ|email noi bo|biên bản|bien ban|hợp đồng|hop dong|đơn xin|don xin)/i.test(pipelineContext.sanitizedText)) {
       const adminRes = MultiThreadConversationEngine.handleAdministrativeDrafting(pipelineContext.sanitizedText, pipelineContext.sessionId);
       pipelineContext.stagesCompleted.push('4_ADMIN_DRAFTING_RESOLVED');
       return ResponseEngine.formatResponse({
@@ -148,6 +149,34 @@ export class CentralBrainOrchestrator {
         revealCatalog: false,
         stage: adminRes.stage,
         toolsUsed: ['multi_thread_engine', 'administrative_drafting_tool']
+      });
+    }
+
+    // 4E. Topic Switch: Technical Troubleshooting & Problem Solving
+    const isTroubleshooting = /(bị kẹt giấy|bi ket giay|kẹt giấy|ket giay|không nhận lệnh|khong nhan lenh|màn hình xanh|man hinh xanh|chạy chậm|chay cham|không lên nguồn|khong len nguon|bị lỗi|bi loi|sửa lỗi|sua loi|khắc phục sự cố|khac phuc su co|kêu to|keu to|rung lắc|rung lac)/i.test(pipelineContext.sanitizedText);
+    if (isTroubleshooting) {
+      const isPrinterJam = /(kẹt giấy|ket giay|máy in|may in)/i.test(pipelineContext.sanitizedText);
+      let troubleReply = '';
+      if (isPrinterJam) {
+        troubleReply = `Dạ, sự cố kẹt giấy ở máy in khá phổ biến và có thể xử lý nhanh theo các bước an toàn sau ạ:\n\n` +
+          `1. 🛑 **Tắt nguồn máy in:** Nhấn nút tắt nguồn và rút dây cắm điện để đảm bảo an toàn tuyệt đối và tránh làm rách bánh răng cuốn giấy.\n` +
+          `2. 📂 **Mở nắp khay chứa:** Mở khay giấy phía trước và cụm nắp trên của máy in, nhẹ nhàng tháo hộp mực (cartridge) ra ngoài và đặt ở nơi râm mát.\n` +
+          `3. ✋ **Rút giấy kẹt theo chiều thuận:** Dùng cả hai tay kéo đều hai mép giấy theo chiều nạp giấy ra (tuyệt đối không kéo giật mạnh hoặc kéo ngược chiều cuốn để tránh vụn giấy sót lại trong lô cuốn).\n` +
+          `4. 🔄 **Kiểm tra và lắp lại:** Kiểm tra khay nạp giấy đảm bảo giấy không bị ẩm hay cong mép, sau đó lắp lại hộp mực, đóng chặt nắp và bật nguồn in thử.\n\n` +
+          `Anh/chị đang sử dụng dòng máy in nào để em hướng dẫn vị trí mở cần gạt chính xác nhất ạ?`;
+      } else {
+        troubleReply = `Dạ, để xử lý sự cố kỹ thuật này một cách an toàn và triệt để, em xin gợi ý quy trình kiểm tra theo các bước sau:\n\n` +
+          `1. 🔍 **Kiểm tra nguồn điện & kết nối:** Đảm bảo dây cắm, adapter và các cổng kết nối tín hiệu đang hoạt động ổn định, không bị lỏng hay chập chờn.\n` +
+          `2. 🔄 **Khởi động lại thiết bị (Power Cycle):** Tắt thiết bị, ngắt điện hoàn toàn trong khoảng 30 giây rồi bật lại để giải phóng bộ nhớ đệm và các tiến trình xung đột.\n` +
+          `3. 📋 **Kiểm tra mã lỗi / đèn báo:** Quan sát tín hiệu đèn LED hoặc mã lỗi hiển thị trên màn hình để xác định chính xác bộ phận phát sinh sự cố.\n\n` +
+          `Thiết bị của mình hiện đang báo tín hiệu đèn hoặc thông báo lỗi cụ thể như thế nào ạ?`;
+      }
+      pipelineContext.stagesCompleted.push('4_TECH_TROUBLESHOOTING_RESOLVED');
+      return ResponseEngine.formatResponse({
+        replyText: troubleReply,
+        revealCatalog: false,
+        stage: 'TECH_TROUBLESHOOTING_RESOLVED',
+        toolsUsed: ['troubleshooting_engine', 'hardware_diagnostic_guide']
       });
     }
 
@@ -304,7 +333,11 @@ export class CentralBrainOrchestrator {
     let targetProd = previousGoal?.product || pipelineContext.activeProduct;
 
     if (!targetProd) {
-      targetProd = allActiveProds.find(p => p.name.includes('XINDA') || p.name.includes('BROTHER') || p.field === 'Máy đếm tiền') || allActiveProds[0];
+      if (/(máy in|may in|brother|canon)/i.test(pipelineContext.sanitizedText)) {
+        targetProd = allActiveProds.find(p => p.name.includes('BROTHER') || p.name.includes('CANON') || (p.field && p.field.toLowerCase().includes('in'))) || allActiveProds[0];
+      } else {
+        targetProd = allActiveProds.find(p => p.name.includes('XINDA') || p.name.includes('BROTHER') || p.field === 'Máy đếm tiền') || allActiveProds[0];
+      }
     }
 
     const targetCustomer = previousGoal?.customer || params.customerInfo?.name || 'Khách hàng';

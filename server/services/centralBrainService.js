@@ -1670,7 +1670,7 @@ Nguyên tắc:
     }
 
     // 3B.5B. UNKNOWN MODEL CODE GUARD: Prevent hallucinating when customer asks for a non-existent model
-    if (slots.modelCode) {
+    if (slots.modelCode && !/(?:vn-index|vnindex|covid|iso-\d+|mp3|mp4|hpg|vcb|fpt)/i.test(slots.modelCode)) {
       const codeClean = slots.modelCode.replace(/[-_\s]/g, '').toLowerCase();
       const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
       const modelExists = allActiveProds.some(p => {
@@ -1719,7 +1719,7 @@ Nguyên tắc:
     }
 
     // 3B.6. GROUNDED PRICE INQUIRY: Báo giá niêm yết chính xác từ Database khi khách hỏi giá cụ thể
-    if (primaryIntent === 'PRICE_INQUIRY' || /(gia bao nhieu|bao nhieu tien|may tien)\b/i.test(unaccentedMsg)) {
+    if (primaryIntent === 'PRICE_INQUIRY' || /(^gia\b|gia bao nhieu|bao nhieu tien|may tien|gia cua|bao gia)\b/i.test(unaccentedMsg)) {
       const allActiveProds = await db.all('SELECT * FROM products WHERE is_active = 1');
       let targetProd = null;
       if (slots.modelCode) {
@@ -1731,6 +1731,12 @@ Nguyên tắc:
       }
       if (!targetProd && selectedProduct) {
         targetProd = selectedProduct;
+      }
+      if (!targetProd) {
+        targetProd = allActiveProds.find(p => {
+          const normP = IntentEngine.stripDiacritics(p.name).toLowerCase();
+          return unaccentedMsg.includes(normP);
+        }) || allActiveProds.find(p => p.field && unaccentedMsg.includes(IntentEngine.stripDiacritics(p.field).toLowerCase()));
       }
       if (targetProd) {
         toolsUsed.push('grounded_price_inquiry');
@@ -1778,8 +1784,30 @@ Nguyên tắc:
       });
     }
 
-    // 4. BÁN HÀNG & TƯ VẤN SẢN PHẨM & CHAT SHOP (CORE DEFAULT CHO TOÀN BỘ CÂU HỎI CÒN LẠI)
-    // TUYỆT ĐỐI KHÔNG LÔI KÉO TÀI LIỆU NỘI BỘ, QUY CHẾ VÀO BÁN HÀNG!
+    // 4. BÁN HÀNG & TƯ VẤN SẢN PHẨM (CHỈ KÍCH HOẠT KHI CÓ NHU CẦU MUA BÁN HOẶC CHỌN SẢN PHẨM CỤ THỂ)
+    // TUYỆT ĐỐI KHÔNG mặc định mọi câu hỏi là bán hàng!
+    const isGenuineSales = naturalContext.hasExplicitSalesIntent ||
+      SalesEngineAdapter.isSalesInquiry(message) ||
+      Boolean(selectedProduct) ||
+      Boolean(slots.productName) ||
+      Boolean(slots.modelCode) ||
+      Boolean(slots.brand);
+
+    if (!isGenuineSales) {
+      toolsUsed.push('natural_human_conversation_engine');
+      const humanRes = await NaturalHumanConversationEngine.handleConversation(context);
+      return ResponseEngine.formatResponse({
+        replyText: humanRes.replyText,
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: humanRes.stage || 'NATURAL_HUMAN_CONVERSATION',
+        toolsUsed: [...new Set([...toolsUsed, ...(humanRes.toolsUsed || [])])],
+        intentResult,
+        message
+      });
+    }
+
     toolsUsed.push('consult_sales_engine');
     const salesResult = await SalesEngineAdapter.processMessage({
       conversationId,

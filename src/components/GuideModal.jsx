@@ -22,7 +22,7 @@ export const GuideModal = ({ isOpen = false, onClose }) => {
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-bold text-white font-display">
-              HƯỚNG DẪN SỬ DỤNG TRÍ AI SALES ROBOT
+              HƯỚNG DẪN SỬ DỤNG TRÍ AI ONE SUPER BRAIN
             </h2>
             <p className="text-xs text-cyan-300">
               Trợ lý bán hàng thông minh • Tư vấn đúng nhu cầu • Kết nối chủ nhân

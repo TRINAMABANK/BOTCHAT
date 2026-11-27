@@ -166,22 +166,55 @@ export class SalesEngineAdapter {
    */
   static isSalesInquiry(text = '') {
     if (!text) return false;
-    const normalized = text
-      .toLowerCase()
+    const lower = text.toLowerCase();
+    const normalized = lower
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/đ/g, 'd')
       .replace(/Đ/g, 'd');
 
-    const keywords = [
-      'mua', 'gia', 'ban', 'san pham', 'hang', 'order', 'dat hang',
-      'laptop', 'tra', 'tivi', 'may dem tien', 'ghe', 'ban lam viec',
-      'khuyen mai', 'ton kho', 'bao nhieu', 'co san', 'giao hang',
-      'may in', 'may scan', 'muc in', 'man hinh', 'cpu', 'tablet',
-      'may tinh', 'dien thoai', 'nuoc hoa', 'ca phe', 'cafe', 'matcha',
-      'my pham', 'thiet bi', 'tu van', 'danh muc', 'co gi', 'canon', 'dell', 'samsung'
+    // EXPLICIT NON-SALES EXCLUSIONS:
+    // If the inquiry is about non-sales domains and does NOT contain explicit buying verbs, NEVER flag as sales!
+    const nonSalesDomainPatterns = [
+      /(?:chứng khoán|chung khoan|cổ phiếu|co phieu|vnindex|vcb|hpg|fpt|đầu tư tài chính|dau tu tai chinh|trái phiếu|trai phieu|quỹ đầu tư|thị trường tài chính)/i,
+      /(?:thời tiết|thoi tiet|dự báo thời tiết|du bao thoi tiet|trời mưa|troi mua|nhiệt độ|nhiet do)/i,
+      /(?:soạn công văn|soan cong van|thông báo nội bộ|thong bao noi bo|biên bản|bien ban|viết thư|viet thu|hợp đồng lao động)/i,
+      /(?:lỗi code|loi code|lập trình|lap trinh|viết code|viet code|sửa bug|sua bug|python|javascript|react|cài win|cài đặt hệ điều hành)/i,
+      /(?:tâm sự|tam su|buồn quá|buon qua|kể chuyện|ke chuyen|triết học|triet hoc|phong thủy|phong thuy|sức khỏe|suc khoe|y tế|y te)/i,
+      /(?:bạn là ai|ban la ai|em là ai|em la ai|bạn tên gì|ban ten gi|khỏe không|khoe khong|hôm nay thế nào|hom nay the nao)/i
     ];
-    return keywords.some(k => normalized.includes(k));
+
+    const hasExplicitPurchaseVerb = /(?:mua ngay|đặt mua|dat mua|chốt đơn|chot don|báo giá cho tôi|bao gia cho toi|mua hàng|mua hang)\b/i.test(lower) ||
+      /(?:mua ngay|dat mua|chot don|bao gia cho toi|mua hang)\b/i.test(normalized);
+
+    const isNonSales = nonSalesDomainPatterns.some(p => p.test(lower) || p.test(normalized));
+    if (isNonSales && !hasExplicitPurchaseVerb) {
+      return false;
+    }
+
+    // Specific product names in shop catalog
+    const productKeywords = [
+      'may dem tien', 'xinda', 'glory', 'xiudun', 'julong', 'hang tin', 'bofa',
+      'laptop', 'thinkpad', 'macbook', 'dell', 'hp', 'asus', 'lenovo', 'ideapad',
+      'may in', 'may scan', 'muc in', 'brother', 'canon', 'hp laserjet',
+      'man hinh', 'ban lam viec', 'ghe giam doc', 'ghe van phong',
+      'matcha', 'tra oolong', 'tra cao cap', 'ca phe rang moc', 'espresso',
+      'nuoc hoa', 'cindy bloom'
+    ];
+
+    if (productKeywords.some(pk => normalized.includes(pk))) {
+      return true;
+    }
+
+    // Explicit sales intent phrases
+    const salesIntentPatterns = [
+      /\b(mua|dat hang|chot don|dat mua|gia bao nhieu|bao gia|bao nhieu tien|may tien)\b/i,
+      /\b(shop co ban|shop ban gi|ben ban co gi|ben shop co gi|con hang khong|co san hang)\b/i,
+      /\b(tu van san pham|tu van mua hang|tu van chon mua|tu van bao gia)\b/i,
+      /\b(danh muc san pham|cac san pham cua shop|mat hang cua shop)\b/i
+    ];
+
+    return salesIntentPatterns.some(p => p.test(normalized));
   }
 }
 
