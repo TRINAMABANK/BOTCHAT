@@ -46,6 +46,7 @@ import { DomainRegistry } from './domains/domainRegistry.js';
 import { NaturalHumanConversationEngine } from './intelligence/naturalHumanConversationEngine.js';
 import { UnifiedMemoryCore, TRUTH_TYPES } from './intelligence/unifiedMemoryCore.js';
 import { AutonomyApprovalEngine } from './intelligence/autonomyApprovalEngine.js';
+import { CentralBrainOrchestrator } from './centralBrainOrchestrator.js';
 
 /**
  * Clean unwanted search engine links and placeholder citation artifacts
@@ -369,6 +370,14 @@ export class CentralBrainService {
         ContextEngine.updateSessionContext(conversationId, { lastIntent: 'SECRETARY_TASK' });
         return secRes;
       }
+    }
+
+    // =========================================================================
+    // TRÍ AI ONE SUPER BRAIN: CENTRAL BRAIN ORCHESTRATOR 9-STAGE PIPELINE
+    // =========================================================================
+    const orchestratedRes = await CentralBrainOrchestrator.runPipeline(params);
+    if (orchestratedRes) {
+      return orchestratedRes;
     }
 
     // =========================================================================
@@ -988,11 +997,14 @@ export class CentralBrainService {
     // 2B-SERVICE. TƯ VẤN DỊCH VỤ THI CÔNG – LẮP ĐẶT – KHẢO SÁT (BOTCHAT SERVICE)
     // Ưu tiên xử lý dịch vụ trước; TUYỆT ĐỐI không đổ danh mục sản phẩm Cột 2!
     // -------------------------------------------------------------------------
-    if (intentResult.primaryIntent === 'SERVICE_SURVEY_REQUEST' || 
+    const sessionContext = ContextEngine.getSessionContext(conversationId);
+    const isDomainRegulationQuery = /(quy chuẩn|tiêu chuẩn|tcvn|nghị định|quy định|an toàn chịu tải)/i.test(trimmedMsg);
+    if (!isDomainRegulationQuery && (sessionContext?.inServiceIntake ||
+        intentResult.primaryIntent === 'SERVICE_SURVEY_REQUEST' || 
         intentResult.primaryIntent === 'INSTALLATION_REQUEST' || 
         intentResult.primaryIntent === 'MAINTENANCE_REQUEST' || 
         intentResult.primaryIntent === 'REPAIR_REQUEST' ||
-        intentResult.domain === 'SERVICE') {
+        intentResult.domain === 'SERVICE')) {
       const res = await ServiceConsultant.handleServiceConsultation(enrichedContext);
       ContextEngine.updateSessionContext(conversationId, {
         inServiceIntake: true,

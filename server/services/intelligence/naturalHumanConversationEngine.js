@@ -371,7 +371,8 @@ Bạn đang muốn tìm hiểu sâu về phương diện toán học, ý nghĩa 
         .replace(/(?:hiện tại bên em đang có sản phẩm).*?(?:cột 2)[^\n.!?]*[.!?]?/gi, '');
     }
 
-    // 3. Chuẩn hóa khoảng trắng và dòng trống sau khi loại bỏ cụm từ
+    // 3. Chuẩn hóa thương hiệu TRÍ AI và khoảng trắng
+    cleaned = cleaned.replace(/\b(?:Trí\s+AI|trí\s+ai|Tri\s+AI)\b/g, 'TRÍ AI');
     cleaned = cleaned
       .replace(/[ \t]+/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
