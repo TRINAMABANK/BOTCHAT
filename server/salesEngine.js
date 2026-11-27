@@ -462,6 +462,11 @@ function extractCoreProductQuery(rawMsg) {
     return '';
   }
 
+  // SERVICE & REPAIR GUARD: Do not extract products for service/repair requests!
+  if (IntentEngine && IntentEngine.isRepairServiceInquiry && (IntentEngine.isRepairServiceInquiry(rawMsg, cleanLower, unaccented) || IntentEngine.isMaintenanceServiceInquiry(rawMsg, cleanLower, unaccented) || IntentEngine.isCustomerSellingGoods(rawMsg, cleanLower, unaccented))) {
+    return '';
+  }
+
   // NON-SALES DOMAIN GUARD: Tuyệt đối không coi các câu hỏi về tài chính, thời tiết, văn bản, lập trình, đời sống là câu hỏi sản phẩm
   const nonSalesDomain = /(?:chứng khoán|chung khoan|cổ phiếu|co phieu|vnindex|vcb|hpg|fpt|đầu tư tài chính|dau tu tai chinh|trái phiếu|trai phieu|quỹ đầu tư|thị trường tài chính|thời tiết|thoi tiet|dự báo thời tiết|du bao thoi tiet|trời mưa|nhiệt độ|soạn công văn|soan cong van|thông báo nội bộ|thong bao noi bo|biên bản|bien ban|viết thư|lỗi code|loi code|lập trình|lap trinh|viết code|viet code|sửa bug|sua bug|python|javascript|tâm sự|tam su|buồn quá|buon qua|phong thủy|phong thuy|sức khỏe|suc khoe|y tế|y te)/i;
   if (nonSalesDomain.test(cleanLower) || nonSalesDomain.test(unaccented)) {
@@ -657,12 +662,62 @@ function isForeignProductQuery(cleanNormMsg, normProdName) {
 /**
  * Calculate similarity percentage (0 - 100) between customer query and a product in data.
  */
-function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', contextField = null) {
+export function calculateProductSimilarity(cleanNormMsg, product, coreQuery = '', contextField = null, originalMsg = '') {
   if (!cleanNormMsg || !product) return 0;
   const normProdName = removeVietnameseTones(product.name || '').replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ');
   const normField = removeVietnameseTones(product.field || '');
   const normSlug = removeVietnameseTones(String(product.slug || product.id || ''));
   const normCore = coreQuery ? removeVietnameseTones(coreQuery).replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').trim() : '';
+
+  // 00. STRICT VIETNAMESE SEMANTIC & HOMOPHONE GUARDS (SỬA ≠ SỮA, MƯA ≠ MUA, BÀN ≠ BÁN, BÃO ≠ BẢO)
+  const rawQuery = (originalMsg || coreQuery || cleanNormMsg).toLowerCase();
+  const prodNameLower = (product.name || '').toLowerCase();
+  const prodFieldLower = (product.field || '').toLowerCase();
+
+  // 00A. SỬA (repair/defect) vs SỮA (milk/dairy):
+  const hasRepairVerb = /\b(?:sửa|sửa\s+chữa|nhận\s+sửa|biết\s+sửa|chỗ\s+sửa|nơi\s+sửa|tiệm\s+sửa|sửa\s+ở\s+đâu|bị\s+hỏng|bị\s+hư|hỏng\s+màn\s+hình|thay\s+pin)\b/i.test(rawQuery);
+  const hasDairyMilk = /\b(?:sữa|sua\s+tuoi|sua\s+dac|sua\s+bot|sua\s+chua|ca\s+phe\s+sua|tra\s+sua|hop\s+sua)\b/i.test(rawQuery);
+  const isProdDairyOrBeverage = /\b(?:sữa|sua|cà\s+phê|ca\s+phe|gunam|matcha|trà|nước\s+hoa|mỹ\s+phẩm)\b/i.test(prodNameLower + ' ' + prodFieldLower);
+
+  if (hasRepairVerb && !hasDairyMilk && isProdDairyOrBeverage) {
+    return 0; // "Bạn biết sửa điện thoại không?" MUST NEVER match "Cà Phê Sữa GUNAM" or milk!
+  }
+  if (hasRepairVerb && !hasDairyMilk) {
+    return 0; // Store catalog does not provide phone repair service
+  }
+
+  // 00B. MƯA (rain) vs MUA (buy):
+  const hasRainToned = /\b(?:mưa|mưa\s+to|mưa\s+lớn|mưa\s+rào|cơn\s+mưa|trời\s+mưa)\b/i.test(rawQuery);
+  const hasBuyToned = /\b(?:mua|đặt\s+mua|chốt\s+mua|mua\s+ngay|cần\s+mua|muốn\s+mua)\b/i.test(rawQuery);
+  if (hasRainToned && !hasBuyToned) {
+    return 0;
+  }
+
+  // 00C. BÀN BẠC (discuss) vs BÁN (sell):
+  if (/\b(?:bàn\s+bạc|bàn\s+về|bàn\s+kế\s+hoạch|bàn\s+chuyện|bàn\s+công\s+việc)\b/i.test(rawQuery) && !/\b(?:bán|mua)\b/i.test(rawQuery)) {
+    return 0;
+  }
+
+  // 00D. BÃO (storm) vs BẢO (guarantee/warranty/tell):
+  if (/\b(?:cơn\s+bão|bão\s+số|áp\s+thấp)\b/i.test(rawQuery) && !/\b(?:bảo\s+hành|mua|bán)\b/i.test(rawQuery)) {
+    return 0;
+  }
+
+  // 00E. ĐÁ (stone/ice/drink/kick) vs ĐÃ (already):
+  if (/\b(?:đá\s+một\s+cốc|uống\s+cà\s+phê\s+đá|đá\s+bóng|hòn\s+đá)\b/i.test(rawQuery) && !/\b(?:mua|bán|báo\s+giá)\b/i.test(rawQuery)) {
+    return 0;
+  }
+
+  // 00F. ĐƯỜNG (road/street) vs ĐƯỜNG (sugar):
+  if (/\b(?:hỏi\s+đường|chỉ\s+đường|đoạn\s+đường|con\s+đường|lạc\s+đường)\b/i.test(rawQuery) && !/\b(?:mua|bán|báo\s+giá)\b/i.test(rawQuery)) {
+    return 0;
+  }
+
+  // 00G. CUSTOMER SELLING GOODS (bán đồ cũ, thanh lý xe/đồ) vs STORE SALES:
+  const isCustomerSelling = IntentEngine && IntentEngine.isCustomerSellingGoods ? IntentEngine.isCustomerSellingGoods(originalMsg || rawQuery) : /\b(?:muốn\s+bán|cần\s+bán|bán\s+lại|thanh\s+lý)\s+(?:chiếc|xe|điện\s+thoại|máy|đồ|bàn\s+cũ)\b/i.test(rawQuery);
+  if (isCustomerSelling) {
+    return 0;
+  }
 
   // 0. Foreign brands or products outside catalog => 0% similarity
   if (isForeignProductQuery(cleanNormMsg, normProdName) || (normCore && isForeignProductQuery(normCore, normProdName))) {
@@ -1040,6 +1095,46 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
     };
   }
 
+  // TÌNH HUỐNG HỎI DỊCH VỤ SỬA CHỮA / BẢO HÀNH SỬA CHỮA (sửa điện thoại, sửa máy tính, thay màn hình...):
+  // Tuyệt đối KHÔNG ghép với sản phẩm sữa/cà phê hay xả sản phẩm!
+  if (IntentEngine.isRepairServiceInquiry(message, normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isRepairService: true
+    };
+  }
+
+  // TÌNH HUỐNG HỎI DỊCH VỤ BẢO TRÌ:
+  if (IntentEngine.isMaintenanceServiceInquiry(message, normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isMaintenanceService: true
+    };
+  }
+
+  // TÌNH HUỐNG KHÁCH HÀNG MUỐN BÁN HÀNG CŨ / THANH LÝ:
+  if (IntentEngine.isCustomerSellingGoods(message, normMessage)) {
+    return {
+      tier: 3,
+      similarity: 0,
+      topProduct: null,
+      rankedProducts: [],
+      matchedField: null,
+      missingProductQuery: null,
+      isCustomerSelling: true
+    };
+  }
+
   // TÌNH HUỐNG KHÁCH HÀNG HỎI THĂM SỨC KHOẺ ("bạn khoẻ không", "khỏe không"...):
   // Tuyệt đối KHÔNG quảng cáo sản phẩm ngay, không mở Cột 2!
   if (isHealthInquiry(normMessage)) {
@@ -1206,7 +1301,7 @@ export function evaluateProductMatch(message, normMessage, allProducts, contextF
 
   const scored = allProducts.map((p) => ({
     product: p,
-    similarity: calculateProductSimilarity(cleanNormMsg, p, coreQuery, contextField)
+    similarity: calculateProductSimilarity(cleanNormMsg, p, coreQuery, contextField, message)
   }));
 
   scored.sort((a, b) => b.similarity - a.similarity);
@@ -1570,6 +1665,17 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
   if (matchedProducts && matchedProducts.length > 0) return null;
 
   const clean = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
+
+  // SERVICE & REPAIR GUARD: Never classify repair, maintenance, or selling as missing store products!
+  if (IntentEngine && IntentEngine.isRepairServiceInquiry && IntentEngine.isRepairServiceInquiry(message, message.toLowerCase(), normMessage)) {
+    return null;
+  }
+  if (IntentEngine && IntentEngine.isMaintenanceServiceInquiry && IntentEngine.isMaintenanceServiceInquiry(message, message.toLowerCase(), normMessage)) {
+    return null;
+  }
+  if (IntentEngine && IntentEngine.isCustomerSellingGoods && IntentEngine.isCustomerSellingGoods(message, message.toLowerCase(), normMessage)) {
+    return null;
+  }
 
   // NON-SALES DOMAIN GUARD: Never classify weather, stock, drafting, coding, or life queries as missing store products!
   if (IntentEngine && IntentEngine.isWeatherInquiry && IntentEngine.isWeatherInquiry(message, message.toLowerCase(), normMessage)) {
@@ -2514,6 +2620,12 @@ Từ **"${displayTerm}"** bạn vừa nhắn là **tên hoặc cách xưng hô**
         } else {
           replyText = `Dạ xin chào **${customerRef}**! Rất vui được gặp lại ${customerRef} ạ. Em là **TRÍ AI**, hôm nay ${customerRef} cần em hỗ trợ gì ạ?`;
         }
+      } else if (productMatch?.isRepairService) {
+        replyText = `Dạ, hiện tại bên em chuyên về các sản phẩm công nghệ, văn phòng và tiêu dùng chính hãng, chưa cung cấp dịch vụ sửa chữa điện thoại. Anh/chị có thể cho em biết dòng điện thoại và tình trạng máy để em hỗ trợ tìm hướng xử lý hoặc địa điểm sửa chữa phù hợp nhé.`;
+      } else if (productMatch?.isMaintenanceService) {
+        replyText = `Dạ, hiện tại bên em chỉ cung cấp chính sách bảo hành và bảo trì cho các thiết bị mua tại shop. Anh/chị cho em xin mã sản phẩm hoặc thông tin đơn hàng đã mua tại shop để em hỗ trợ kiểm tra và tiếp nhận bảo trì nhanh nhất nhé ạ.`;
+      } else if (productMatch?.isCustomerSelling) {
+        replyText = `Dạ hiện tại bên em chỉ cung cấp và phân phối các sản phẩm mới chính hãng, chưa triển khai chương trình thu mua hoặc thanh lý hàng cũ từ khách hàng. Cảm ơn Anh/Chị đã quan tâm ạ!`;
       } else if (isMissing) {
         const capRef = capitalizeFirst(customerRef);
         const topSimilar = productMatch?.topProduct || productMatch?.relatedProduct || (productMatch?.rankedProducts && productMatch.rankedProducts[0]) || null;
@@ -3453,6 +3565,21 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
     // 0B. Phân biệt rõ ràng: Khách hàng khai báo tên để xưng hô ("Tôi tên Trí", "Em tên Linh"...)
     if (isCustomerNameDeclaration(message, normMessage)) {
       return `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHiện **${customerRef}** đang cần tìm sản phẩm thuộc lĩnh vực nào để tôi tư vấn ngay ạ?`;
+    }
+
+    // 0B1. Phân biệt câu hỏi dịch vụ sửa chữa:
+    if (productMatch?.isRepairService || IntentEngine.isRepairServiceInquiry(message, normMessage)) {
+      return `Dạ, hiện tại bên em chưa cung cấp dịch vụ sửa chữa điện thoại. Anh/chị có thể cho em biết dòng điện thoại và tình trạng máy để em hỗ trợ tìm hướng xử lý hoặc địa điểm sửa chữa phù hợp nhé.`;
+    }
+
+    // 0B2. Phân biệt câu hỏi dịch vụ bảo trì:
+    if (productMatch?.isMaintenanceService || IntentEngine.isMaintenanceServiceInquiry(message, normMessage)) {
+      return `Dạ, hiện tại bên em chỉ cung cấp chính sách bảo hành và bảo trì cho các thiết bị mua tại shop. Anh/chị cho em xin mã sản phẩm hoặc thông tin đơn hàng đã mua tại shop để em hỗ trợ kiểm tra và tiếp nhận bảo trì nhanh nhất nhé ạ.`;
+    }
+
+    // 0B3. Phân biệt khách hàng muốn bán hàng cũ:
+    if (productMatch?.isCustomerSelling || IntentEngine.isCustomerSellingGoods(message, normMessage)) {
+      return `Dạ hiện tại bên em chỉ cung cấp và phân phối các sản phẩm mới chính hãng, chưa triển khai chương trình thu mua hoặc thanh lý hàng cũ từ khách hàng. Cảm ơn Anh/Chị đã quan tâm ạ!`;
     }
 
     // 0C. Yêu cầu gặp nhân viên hỗ trợ / Chuyên viên tư vấn

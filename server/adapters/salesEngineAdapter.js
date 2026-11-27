@@ -179,6 +179,17 @@ export class SalesEngineAdapter {
       return false;
     }
 
+    // 0B. SERVICE & REPAIR GUARDS (SỬA ≠ SỮA)
+    if (IntentEngine.isRepairServiceInquiry && IntentEngine.isRepairServiceInquiry(text, lower, normalized)) {
+      return false;
+    }
+    if (IntentEngine.isMaintenanceServiceInquiry && IntentEngine.isMaintenanceServiceInquiry(text, lower, normalized)) {
+      return false;
+    }
+    if (IntentEngine.isCustomerSellingGoods && IntentEngine.isCustomerSellingGoods(text, lower, normalized)) {
+      return false;
+    }
+
     // Strict Vietnamese Semantic Guard: Tone marks distinguish rain vs purchase (mưa ≠ mua)
     const hasTonedRain = /\b(?:mưa|mưa lớn|mưa to|mưa rào|cơn mưa|trận mưa|hạt mưa|trời mưa|có mưa|ngập|bão)\b/i.test(lower);
     const hasTonedBuy = /\b(?:mua|mua sắm|đặt mua|chọn mua|mua hàng|mua về|đáng mua)\b/i.test(lower);
@@ -190,10 +201,13 @@ export class SalesEngineAdapter {
     }
 
     // Casual activity exclusions that accidentally mention desks or coffee
-    if (/(?:ngồi vào bàn|ngoi vao ban|dọn bàn|don ban|lau bàn|lau ban)\b/i.test(lower)) {
+    if (/(?:ngồi vào bàn|ngoi vao ban|dọn bàn|don ban|dọn dẹp bàn|don dep ban|lau bàn|lau ban)\b/i.test(lower)) {
       return false;
     }
     if (/(?:đá một cốc|da mot coc|uống một cốc|uong mot coc|làm cốc|lam coc|pha cốc|pha coc)\b/i.test(lower)) {
+      return false;
+    }
+    if (/(?:sếp bảo|sep bao|anh bảo|chi bao)\b/i.test(lower)) {
       return false;
     }
 
@@ -237,7 +251,8 @@ export class SalesEngineAdapter {
       'may in', 'may scan', 'muc in', 'brother', 'canon', 'hp laserjet',
       'man hinh', 'ban lam viec', 'ghe giam doc', 'ghe van phong',
       'matcha', 'tra oolong', 'tra cao cap', 'ca phe rang moc', 'espresso',
-      'nuoc hoa', 'cindy bloom'
+      'nuoc hoa', 'cindy bloom', 'ca phe', 'tra sua', 'gunam', 'sua bot', 'sua dac',
+      'sua tuoi', 'sua hat', 'sua chua', 'dien thoai'
     ];
 
     if (productKeywords.some(pk => normalized.includes(pk))) {
@@ -246,11 +261,11 @@ export class SalesEngineAdapter {
 
     // Explicit sales intent phrases
     const salesIntentPatterns = [
-      /(?:mua|dat hang|chot don|dat mua|gia bao nhieu|bao gia|bao nhieu tien|may tien)\b/i,
+      /(?:mua|dat hang|chot don|dat mua|gia bao nhieu|bao gia|bao nhieu tien|may tien|ban cho|ban tra gop|tra gop|bao hiem)\b/i,
       /(?:shop co ban|shop ban gi|ben ban co gi|ben shop co gi|con hang khong|co san hang)\b/i,
       /(?:tu van san pham|tu van mua hang|tu van chon mua|tu van bao gia)\b/i,
       /(?:danh muc san pham|cac san pham cua shop|mat hang cua shop|ban nhung mat hang|ban gi vay|ban nhung gi|bang gia|bang gia ban le|ban chay|ban chay nhat|model nao)\b/i,
-      /(?:chinh sach ban hang|giao hang|van chuyen|ban giao|bao hanh|chinh hang|chuyen khoan|thanh toan|don hang|hang ton kho|ton kho|hoi gia|dai ly|cua hang|nghi le|muc gia)\b/i
+      /(?:chinh sach ban hang|chinh sach ban si|ban si|giao hang|van chuyen|ban giao|bao hanh|chinh hang|chuyen khoan|thanh toan|don hang|hang ton kho|ton kho|hoi gia|dai ly|cua hang|muc gia|dia chi shop|dia chi cua hang|thong so o cot 2|thong so|shop.*nghi|cua hang.*nghi|ben ban.*nghi)\b/i
     ];
 
     return salesIntentPatterns.some(p => p.test(normalized));

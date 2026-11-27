@@ -185,6 +185,8 @@ export class SelfVerificationQualityGate {
       detectedDomain = 'ADMIN_DRAFTING';
     } else if (/(?:bị kẹt giấy|bi ket giay|không nhận lệnh|màn hình xanh|lỗi code|loi code|sửa bug|sua bug|lỗi indexerror|chạy chậm)/i.test(unaccentedQuery)) {
       detectedDomain = 'TECH_SUPPORT';
+    } else if (/(?:\bsửa\b|sửa chữa|nhận sửa|biết sửa|chỗ sửa|nơi sửa|tiệm sửa|sửa ở đâu|bị hỏng|bị hư|hỏng màn hình|thay pin|sửa điện thoại|sua dien thoai)\b/i.test(lowerQuery) && !/(?:\bsữa\b|sữa tươi|sữa đặc|sữa bột|cà phê sữa|gunam)/i.test(lowerQuery)) {
+      detectedDomain = 'REPAIR_SERVICE';
     } else if (/(?:bạn là ai|ban la ai|em là ai|em la ai|khỏe không|khoe khong|tâm sự|tam su|ý nghĩa của cuộc sống|giảm stress|câu chuyện cười)/i.test(unaccentedQuery)) {
       detectedDomain = 'GENERAL_CHAT';
     }
@@ -202,6 +204,19 @@ export class SelfVerificationQualityGate {
           violation: 'SALES_HIJACK_OF_NON_SALES_INQUIRY',
           reason: `User asked about ${detectedDomain}, but response contained sales engine catalog dump.`
         };
+      }
+
+      // If Repair Service Query, strictly forbid coffee/milk/beverages/catalog product recommendations
+      if (detectedDomain === 'REPAIR_SERVICE') {
+        const hasRepairViolation = /(?:cà phê đậm vị|sữa gunam|cà phê sữa|bột matcha|trà ô long|giá niêm yết|đơn giá|đặt mua|mở bộ sản phẩm ở cột 2)/i.test(lowerReply);
+        if (hasRepairViolation) {
+          return {
+            isDomainRelevant: false,
+            detectedDomain: 'REPAIR_SERVICE',
+            violation: 'REPAIR_SERVICE_CONFUSED_WITH_DAIRY_OR_GOODS',
+            reason: 'Response to phone/device repair query mistakenly recommended milk, coffee or catalog products.'
+          };
+        }
       }
 
       // If Weather Query, strictly forbid sales pitches, product recommendations, or asking phone number for sales

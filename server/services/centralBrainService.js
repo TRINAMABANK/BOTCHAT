@@ -1006,7 +1006,29 @@ export class CentralBrainService {
         intentResult.primaryIntent === 'INSTALLATION_REQUEST' || 
         intentResult.primaryIntent === 'MAINTENANCE_REQUEST' || 
         intentResult.primaryIntent === 'REPAIR_REQUEST' ||
+        intentResult.primaryIntent === 'REPAIR_SERVICE' ||
+        intentResult.primaryIntent === 'MAINTENANCE_SERVICE' ||
+        intentResult.primaryIntent === 'GENERAL_SERVICE' ||
         intentResult.domain === 'SERVICE')) {
+
+      // Explicit check for phone repair or out-of-catalog repair:
+      if (intentResult.primaryIntent === 'REPAIR_SERVICE' || IntentEngine.isRepairServiceInquiry(trimmedMsg, unaccentedMsg)) {
+        const isPhoneRepair = /(?:điện thoại|dien thoai|iphone|samsung|màn hình|man hinh|thay pin)/i.test(trimmedMsg);
+        const reply = isPhoneRepair
+          ? `Dạ, hiện tại bên em chưa cung cấp dịch vụ sửa chữa điện thoại. Anh/chị có thể cho em biết dòng điện thoại và tình trạng máy để em hỗ trợ tìm hướng xử lý hoặc địa điểm sửa chữa phù hợp nhé.`
+          : `Dạ, hiện tại bên em chưa cung cấp dịch vụ sửa chữa thiết bị này. Anh/chị có thể cho em biết thông tin thiết bị và tình trạng hư hỏng để em hỗ trợ hướng xử lý phù hợp nhé.`;
+        return {
+          success: true,
+          reply,
+          revealCatalog: false,
+          recommendedField: null,
+          recommendedProduct: null,
+          stage: 'REPAIR_SERVICE_RESOLVED',
+          toolsUsed: ['service_repair_specialist'],
+          confidence: 0.99
+        };
+      }
+
       const res = await ServiceConsultant.handleServiceConsultation(enrichedContext);
       ContextEngine.updateSessionContext(conversationId, {
         inServiceIntake: true,
@@ -1266,6 +1288,46 @@ export class CentralBrainService {
         revealCatalog: false,
         stage: stockRes.stage,
         toolsUsed: ['multi_thread_engine', 'finance_stock_advisor']
+      });
+    }
+
+    // 0C-4. REPAIR SERVICE & PHONE REPAIR ROUTING (Defense-in-depth: Cấm Sales Engine, Cấm Cột 2)
+    if (primaryIntent === 'REPAIR_SERVICE' || IntentEngine.isRepairServiceInquiry(message, lower, unaccentedMsg)) {
+      const isPhoneRepair = /(?:điện thoại|dien thoai|iphone|samsung|màn hình|man hinh|thay pin)/i.test(message);
+      const reply = isPhoneRepair
+        ? `Dạ, hiện tại bên em chưa cung cấp dịch vụ sửa chữa điện thoại. Anh/chị có thể cho em biết dòng điện thoại và tình trạng máy để em hỗ trợ tìm hướng xử lý hoặc địa điểm sửa chữa phù hợp nhé.`
+        : `Dạ, hiện tại bên em chưa cung cấp dịch vụ sửa chữa thiết bị này. Anh/chị có thể cho em biết thông tin thiết bị và tình trạng hư hỏng để em hỗ trợ hướng xử lý phù hợp nhé.`;
+      return ResponseEngine.formatResponse({
+        replyText: reply,
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'REPAIR_SERVICE_RESOLVED',
+        toolsUsed: ['service_repair_specialist']
+      });
+    }
+
+    // 0C-5. MAINTENANCE SERVICE ROUTING
+    if (primaryIntent === 'MAINTENANCE_SERVICE' || IntentEngine.isMaintenanceServiceInquiry(message, lower, unaccentedMsg)) {
+      return ResponseEngine.formatResponse({
+        replyText: `Dạ, hiện tại bên em chỉ cung cấp chính sách bảo hành và bảo trì cho các thiết bị mua tại shop. Anh/chị cho em xin mã sản phẩm hoặc thông tin đơn hàng đã mua tại shop để em hỗ trợ kiểm tra và tiếp nhận bảo trì nhanh nhất nhé ạ.`,
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'MAINTENANCE_SERVICE_RESOLVED',
+        toolsUsed: ['service_maintenance_specialist']
+      });
+    }
+
+    // 0C-6. CUSTOMER SELLING GOODS ROUTING
+    if (primaryIntent === 'SALES_OF_GOODS' || IntentEngine.isCustomerSellingGoods(message, lower, unaccentedMsg)) {
+      return ResponseEngine.formatResponse({
+        replyText: `Dạ hiện tại bên em chỉ cung cấp và phân phối các sản phẩm mới chính hãng, chưa triển khai chương trình thu mua hoặc thanh lý hàng cũ từ khách hàng. Cảm ơn Anh/Chị đã quan tâm ạ!`,
+        revealCatalog: false,
+        recommendedField: null,
+        recommendedProduct: null,
+        stage: 'CUSTOMER_SELLING_RESOLVED',
+        toolsUsed: ['customer_goods_handler']
       });
     }
 

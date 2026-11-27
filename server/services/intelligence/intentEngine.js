@@ -220,7 +220,13 @@ export function getIntentGroup(primaryIntent = '') {
     case 'MAINTENANCE_REQUEST':
     case 'REPAIR_REQUEST':
     case 'SERVICE_CONSULTATION':
+    case 'REPAIR_SERVICE':
+    case 'MAINTENANCE_SERVICE':
+    case 'GENERAL_SERVICE':
       return INTENT_GROUPS.SERVICE_QUERY;
+    case 'PRODUCT_PURCHASE':
+      return INTENT_GROUPS.SALES_INQUIRY;
+    case 'PRODUCT_INFORMATION':
     case 'PRICE_INQUIRY':
     case 'FORMAL_QUOTATION':
     case 'ORDER_REQUEST':
@@ -235,8 +241,11 @@ export function getIntentGroup(primaryIntent = '') {
     case 'SPEC_SEARCH':
       return INTENT_GROUPS.PRODUCT_INQUIRY;
     case 'MIXED_SALES_SECRETARY':
+    case 'MIXED_INTENT':
     case 'MIXED':
       return INTENT_GROUPS.MIXED;
+    case 'SALES_OF_GOODS':
+      return INTENT_GROUPS.GENERAL_CONVERSATION;
     case 'UNKNOWN':
     case 'RESET_CHAT_REQUEST':
     case 'CONFIRM_RESET_CHAT':
@@ -256,6 +265,8 @@ export function getDomainIntent(primaryIntent = '') {
     case 'FINANCE_QUERY':
       return DOMAIN_INTENTS.FINANCE;
 
+    case 'PRODUCT_PURCHASE':
+    case 'PRODUCT_INFORMATION':
     case 'PRODUCT_INQUIRY':
     case 'PRICE_INQUIRY':
     case 'TECH_SPECS':
@@ -270,12 +281,21 @@ export function getDomainIntent(primaryIntent = '') {
     case 'LIVE_WEBSITE_SEARCH':
       return DOMAIN_INTENTS.SALES;
 
+    case 'REPAIR_SERVICE':
+    case 'MAINTENANCE_SERVICE':
+    case 'GENERAL_SERVICE':
     case 'SERVICE_SURVEY_REQUEST':
     case 'INSTALLATION_REQUEST':
     case 'MAINTENANCE_REQUEST':
     case 'REPAIR_REQUEST':
     case 'SERVICE_CONSULTATION':
       return DOMAIN_INTENTS.SERVICE;
+
+    case 'SALES_OF_GOODS':
+      return DOMAIN_INTENTS.CONVERSATION;
+
+    case 'MIXED_INTENT':
+      return DOMAIN_INTENTS.MIXED;
 
     case 'SECRETARY_TASK':
     case 'SECRETARY_CRM_SUMMARY':
@@ -460,6 +480,102 @@ export class IntentEngine {
     }
 
     return false;
+  }
+
+  /**
+   * VIETNAMESE SEMANTIC REPAIR SERVICE DISAMBIGUATION (SỬA ≠ SỮA)
+   * Strictly distinguishes "sửa" (repair/fix) with hỏi tone from "sữa" (milk/dairy) with ngã tone.
+   */
+  static isRepairServiceInquiry(originalText = '', norm = '', unaccented = '') {
+    const raw = (originalText || '').trim();
+    const rawLower = raw.toLowerCase();
+    const cleanNorm = (norm || '').toLowerCase();
+    const cleanUnaccented = (unaccented || '').toLowerCase();
+
+    // STRICT DIACRITIC GUARD: SỮA (milk/dairy products) is NEVER a repair request!
+    const hasTonedMilk = /\b(?:sữa|sua\s+tuoi|sua\s+dac|sua\s+bot|sua\s+chua|ca\s+phe\s+sua|tra\s+sua|uong\s+sua|hop\s+sua|ly\s+sua|coc\s+sua)\b/i.test(rawLower);
+    
+    // Explicit repair verbs with hỏi tone or explicit repair phrases
+    const hasTonedRepair = /\b(?:sửa|sửa\s+chữa|nhận\s+sửa|biết\s+sửa|chỗ\s+sửa|nơi\s+sửa|tiệm\s+sửa|sửa\s+ở\s+đâu|sửa\s+được\s+không|sửa\s+máy|sửa\s+điện\s+thoại|sửa\s+laptop|sửa\s+máy\s+tính|sửa\s+máy\s+in|sửa\s+màn\s+hình|sửa\s+giúp|sửa\s+hộ|sửa\s+giùm|chữa\s+máy|sửa\s+lấy\s+ngay|đem\s+đi\s+sửa|mang\s+đi\s+sửa)\b/i.test(rawLower);
+
+    if (hasTonedMilk && !hasTonedRepair) {
+      return false;
+    }
+
+    if (hasTonedRepair) {
+      return true;
+    }
+
+    // Hardware defects, breakdowns, screen cracks, power issues
+    const isHardwareDefect = /\b(?:bị\s+hỏng|bi\s+hong|bị\s+hư|bi\s+hu|hỏng\s+màn\s+hình|hong\s+man\s+hinh|vỡ\s+màn\s+hình|vo\s+man\s+hinh|vỡ\s+kính|thay\s+màn\s+hình|thay\s+man\s+hinh|thay\s+pin|không\s+lên\s+nguồn|khong\s+len\s+nguon|bị\s+chập|bị\s+liệt|liệt\s+cảm\s+ứng|sập\s+nguồn|máy\s+bị\s+hư|máy\s+bị\s+hỏng|không\s+khởi\s+động\s+được|bị\s+loạn\s+cảm\s+ứng|bể\s+màn\s+hình)\b/i.test(cleanNorm);
+    if (isHardwareDefect) {
+      return true;
+    }
+
+    // Unaccented repair queries: ONLY if not referring to dairy/milk
+    const unaccentedRepair = /\b(?:sua\s+chua|sua\s+dien\s+thoai|sua\s+may\s+tinh|sua\s+laptop|sua\s+may\s+in|sua\s+o\s+dau|sua\s+duoc\s+khong|biet\s+sua|nhan\s+sua|tiem\s+sua|cho\s+sua|sua\s+giup|sua\s+ho|sua\s+lay\s+ngay|sua\s+man\s+hinh)\b/i.test(cleanUnaccented);
+    if (unaccentedRepair && !hasTonedMilk) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * MAINTENANCE & SERVICING INQUIRY
+   */
+  static isMaintenanceServiceInquiry(originalText = '', norm = '', unaccented = '') {
+    const cleanNorm = (norm || '').toLowerCase();
+    const cleanUnaccented = (unaccented || '').toLowerCase();
+
+    return /\b(?:bảo\s+trì|bao\s+tri|bảo\s+dưỡng|bao\s+duong|vệ\s+sinh\s+máy|ve\s+sinh\s+may|cài\s+lại\s+win|cai\s+lai\s+win|tra\s+keo\s+tản\s+nhiệt|nâng\s+cấp\s+ram|nâng\s+cấp\s+ổ\s+cứng|bảo\s+dưỡng\s+định\s+kỳ|bảo\s+trì\s+định\s+kỳ)\b/i.test(cleanNorm) ||
+      /\b(?:bao\s+tri\s+dinh\s+ky|bao\s+duong\s+dinh\s+ky|ve\s+sinh\s+may\s+tinh|ve\s+sinh\s+laptop|ve\s+sinh\s+may\s+in)\b/i.test(cleanUnaccented);
+  }
+
+  /**
+   * CUSTOMER SELLING GOODS (Customer wants to sell their old items, not purchase from store)
+   */
+  static isCustomerSellingGoods(originalText = '', norm = '', unaccented = '') {
+    const raw = (originalText || '').toLowerCase();
+    const cleanNorm = (norm || raw).toLowerCase();
+    const cleanUnaccented = (unaccented || cleanNorm.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd')).toLowerCase();
+
+    return /\b(?:muốn\s+bán|cần\s+bán|đang\s+bán|định\s+bán|đang\s+muốn\s+bán)\s+(?:lại\s+)?(?:bàn|máy|laptop|đồ|thiết\s+bị|xe|chiếc\s+xe|điện\s+thoại)\s*(?:cũ|này|đã\s+qua\s+sử\s+dụng|thanh\s+lý)?\b/i.test(cleanNorm) ||
+      /\b(?:muon\s+ban|can\s+ban|dang\s+ban|dinh\s+ban|dang\s+muon\s+ban)\s+(?:lai\s+)?(?:ban|may|laptop|do|thiet\s+bi|xe|chiec\s+xe|dien\s+thoai)\s*(?:cu|nay|da\s+qua\s+su\s+dung|thanh\s+ly)?\b/i.test(cleanUnaccented) ||
+      /\b(?:bán\s+bàn\s+cũ|bán\s+máy\s+cũ|bán\s+chiếc\s+xe|bán\s+xe\s+cũ|thanh\s+lý\s+bàn\s+cũ|thanh\s+lý\s+đồ\s+cũ|bên\s+shop\s+có\s+thu\s+mua|thu\s+mua\s+đồ\s+cũ|thu\s+mua\s+máy\s+cũ|bán\s+lại\s+máy\s+cũ)\b/i.test(cleanNorm) ||
+      /\b(?:ban\s+ban\s+cu|ban\s+may\s+cu|ban\s+chiec\s+xe|ban\s+xe\s+cu|thanh\s+ly\s+ban\s+cu|thu\s+mua\s+do\s+cu)\b/i.test(cleanUnaccented);
+  }
+
+  /**
+   * PRODUCT PURCHASE INTENT (Customer explicitly wants to buy/order a product)
+   */
+  static isProductPurchase(originalText = '', norm = '', unaccented = '') {
+    const cleanNorm = (norm || '').toLowerCase();
+    const cleanUnaccented = (unaccented || '').toLowerCase();
+
+    if (this.isWeatherInquiry(originalText, norm, unaccented)) return false;
+    if (this.isRepairServiceInquiry(originalText, norm, unaccented)) return false;
+    if (this.isCustomerSellingGoods(originalText, norm, unaccented)) return false;
+
+    // Explicit purchase intent verbs
+    return /\b(?:cần\s+mua|muốn\s+mua|đặt\s+mua|chốt\s+mua|mua\s+ngay|đặt\s+hàng|dat\s+hang|chốt\s+đơn|chot\s+don|mua\s+giúp|tìm\s+mua|đặt\s+\d+|mua\s+\d+|\bmua\s+(?:sữa|điện\s+thoại|máy|laptop|máy\s+in|trà|cà\s+phê|nước\s+hoa|màn\s+hình|con|chiếc|bộ|cái|hộp|thùng|cốc|ly))\b/i.test(cleanNorm) ||
+      /\b(?:can\s+mua|muon\s+mua|dat\s+mua|chot\s+mua|mua\s+ngay|dat\s+hang|chot\s+don|mua\s+sua|mua\s+dien\s+thoai|mua\s+may\s+in|mua\s+laptop)\b/i.test(cleanUnaccented);
+  }
+
+  /**
+   * PRODUCT INFORMATION INTENT (Customer asking about price, specs, quality without explicit order)
+   */
+  static isProductInformation(originalText = '', norm = '', unaccented = '') {
+    const cleanNorm = (norm || '').toLowerCase();
+    const cleanUnaccented = (unaccented || '').toLowerCase();
+
+    if (this.isWeatherInquiry(originalText, norm, unaccented)) return false;
+    if (this.isRepairServiceInquiry(originalText, norm, unaccented)) return false;
+    if (this.isCustomerSellingGoods(originalText, norm, unaccented)) return false;
+    if (this.isProductPurchase(originalText, norm, unaccented)) return false;
+
+    return /(?:giá\s+bao\s+nhiêu|bao\s+nhiêu\s+tiền|mấy\s+tiền|có\s+ngon\s+không|thông\s+số|cấu\s+hình|dùng\s+tốt\s+không|loại\s+nào\s+ngon|báo\s+giá|xem\s+giá|chức\s+năng|bảo\s+hành\s+bao\s+lâu|in\s+được\s+2\s+mặt\s+không)\b/i.test(cleanNorm) ||
+      /(?:gia\s+bao\s+nhieu|bao\s+nhieu\s+tien|may\s+tien|co\s+ngon\s+khong|thong\s+so|cau\s+hinh|dung\s+tot\s+khong|loai\s+nao\s+ngon)\b/i.test(cleanUnaccented);
   }
 
   /**
@@ -841,6 +957,20 @@ export class IntentEngine {
     }
 
     // 7B. WEATHER QUERY INTENT (Prioritized before General Chat & Sales)
+    // Check if query is mixed weather & advice (e.g. "Trời mưa có nên mua áo mưa không?")
+    const hasRainAndBuyRaincoat = /(?:áo\s+mưa|ao\s+mua)\b/i.test(norm) && /\b(?:mưa|troi\s+mua|trời\s+mưa)\b/i.test(norm);
+    if (hasRainAndBuyRaincoat) {
+      slots.productName = null;
+      return {
+        primaryIntent: 'MIXED_INTENT',
+        domain: DOMAIN_INTENTS.MIXED,
+        intentGroup: INTENT_GROUPS.MIXED,
+        confidence: 0.95,
+        slots,
+        flags: { isSales: false, isDoc: false, isMixed: true }
+      };
+    }
+
     if (this.isWeatherInquiry(originalText, norm, unaccented)) {
       slots.productName = null;
       slots.isWeather = true;
@@ -854,7 +984,49 @@ export class IntentEngine {
       };
     }
 
-    // 7C. FINANCE & STOCK QUERY INTENT (Stocks, VN-Index, Crypto, Savings Rates)
+    // 7C. REPAIR & MAINTENANCE SERVICES (SỬA ≠ SỮA)
+    // Strictly separates repair services from dairy / store goods!
+    if (this.isRepairServiceInquiry(originalText, norm, unaccented)) {
+      slots.productName = null;
+      slots.isRepairService = true;
+      return {
+        primaryIntent: 'REPAIR_SERVICE',
+        domain: DOMAIN_INTENTS.SERVICE,
+        intentGroup: INTENT_GROUPS.SERVICE_QUERY,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isService: true }
+      };
+    }
+
+    if (this.isMaintenanceServiceInquiry(originalText, norm, unaccented)) {
+      slots.productName = null;
+      slots.isMaintenanceService = true;
+      return {
+        primaryIntent: 'MAINTENANCE_SERVICE',
+        domain: DOMAIN_INTENTS.SERVICE,
+        intentGroup: INTENT_GROUPS.SERVICE_QUERY,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isService: true }
+      };
+    }
+
+    // 7D. CUSTOMER SELLING USED GOODS (Not buying from store)
+    if (this.isCustomerSellingGoods(originalText, norm, unaccented)) {
+      slots.productName = null;
+      slots.isCustomerSelling = true;
+      return {
+        primaryIntent: 'SALES_OF_GOODS',
+        domain: DOMAIN_INTENTS.CONVERSATION,
+        intentGroup: INTENT_GROUPS.GENERAL_CONVERSATION,
+        confidence: 0.95,
+        slots,
+        flags: { isSales: false, isDoc: false }
+      };
+    }
+
+    // 7E. FINANCE & STOCK QUERY INTENT (Stocks, VN-Index, Crypto, Savings Rates)
     const isFinanceInquiry = /(?:chứng\s+khoán|chung\s+khoan|cổ\s+phiếu|co\s+phieu|cổ\s+tức|co\s+tuc|cổ\s+đông|co\s+dong|vn-index|vnindex|vn30|crypto|bitcoin|lãi\s+suất\s+(?:tiết\s+kiệm|ngân\s+hàng)|trái\s+phiếu|đầu\s+tư\s+tài\s+chính|thị\s+trường\s+chứng\s+khoán)/i.test(norm);
     if (isFinanceInquiry && !slots.productName) {
       return {
@@ -1072,11 +1244,74 @@ export class IntentEngine {
     const isWeatherInq = this.isWeatherInquiry(originalText, norm, unaccented);
     const isRaincoatOrUmbrellaAdvice = /(?:áo\s+mưa|ao\s+mua|cây\s+dù|chiếc\s+ô)\b/i.test(norm);
     const isCasualDrink = /(?:đá|uống|làm|pha)\s+(?:một\s+)?(?:cốc|ly|tách)\s*(?:cà\s+phê|ca\s+phe|trà|tra)/i.test(norm);
-    const isBuyingVerb = !isWeatherInq && !isRaincoatOrUmbrellaAdvice && /\b(?:mua|cần\s+mua|muốn\s+mua|đặt\s+mua|tìm\s+mua|chọn\s+mua|mua\s+ngay|đáng\s+mua)\b/i.test(normMasked);
 
-    const isSalesKeywords = !isWeatherInq && !isRaincoatOrUmbrellaAdvice && !isCasualDrink && (isBuyingVerb || isSellingVerb || /(?:sản phẩm|san pham|laptop|máy in|may in|máy scan|may scan|trà|cà phê|nước hoa|màn hình|tivi|tai nghe|bột matcha|cpu|tablet|chuột|bàn phím|điện thoại)/i.test(normMasked));
+    // SERVICE & HOMOPHONE DISAMBIGUATION (SỬA ≠ SỮA, MƯA ≠ MUA, BÀN ≠ BÁN, BÃO ≠ BẢO)
+    const isRepairInq = this.isRepairServiceInquiry(originalText, norm, unaccented);
+    const isMaintenanceInq = this.isMaintenanceServiceInquiry(originalText, norm, unaccented);
+    const isCustomerSelling = this.isCustomerSellingGoods(originalText, norm, unaccented);
+    const isProductPur = this.isProductPurchase(originalText, norm, unaccented);
+    const isProductInfo = this.isProductInformation(originalText, norm, unaccented);
 
-    if ((isSalesKeywords || slots.productName) && !isWeatherInq && !isRaincoatOrUmbrellaAdvice && !isCasualDrink) {
+    if (isRepairInq) {
+      return {
+        primaryIntent: 'REPAIR_SERVICE',
+        domain: DOMAIN_INTENTS.SERVICE,
+        intentGroup: INTENT_GROUPS.SERVICE_QUERY,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isService: true }
+      };
+    }
+
+    if (isMaintenanceInq) {
+      return {
+        primaryIntent: 'MAINTENANCE_SERVICE',
+        domain: DOMAIN_INTENTS.SERVICE,
+        intentGroup: INTENT_GROUPS.SERVICE_QUERY,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isService: true }
+      };
+    }
+
+    if (isCustomerSelling) {
+      return {
+        primaryIntent: 'SALES_OF_GOODS',
+        domain: DOMAIN_INTENTS.CONVERSATION,
+        intentGroup: INTENT_GROUPS.GENERAL_CONVERSATION,
+        confidence: 0.95,
+        slots,
+        flags: { isSales: false, isDoc: false }
+      };
+    }
+
+    if (isProductPur) {
+      return {
+        primaryIntent: 'PRODUCT_PURCHASE',
+        domain: DOMAIN_INTENTS.SALES,
+        intentGroup: INTENT_GROUPS.SALES_INQUIRY,
+        confidence: 0.96,
+        slots,
+        flags: { isSales: true, isDoc: false }
+      };
+    }
+
+    if (isProductInfo) {
+      return {
+        primaryIntent: 'PRODUCT_INFORMATION',
+        domain: DOMAIN_INTENTS.SALES,
+        intentGroup: INTENT_GROUPS.PRODUCT_INQUIRY,
+        confidence: 0.94,
+        slots,
+        flags: { isSales: true, isDoc: false }
+      };
+    }
+
+    const isBuyingVerb = !isWeatherInq && !isRaincoatOrUmbrellaAdvice && !isRepairInq && !isMaintenanceInq && !isCustomerSelling && /\b(?:mua|cần\s+mua|muốn\s+mua|đặt\s+mua|tìm\s+mua|chọn\s+mua|mua\s+ngay|đáng\s+mua)\b/i.test(normMasked);
+
+    const isSalesKeywords = !isWeatherInq && !isRaincoatOrUmbrellaAdvice && !isCasualDrink && !isRepairInq && !isMaintenanceInq && !isCustomerSelling && (isBuyingVerb || isSellingVerb || /(?:sản phẩm|san pham|laptop|máy in|may in|máy scan|may scan|trà|cà phê|nước hoa|màn hình|tivi|tai nghe|bột matcha|cpu|tablet|chuột|bàn phím)/i.test(normMasked));
+
+    if ((isSalesKeywords || slots.productName) && !isWeatherInq && !isRaincoatOrUmbrellaAdvice && !isCasualDrink && !isRepairInq && !isMaintenanceInq && !isCustomerSelling) {
       return {
         primaryIntent: 'SALES_CONSULTATION',
         domain: DOMAIN_INTENTS.SALES,
@@ -1256,11 +1491,14 @@ export class IntentEngine {
 
     const isWeatherCandidate = this.isWeatherInquiry(rawMessage, normText, unaccentedClean);
     const isFinanceCandidate = /(?:chứng\s+khoán|chung\s+khoan|cổ\s+phiếu|co\s+phieu|vn-index|vnindex|vn30|crypto|bitcoin|lãi\s+suất)/i.test(normText);
+    const isRepairCandidate = this.isRepairServiceInquiry(rawMessage, normText, unaccentedClean);
+    const isMaintenanceCandidate = this.isMaintenanceServiceInquiry(rawMessage, normText, unaccentedClean);
+    const isSellingCandidate = this.isCustomerSellingGoods(rawMessage, normText, unaccentedClean);
 
     const unaccentedMasked = unaccentedClean.replace(/\b(?:kiem\s+tra|tra\s+cuu|dieu\s+tra|tra\s+loi|tra\s+gop|tra\s+hang|trao\s+doi)\b/gi, '___verb___');
-    const hasProductSignal = !isWeatherCandidate && !isFinanceCandidate && !isCasualDrink && (!!matchedBrand || !!extractedModelCode || !!categoryDomain || /(?:laptop|may in|may scan|may dem tien|may lanh|tu lanh|man hinh|tivi|dien thoai|tai nghe|chuot|ban phim|tra\b|ca phe|nuoc hoa|muc in|giay in)/i.test(unaccentedMasked));
+    const hasProductSignal = !isWeatherCandidate && !isFinanceCandidate && !isCasualDrink && !isRepairCandidate && !isMaintenanceCandidate && !isSellingCandidate && (!!matchedBrand || !!extractedModelCode || (!!categoryDomain && !isRepairCandidate) || /(?:laptop|may in|may scan|may dem tien|may lanh|tu lanh|man hinh|tivi|tai nghe|chuot|ban phim|tra\b|ca phe|nuoc hoa|muc in|giay in)/i.test(unaccentedMasked));
 
-    const isNonProductPhrase = isWeatherCandidate || isFinanceCandidate || isCasualDrink || NON_PRODUCT_TERMS.test(unaccentedClean) || (!hasProductSignal && unaccentedClean.split(' ').length <= 2);
+    const isNonProductPhrase = isWeatherCandidate || isFinanceCandidate || isCasualDrink || isRepairCandidate || isMaintenanceCandidate || isSellingCandidate || NON_PRODUCT_TERMS.test(unaccentedClean) || (!hasProductSignal && unaccentedClean.split(' ').length <= 2);
     // If it has non-product terms, name declaration, or broad category, resolvedProductName MUST be null!
     let resolvedProductName = (isNonProductPhrase || isBroadCategory || (isNameDeclaration && !extractedModelCode)) && !extractedModelCode ? null : (cleanedQuery || null);
 

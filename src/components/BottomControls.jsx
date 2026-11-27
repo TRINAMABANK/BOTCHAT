@@ -64,7 +64,7 @@ export const BottomControls = ({
 
   const placeholderText = isListening
     ? '🎙️ Đang nghe giọng nói của bạn... Hãy nói câu hỏi'
-    : (ORDER_STEP_PLACEHOLDERS[orderStep] || 'Nhập thông tin xưng hô hoặc câu hỏi của bạn...');
+    : (ORDER_STEP_PLACEHOLDERS[orderStep] || 'Nhập câu hỏi hoặc trao đổi với TRÍ AI...');
 
   const displayInputValue = isListening && interimText ? interimText : inputText;
 
