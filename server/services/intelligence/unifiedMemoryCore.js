@@ -246,6 +246,33 @@ export class UnifiedMemoryCore {
     }
   }
 
+  /**
+   * Truy vấn danh sách các Episode theo userId / sessionId
+   */
+  static async queryEpisodes(userIdOrSessionId = null, tenantId = 'org_default') {
+    try {
+      let rows = [];
+      if (userIdOrSessionId) {
+        rows = await db.all(
+          `SELECT e.*, m.owner_id, m.tenant_id
+           FROM ai_memory_episodes e
+           JOIN ai_memories m ON e.memory_id = m.memory_id
+           WHERE (e.conversation_id = ? OR m.owner_id = ? OR m.tenant_id = ?)
+           ORDER BY e.created_at DESC LIMIT 20`,
+          [userIdOrSessionId, userIdOrSessionId, tenantId]
+        );
+      } else {
+        rows = await db.all(
+          `SELECT e.* FROM ai_memory_episodes e ORDER BY e.created_at DESC LIMIT 20`
+        );
+      }
+      return rows;
+    } catch (err) {
+      console.warn('[UNIFIED MEMORY] queryEpisodes error:', err.message);
+      return [];
+    }
+  }
+
   // -------------------------------------------------------------
   // 3. SEMANTIC MEMORY (Dữ kiện thực tế & Phân định Truth Type)
   // -------------------------------------------------------------

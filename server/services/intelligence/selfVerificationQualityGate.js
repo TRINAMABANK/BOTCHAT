@@ -83,6 +83,11 @@ export class SelfVerificationQualityGate {
       });
     }
 
+    // 3B. RULE: Out-of-Catalog Honesty Check
+    if (/(chưa phân phối|không phân phối|chưa có sẵn|ngoài danh mục|không kinh doanh)/i.test(draftReply)) {
+      factTags.push({ tag: 'OUT_OF_CATALOG_HONESTY', confidence: 1.0, type: 'FACT' });
+    }
+
     // 4. Calculate Final Grade
     let confidenceGrade = 'A';
     if (score >= 0.95) {
