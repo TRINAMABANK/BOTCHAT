@@ -188,7 +188,7 @@ export class AppointmentHandler {
     } else if (/(cảm ơn|cam on|thanks|thank you)/i.test(norm)) {
       reply = 'Dạ không có chi ạ! Rất vui được hỗ trợ bạn. Bất cứ khi nào bạn cần giúp đỡ, cứ nhắn cho em nhé!';
     } else if (/(người yêu|nguoi yeu|bạn gái|ban gai)/i.test(norm)) {
-      reply = 'Dạ em là TRÍ AI ULTIMATE ROBOT nên "người yêu" của em chính là công việc và niềm vui khi được trò chuyện, hỗ trợ các bạn mỗi ngày đó ạ!';
+      reply = 'Dạ em là TRÍ AI nên "người yêu" của em chính là công việc và niềm vui khi được trò chuyện, hỗ trợ các bạn mỗi ngày đó ạ!';
     } else if (/(kể chuyện|ke chuyen|hài|hai|vui)/i.test(norm)) {
       reply = 'Dạ em tặng bạn một câu chuyện vui nhé:\n\nCó một anh kỹ sư hỏi người bạn: "Cậu có biết sự khác nhau giữa máy tính và con người là gì không?". Bạn anh trả lời: "Máy tính không bao giờ tự ý đổ lỗi cho ai khác trừ khi con người lập trình sai!" 😄 Chúc bạn có một ngày thật nhiều niềm vui nhé!';
     } else if (/(tạm biệt|tam biet|bye|bai bai)/i.test(norm)) {
@@ -214,9 +214,9 @@ export class AppointmentHandler {
       const cPronoun = customerInfo?.pronoun;
       const cAddressing = customerInfo?.addressing || (cPronoun ? `${cPronoun} ${cName}` : cName);
       if (cName) {
-        reply = `Xin chào ${cAddressing}! Em là **TRÍ AI ULTIMATE ROBOT** – rất vui được gặp lại ${cPronoun || 'anh/chị'}. Hôm nay ${cPronoun || 'anh/chị'} cần em hỗ trợ gì ạ?`;
+        reply = `Dạ xin chào ${cAddressing}! Em là **TRÍ AI** – rất vui được gặp lại ${cPronoun || 'anh/chị'}. Hôm nay ${cPronoun || 'anh/chị'} cần em hỗ trợ gì ạ?`;
       } else {
-        reply = 'Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?';
+        reply = 'Dạ xin chào Anh/Chị! Em là **TRÍ AI**. Rất vui được đồng hành cùng Anh/Chị hôm nay ạ. Anh/Chị cần em hỗ trợ giải đáp thông tin gì cứ chia sẻ với em nhé!';
       }
     }
 

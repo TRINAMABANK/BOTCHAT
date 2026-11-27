@@ -33,6 +33,8 @@ import { KnowledgeGraphEngine } from './intelligence/knowledgeGraphEngine.js';
 import { PragmaticIntelligenceEngine, COMMUNICATIVE_ACTS } from './intelligence/pragmaticIntelligenceEngine.js';
 import { MultiThreadConversationEngine, THREAD_TOPICS, THREAD_STATUS } from './intelligence/multiThreadConversationEngine.js';
 import { SecurityGovernanceGate, AUTHORIZATION_LEVELS } from './security/securityGovernanceGate.js';
+import { WeatherService } from './weather/weatherService.js';
+import { IntentEngine } from './intelligence/intentEngine.js';
 import { PersonaLayer, PERSONAS } from './intelligence/personaLayer.js';
 import { SelfVerificationQualityGate } from './intelligence/selfVerificationQualityGate.js';
 
@@ -126,16 +128,28 @@ export class CentralBrainOrchestrator {
       });
     }
 
-    // 4C. Topic Switch: Weather Forecast
-    if (pragmaticProfile.targetTopic === 'WEATHER_FORECAST' ||
-        /(thời tiết|thoi tiet|dự báo thời tiết|du bao thoi tiet|có mưa không|co mua khong|nhiệt độ|nhiet do|nắng ấm|nang am|trời nắng|troi nang|có nắng không|co nang khong)/i.test(pipelineContext.sanitizedText)) {
-      const weatherRes = MultiThreadConversationEngine.handleWeatherInquiry(pipelineContext.sanitizedText, pipelineContext.sessionId);
+    // 4C. Topic Switch: Real Weather Forecast (Live Meteorological Satellite & Radar Data)
+    const isDeliveryInRain = /(?:giao\s+hàng|ship|vận\s+chuyển)\s*(?:được\s+không|có\s+không|khi\s+trời\s+mưa)/i.test(pipelineContext.sanitizedText);
+    const isRaincoatAdvice = /(?:áo\s+mưa|ao\s+mua)\b/i.test(pipelineContext.sanitizedText);
+    const intentResult = params.intentResult || (IntentEngine ? IntentEngine.analyzeIntent(pipelineContext.sanitizedText) : {});
+
+    const isWeatherTopic = !isDeliveryInRain && !isRaincoatAdvice && (
+      intentResult.primaryIntent === 'WEATHER_QUERY' ||
+      pragmaticProfile.targetTopic === 'WEATHER_FORECAST' ||
+      IntentEngine.isWeatherInquiry(pipelineContext.sanitizedText, pipelineContext.sanitizedText, pipelineContext.sanitizedText) ||
+      WeatherService.extractQueryAspect(pipelineContext.sanitizedText) !== 'GENERAL_WEATHER' ||
+      /(thời tiết|thoi tiet|dự báo thời tiết|du bao thoi tiet|có mưa không|co mua khong|mưa lớn|mua lon|mưa to|mua to|mưa đến mấy giờ|mua den may gio|nhiệt độ|nhiet do|nắng ấm|nang am|trời nắng|troi nang|có nắng không|co nang khong|bão số)/i.test(pipelineContext.sanitizedText)
+    );
+
+    if (isWeatherTopic) {
+      MultiThreadConversationEngine.switchTopic(pipelineContext.sessionId, THREAD_TOPICS.WEATHER_FORECAST, { query: pipelineContext.sanitizedText }, 'Tra cứu thời tiết thời gian thực');
+      const weatherRes = await WeatherService.handleWeatherQuery(pipelineContext.sanitizedText, { lastLocation: pipelineContext.activeThread?.lastLocation });
       pipelineContext.stagesCompleted.push('4_WEATHER_TOPIC_RESOLVED');
       return ResponseEngine.formatResponse({
         replyText: weatherRes.replyText,
         revealCatalog: false,
-        stage: weatherRes.stage,
-        toolsUsed: ['multi_thread_engine', 'weather_advisor']
+        stage: 'WEATHER_FORECAST_RESOLVED',
+        toolsUsed: ['weather_service', 'open_meteo_live']
       });
     }
 

@@ -92,7 +92,7 @@ export const App = () => {
 
   // Bot & System Settings
   const [settings, setSettings] = useState({
-    bot_name: 'TRÍ AI ULTIMATE ROBOT',
+    bot_name: 'TRÍ AI',
     owner_name: 'Quang Nhựt Trí',
     hotline: '0982441446',
     show_hotline: '1'

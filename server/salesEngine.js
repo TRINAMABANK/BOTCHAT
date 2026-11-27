@@ -3,6 +3,8 @@ import db from './db.js';
 import { callGemini } from './geminiService.js';
 import { CrmLeadService } from './services/crmLeadService.js';
 import { MultiThreadConversationEngine } from './services/intelligence/multiThreadConversationEngine.js';
+import { IntentEngine } from './services/intelligence/intentEngine.js';
+import { WeatherService } from './services/weather/weatherService.js';
 
 /**
  * Call an OpenAI-compatible Chat Completions endpoint using server-side credentials.
@@ -1569,10 +1571,21 @@ function detectMissingProductInquiry(message, normMessage, matchedProducts, matc
 
   const clean = normMessage.replace(/[?!.,;:()"'`~@#$%^&*+=<>{}[\]/\\|]/g, ' ').toLowerCase().trim();
 
-  // NON-SALES DOMAIN GUARD: Never classify stock, weather, drafting, coding, or life queries as missing store products!
+  // NON-SALES DOMAIN GUARD: Never classify weather, stock, drafting, coding, or life queries as missing store products!
+  if (IntentEngine && IntentEngine.isWeatherInquiry && IntentEngine.isWeatherInquiry(message, message.toLowerCase(), normMessage)) {
+    return null;
+  }
+  if (IntentEngine && IntentEngine.isFinancialQuery && IntentEngine.isFinancialQuery(message, message.toLowerCase(), normMessage)) {
+    return null;
+  }
+  const hasRainToned = /\b(?:mưa|mưa lớn|mưa to|mưa rào|cơn mưa|trời mưa|ngập lụt|bão|bão số)\b/i.test(message);
+  if (hasRainToned && !/\b(?:mua|đặt mua|chốt đơn)\b/i.test(message)) {
+    return null;
+  }
+
   const nonSalesPatterns = [
     /(?:chung khoan|co phieu|vnindex|vcb|hpg|fpt|dau tu tai chinh|trai phieu|tai chinh|lai suat)/i,
-    /(?:thoi tiet|du bao thoi tiet|nhiet do|troi mua|troi nang)/i,
+    /(?:thoi tiet|du bao thoi tiet|nhiet do|troi mua|troi nang|mua lon|mua to|co mua khong|ngap)/i,
     /(?:soan cong van|thong bao noi bo|bien ban|viet thu|hop dong lao dong|van ban hanh chinh)/i,
     /(?:loi code|lap trinh|viet code|sua bug|python|javascript|react|cai win)/i,
     /(?:tam su|buon qua|ke chuyen|triet hoc|phong thuy|suc khoe|y te)/i,
@@ -1926,7 +1939,7 @@ export class SalesEngine {
       return acc;
     }, {});
 
-    const botName = settings.bot_name || 'TRÍ AI ULTIMATE ROBOT';
+    const botName = settings.bot_name || 'TRÍ AI';
     const ownerName = settings.owner_name || 'Quang Nhựt Trí';
     const rawPhonePrompt = settings.phone_invitation_prompt ||
       'Tôi có thể ghi nhận yêu cầu để shop trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.';
@@ -2497,16 +2510,16 @@ Từ **"${displayTerm}"** bạn vừa nhắn là **tên hoặc cách xưng hô**
         replyText = `Dạ cảm ơn **${customerRef}** rất nhiều! Tôi đã ghi nhận và xin phép gọi **${customerRef}** ạ.\n\nHôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì để tôi hỗ trợ nhé?`;
       } else if (isGreeting) {
         if (!hasAddressingInfo) {
-          replyText = `Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?`;
+          replyText = `Dạ xin chào Anh/Chị! Em là **TRÍ AI**, rất vui được hỗ trợ Anh/Chị. Hôm nay Anh/Chị cần em hỗ trợ thông tin hoặc giải đáp vấn đề gì ạ?`;
         } else {
-          replyText = `Dạ xin chào **${customerRef}**! Cảm ơn **${customerRef}** rất nhiều đã ghé thăm và liên hệ shop ạ. Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh. Hôm nay **${customerRef}** đang cần tìm sản phẩm hoặc giải pháp gì ạ?`;
+          replyText = `Dạ xin chào **${customerRef}**! Rất vui được gặp lại ${customerRef} ạ. Em là **TRÍ AI**, hôm nay ${customerRef} cần em hỗ trợ gì ạ?`;
         }
       } else if (isMissing) {
         const capRef = capitalizeFirst(customerRef);
         const topSimilar = productMatch?.topProduct || productMatch?.relatedProduct || (productMatch?.rankedProducts && productMatch.rankedProducts[0]) || null;
         let step3Alternative = '';
         if (topSimilar) {
-          step3Alternative = `Đồng thời, hiện tại bên em đang có sản phẩm tương tự / liên quan có thể phù hợp với nhu cầu của mình là **${topSimilar.name}** (Giá niêm yết: **${formatPrice(topSimilar)}**). Thông tin chi tiết và hình ảnh đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm nhé ạ!`;
+          step3Alternative = `Đồng thời, hiện tại bên em đang có sản phẩm tương tự / liên quan có thể phù hợp với nhu cầu của mình là **${topSimilar.name}** (Giá niêm yết: **${formatPrice(topSimilar)}**). Thông tin chi tiết và hình ảnh đã có sẵn trong danh mục sản phẩm, ${customerRef} có thể tham khảo thêm nhé ạ!`;
         } else {
           const activeScopeField = conversationContextField || matchedField || null;
           const sameCategoryProducts = activeScopeField && activeScopeField !== 'Tất cả'
@@ -2515,9 +2528,9 @@ Từ **"${displayTerm}"** bạn vừa nhắn là **tên hoặc cách xưng hô**
           if (sameCategoryProducts.length > 0) {
             const uniqueNames = [...new Set(sameCategoryProducts.map((p) => p.name))].slice(0, 2);
             const sampleProds = uniqueNames.map((n) => `**${n}**`).join(', ');
-            step3Alternative = `Đồng thời, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có của shop (như ${sampleProds}) đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
+            step3Alternative = `Đồng thời, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có của shop (như ${sampleProds}) đã có sẵn trong danh mục, ${customerRef} có thể tham khảo trực tiếp nhé.`;
           } else {
-            step3Alternative = `Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
+            step3Alternative = `Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã sẵn sàng, ${customerRef} có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
           }
         }
 
@@ -3759,9 +3772,9 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
         if (sameCategoryProducts.length > 0) {
           const uniqueNames = [...new Set(sameCategoryProducts.map((p) => p.name))].slice(0, 2);
           const sampleProds = uniqueNames.map((n) => `**${n}**`).join(', ');
-          relatedIntro = `Đồng thời, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có của shop (như ${sampleProds}) đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo trực tiếp các mẫu khác ở Cột 2 nhé.`;
+          relatedIntro = `Đồng thời, các mẫu sản phẩm thuộc danh mục **${activeScopeField}** hiện có của shop (như ${sampleProds}) đã có sẵn trong danh mục, ${customerRef} có thể tham khảo trực tiếp nhé.`;
         } else {
-          relatedIntro = `Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở **Cột 2**, ${customerRef} có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
+          relatedIntro = `Đồng thời, toàn bộ danh mục sản phẩm hiện có của shop đã sẵn sàng, ${customerRef} có thể tham khảo thêm các mẫu đang có sẵn tại shop ạ.`;
         }
       }
       return `${politeAskBanner}Dạ hiện tại sản phẩm **${missingCandidate}** chưa tìm thấy trong dữ liệu của shop ạ.\n\n${capRef} vui lòng để lại **Số điện thoại** để nhân viên bên em liên hệ lại hỗ trợ kiểm tra nguồn hàng kho và báo giá sớm nhất nhé ạ.\n\n${relatedIntro}`;
@@ -3782,7 +3795,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('la ai') ||
       normMessage.includes('gioi thieu')
     ) {
-      return `${politeAskBanner}Dạ, em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh. Rất hân hạnh được phục vụ ${customerRef}!\n\n${capRef} đang quan tâm đến sản phẩm nào để em gửi thông tin và ưu đãi ạ?`;
+      return `${politeAskBanner}Dạ, em là **TRÍ AI** – chuyên viên tư vấn thông minh. Rất hân hạnh được đồng hành cùng ${customerRef}!\n\n${capRef} cần em hỗ trợ giải đáp thông tin gì cứ chia sẻ với em nhé ạ!`;
     }
 
     // 11B. Friendly Conversation / Asking Permission ("Tôi hỏi thăm bạn được không?", "Cho tôi hỏi chút", "Hỏi thăm")

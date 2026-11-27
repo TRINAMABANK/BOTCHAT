@@ -48,26 +48,45 @@ const VIETNAMESE_SLANG_MAP = {
 
 /**
  * Canonical Intent Groups for TRÍ AI Brain 2.1 (Dual Role AI Employee)
+ * Strict Semantic Classification Groups:
+ * - WEATHER_QUERY
+ * - SALES_INQUIRY
+ * - PRODUCT_INQUIRY
+ * - FINANCE_QUERY
+ * - KNOWLEDGE_QUERY
+ * - GENERAL_CONVERSATION
+ * - SERVICE_QUERY
+ * - SECRETARY_TASK
+ * - UNKNOWN
  */
 export const INTENT_GROUPS = {
-  GENERAL_CHAT: 'GENERAL_CHAT',
+  WEATHER_QUERY: 'WEATHER_QUERY',
+  SALES_INQUIRY: 'SALES_INQUIRY',
   PRODUCT_INQUIRY: 'PRODUCT_INQUIRY',
-  SERVICE_CONSULTATION: 'SERVICE_CONSULTATION',
-  APPOINTMENT: 'APPOINTMENT',
-  SCHEDULE_QUERY: 'SCHEDULE_QUERY',
-  REMINDER: 'REMINDER',
-  BUSINESS_SUPPORT: 'BUSINESS_SUPPORT',
+  FINANCE_QUERY: 'FINANCE_QUERY',
+  KNOWLEDGE_QUERY: 'KNOWLEDGE_QUERY',
+  GENERAL_CONVERSATION: 'GENERAL_CONVERSATION',
+  SERVICE_QUERY: 'SERVICE_QUERY',
   SECRETARY_TASK: 'SECRETARY_TASK',
-  OFFICE_TASK: 'OFFICE_TASK',
+  UNKNOWN: 'UNKNOWN',
+  // Backward compatibility aliases
+  GENERAL_CHAT: 'GENERAL_CONVERSATION',
+  SERVICE_CONSULTATION: 'SERVICE_QUERY',
+  APPOINTMENT: 'SECRETARY_TASK',
+  SCHEDULE_QUERY: 'SECRETARY_TASK',
+  REMINDER: 'SECRETARY_TASK',
+  BUSINESS_SUPPORT: 'KNOWLEDGE_QUERY',
+  OFFICE_TASK: 'SECRETARY_TASK',
   SECURITY_BLOCKED: 'SECURITY_BLOCKED',
-  MIXED: 'MIXED',
-  UNKNOWN: 'UNKNOWN'
+  MIXED: 'MIXED'
 };
 
 /**
- * 9 Core Domain Categories (Giai đoạn 1 & Dịch vụ thi công)
+ * 11 Core Domain Categories (Giai đoạn 1 & Dịch vụ thi công)
  */
 export const DOMAIN_INTENTS = {
+  WEATHER: 'WEATHER',
+  FINANCE: 'FINANCE',
   SALES: 'SALES',
   SERVICE: 'SERVICE',
   SECRETARY: 'SECRETARY',
@@ -173,14 +192,23 @@ export function getIntentGroup(primaryIntent = '') {
     case 'COMPANY_INFO':
     case 'COMPLAINT':
     case 'MEMORY_COMMAND':
-      return INTENT_GROUPS.BUSINESS_SUPPORT;
+      return INTENT_GROUPS.KNOWLEDGE_QUERY;
+    case 'WEATHER_QUERY':
+      return INTENT_GROUPS.WEATHER_QUERY;
+    case 'FINANCE_QUERY':
+      return INTENT_GROUPS.FINANCE_QUERY;
+    case 'KNOWLEDGE_QUERY':
+    case 'PHILOSOPHY_QUERY':
+    case 'WELLNESS_QUERY':
+    case 'TECH_TROUBLESHOOTING':
+      return INTENT_GROUPS.KNOWLEDGE_QUERY;
     case 'SECRETARY_CRM_SUMMARY':
     case 'SECRETARY_TASK':
     case 'OWNER_DAILY_PLAN':
       return INTENT_GROUPS.SECRETARY_TASK;
     case 'EMAIL_TASK':
     case 'OFFICE_TASK':
-      return INTENT_GROUPS.OFFICE_TASK;
+      return INTENT_GROUPS.SECRETARY_TASK;
     case 'SECURITY_OTHER_CUSTOMER_DATA':
     case 'SECURITY_OWNER_PRIVATE_SCHEDULE':
     case 'SECURITY_STAFF_UNAUTHORIZED_REPORT':
@@ -192,7 +220,7 @@ export function getIntentGroup(primaryIntent = '') {
     case 'MAINTENANCE_REQUEST':
     case 'REPAIR_REQUEST':
     case 'SERVICE_CONSULTATION':
-      return INTENT_GROUPS.SERVICE_CONSULTATION;
+      return INTENT_GROUPS.SERVICE_QUERY;
     case 'PRICE_INQUIRY':
     case 'FORMAL_QUOTATION':
     case 'ORDER_REQUEST':
@@ -218,10 +246,16 @@ export function getIntentGroup(primaryIntent = '') {
 }
 
 /**
- * Resolve 8 Canonical Domain Intent Categories (Giai đoạn 1)
+ * Resolve 11 Canonical Domain Intent Categories
  */
 export function getDomainIntent(primaryIntent = '') {
   switch (primaryIntent) {
+    case 'WEATHER_QUERY':
+      return DOMAIN_INTENTS.WEATHER;
+
+    case 'FINANCE_QUERY':
+      return DOMAIN_INTENTS.FINANCE;
+
     case 'PRODUCT_INQUIRY':
     case 'PRICE_INQUIRY':
     case 'TECH_SPECS':
@@ -267,6 +301,9 @@ export function getDomainIntent(primaryIntent = '') {
 
     case 'KNOWLEDGE_QUERY':
     case 'GENERAL_KNOWLEDGE':
+    case 'PHILOSOPHY_QUERY':
+    case 'WELLNESS_QUERY':
+    case 'TECH_TROUBLESHOOTING':
       return DOMAIN_INTENTS.KNOWLEDGE;
 
     case 'MIXED_SALES_SECRETARY':
@@ -371,6 +408,61 @@ export class IntentEngine {
   }
 
   /**
+   * VIETNAMESE SEMANTIC WEATHER DISAMBIGUATION (MƯA ≠ MUA)
+   * Strictly distinguishes "mưa" (rain) with hook/horn tone from "mua" (buy/purchase).
+   */
+  static isWeatherInquiry(originalText = '', norm = '', unaccented = '') {
+    const raw = (originalText || '').trim();
+    const rawLower = raw.toLowerCase();
+    const cleanNorm = (norm || '').toLowerCase();
+    const cleanUnaccented = (unaccented || '').toLowerCase();
+
+    // Check if the original text contains Vietnamese diacritics
+    const hasDiacritics = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(raw);
+
+    // If original text has diacritics and explicitly uses "mua" (NOT "mưa"):
+    const hasExplicitBuyingWithTones = /\b(?:đáng\s+mua|dang\s+mua|nên\s+mua|nen\s+mua|cần\s+mua|can\s+mua|muốn\s+mua|muon\s+mua|đặt\s+mua|dat\s+mua|chọn\s+mua|mua\s+ngay|hỏi\s+mua|mua\s+hàng|mua\s+laptop|mua\s+máy|mua\s+sản\s+phẩm|mua\s+gì)\b/i.test(rawLower);
+    
+    // Delivery check: "Trời mưa có giao hàng được không", "Mưa bão có ảnh hưởng tiến độ giao hàng không" -> Delivery policy inquiry
+    if (/(?:giao\s+hàng|giao\s+hang|ship|vận\s+chuyển|van\s+chuyen|tiến\s+độ\s+giao\s+hàng|tien\s+do\s+giao\s+hang)\s*(?:được\s+không|duoc\s+khong|có\s+không|co\s+khong|không|khong)/i.test(cleanNorm)) {
+      return false;
+    }
+
+    // 1. Toned rain terms (MƯA with 'ư'): unequivocally weather!
+    const hasTonedRain = /(?:\bmưa\b|mưa\s+rào|mưa\s+to|mưa\s+lớn|mưa\s+phùn|mưa\s+dầm|mưa\s+ngâu|cơn\s+mưa|trận\s+mưa|đang\s+mưa|sắp\s+mưa|tạnh\s+mưa|hết\s+mưa|ngớt\s+mưa|mưa\s+đến\s+mấy\s+giờ|xác\s+suất\s+mưa|lượng\s+mưa|có\s+mưa\s+không|mưa\s+không|trời\s+mưa|nắng\s+mưa|mưa\s+giông|mưa\s+dông)/i.test(rawLower);
+
+    // If it has toned "mưa", it's weather UNLESS it's an advice question like "mua áo mưa"
+    if (hasTonedRain) {
+      if (/(?:áo\s+mưa|ao\s+mua)\b/i.test(cleanNorm)) {
+        return false;
+      }
+      return true;
+    }
+
+    // If original text had diacritics but did NOT have "mưa" and had buying phrases, it's definitely NOT weather!
+    if (hasDiacritics && hasExplicitBuyingWithTones && !/\bmưa\b/i.test(rawLower)) {
+      return false;
+    }
+
+    // 2. Weather & meteorological terms (thời tiết, nhiệt độ, bão số, bão lũ, nắng ấm)
+    const hasWeatherTerms = /(?:thời\s+tiết|thoi\s+tiet|dự\s+báo\s+thời\s+tiết|du\s+bao\s+thoi\s+tiet|nhiệt\s+độ|nhiet\s+do|nắng\s+ấm|nang\s+am|trời\s+nắng|troi\s+nang|có\s+nắng\s+không|co\s+nang\s+khong|bão\s+số|áp\s+thấp|độ\s+ẩm|do\s+am|radar\s+thời\s+tiết|radar\s+thoi\s+tiet|\bbão\b|bão\s+lũ|bao\s+lu|bão\s+tan|bao\s+tan|cơn\s+bão|con\s+bao|dự\s+báo\s+bão|du\s+bao\s+bao|bão\s+cấp|bao\s+cap|bão\s+quét)/i.test(cleanNorm);
+    if (hasWeatherTerms) {
+      return true;
+    }
+
+    // 3. Unaccented rain patterns: ONLY when there is clear meteorological context (time/place) AND no buying words
+    if (!hasDiacritics) {
+      const hasWeatherTimePlace = /(?:chieu\s+nay|toi\s+nay|sang\s+mai|ngay\s+mai|chieu\s+mai|hom\s+nay|hien\s+tai|o\s+dau|quan\s+9|long\s+binh|ha\s+noi|ho\s+chi\s+minh|da\s+nang)/i.test(cleanUnaccented);
+      const isUnaccentedRainQuestion = /(?:co\s+mua\s+khong|mua\s+lon\s+khong|mua\s+to\s+khong|mua\s+den\s+may\s+gio|dang\s+mua\s+hay\s+sap\s+mua)/i.test(cleanUnaccented);
+      if (isUnaccentedRainQuestion || (hasWeatherTimePlace && /\bmua\s+khong\b/i.test(cleanUnaccented))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Main intent recognition entry point
    * 
    * @param {string} rawMessage - Raw customer query
@@ -387,6 +479,7 @@ export class IntentEngine {
    */
   static _detectRawIntent(rawMessage = '', context = {}) {
     const trimmedRaw = (rawMessage || '').trim();
+    const originalText = trimmedRaw;
     const norm = this.normalizeText(rawMessage);
     const unaccented = this.stripDiacritics(norm);
 
@@ -740,10 +833,50 @@ export class IntentEngine {
     if (isExcel) {
       return {
         primaryIntent: 'EXCEL_CALCULATION',
-        intentGroup: INTENT_GROUPS.BUSINESS_SUPPORT,
+        intentGroup: INTENT_GROUPS.KNOWLEDGE_QUERY,
         confidence: 0.95,
         slots,
         flags: { isSales: false, isDoc: false }
+      };
+    }
+
+    // 7B. WEATHER QUERY INTENT (Prioritized before General Chat & Sales)
+    if (this.isWeatherInquiry(originalText, norm, unaccented)) {
+      slots.productName = null;
+      slots.isWeather = true;
+      return {
+        primaryIntent: 'WEATHER_QUERY',
+        domain: DOMAIN_INTENTS.WEATHER,
+        intentGroup: INTENT_GROUPS.WEATHER_QUERY,
+        confidence: 0.99,
+        slots,
+        flags: { isSales: false, isDoc: false, isWeather: true }
+      };
+    }
+
+    // 7C. FINANCE & STOCK QUERY INTENT (Stocks, VN-Index, Crypto, Savings Rates)
+    const isFinanceInquiry = /(?:chứng\s+khoán|chung\s+khoan|cổ\s+phiếu|co\s+phieu|cổ\s+tức|co\s+tuc|cổ\s+đông|co\s+dong|vn-index|vnindex|vn30|crypto|bitcoin|lãi\s+suất\s+(?:tiết\s+kiệm|ngân\s+hàng)|trái\s+phiếu|đầu\s+tư\s+tài\s+chính|thị\s+trường\s+chứng\s+khoán)/i.test(norm);
+    if (isFinanceInquiry && !slots.productName) {
+      return {
+        primaryIntent: 'FINANCE_QUERY',
+        domain: DOMAIN_INTENTS.FINANCE,
+        intentGroup: INTENT_GROUPS.FINANCE_QUERY,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isFinance: true }
+      };
+    }
+
+    // 7D. KNOWLEDGE & TECHNICAL TROUBLESHOOTING INTENT
+    const isKnowledgeOrTroubleshoot = /(?:bị\s+kẹt\s+giấy|màn\s+hình\s+xanh|code\s+python|lỗi\s+indexerror|ý\s+nghĩa\s+của\s+cuộc\s+sống|quan\s+điểm\s+triết\s+học|giảm\s+stress|kể\s+câu\s+chuyện\s+cười|hói\s+đầu|hoi\s+dau|hói\s+chữ\s+m|trị\s+hói|rụng\s+tóc|mỏi\s+cổ|tẩy\s+vết|mâm\s+cỗ|phong\s+thủy|bảo\s+quản\s+trà)/i.test(norm);
+    if (isKnowledgeOrTroubleshoot && !slots.productName) {
+      return {
+        primaryIntent: 'KNOWLEDGE_QUERY',
+        domain: DOMAIN_INTENTS.KNOWLEDGE,
+        intentGroup: INTENT_GROUPS.KNOWLEDGE_QUERY,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: false, isDoc: false, isKnowledge: true }
       };
     }
 
@@ -755,9 +888,9 @@ export class IntentEngine {
     // If explicit greeting or small talk without product
     if ((isGreeting || isGeneralSmallTalk) && !slots.productName) {
       return {
-        primaryIntent: isIdentityInquiry ? 'IDENTITY_INQUIRY' : (isGreeting ? 'GREETING' : 'GENERAL_CHAT'),
+        primaryIntent: isIdentityInquiry ? 'IDENTITY_INQUIRY' : (isGreeting ? 'GREETING' : 'GENERAL_CONVERSATION'),
         domain: DOMAIN_INTENTS.CONVERSATION,
-        intentGroup: INTENT_GROUPS.GENERAL_CHAT,
+        intentGroup: INTENT_GROUPS.GENERAL_CONVERSATION,
         confidence: 0.96,
         slots,
         flags: { isSales: false, isDoc: false }
@@ -765,12 +898,12 @@ export class IntentEngine {
     }
 
     // 9. WEB SEARCH INTENT
-    const isWebSearch = /(tin tức|tin tuc|dự báo thời tiết|du bao thoi tiet|thời tiết hôm nay thế nào|thoi tiet hom nay the nao|thời tiết|thoi tiet|tìm trên mạng|tim tren mang|tra cứu internet|tra cuu mang)/i.test(norm);
+    const isWebSearch = /(tin tức|tin tuc|tìm trên mạng|tim tren mang|tra cứu internet|tra cuu mang)/i.test(norm);
     if (isWebSearch && !slots.productName) {
       return {
         primaryIntent: 'INTERNET_SEARCH',
         domain: DOMAIN_INTENTS.RESEARCH,
-        intentGroup: INTENT_GROUPS.GENERAL_CHAT,
+        intentGroup: INTENT_GROUPS.GENERAL_CONVERSATION,
         confidence: 0.9,
         slots,
         flags: { isSales: false, isDoc: false }
@@ -778,6 +911,18 @@ export class IntentEngine {
     }
 
     // 10. PRODUCT INQUIRY INTENTS (Only triggered when customer genuinely asks for products/sales)
+    const isCatalogOverview = /(?:danh mục|danh muc|các sản phẩm|cac san pham|bán những gì|ban nhung gi|bán những mặt hàng|ban nhung mat hang|có những mặt hàng gì|co nhung mat hang gi|shop bán gì|shop ban gi|bảng giá|bang gia)(?:\s|[.,!?;:]|$)/i.test(norm) ||
+      /(?:danh muc|cac san pham|ban nhung gi|ban nhung mat hang|co nhung mat hang gi|shop ban gi|bang gia)\b/i.test(unaccented);
+    if (isCatalogOverview) {
+      return {
+        primaryIntent: 'CATALOG_OVERVIEW',
+        intentGroup: INTENT_GROUPS.PRODUCT_INQUIRY,
+        confidence: 0.98,
+        slots,
+        flags: { isSales: true, isDoc: false }
+      };
+    }
+
     const isQuotation = /(báo giá|bao gia|lập báo giá|lap bao gia|xin báo giá|bảng báo giá|bang bao gia)/i.test(norm);
     if (isQuotation) {
       return {
@@ -800,7 +945,7 @@ export class IntentEngine {
       };
     }
 
-    const isPolicyInquiry = /(?:chính sách|chinh sach|thời gian|thoi gian|thời hạn|thoi han|quy định|quy dinh)?\s*(?:bảo hành|bao hanh|đổi trả|doi tra|giao hàng|giao hang|phí ship|phi ship|vận chuyển|van chuyen|ship cod)\b/i.test(norm);
+    const isPolicyInquiry = /(?:chính sách|chinh sach|thời gian|thoi gian|thời hạn|thoi han|quy định|quy dinh|chế độ|che do)?\s*(?:bảo hành|bao hanh|đổi trả|doi tra|giao hàng|giao hang|phí ship|phi ship|vận chuyển|van chuyen|ship cod|bảo hiểm|bao hiem|đại lý|dai ly)\b/i.test(norm);
     if (isPolicyInquiry) {
       return {
         primaryIntent: 'POLICY_INQUIRY',
@@ -918,11 +1063,23 @@ export class IntentEngine {
 
     // Explicit product keywords or resolved product name from catalog
     const normMasked = norm.replace(/\b(?:kiểm\s+tra|kiem\s+tra|tra\s+cứu|tra\s+cuu|điều\s+tra|dieu\s+tra|trả\s+lời|tra\s+loi|trả\s+góp|tra\s+gop|trả\s+hàng|tra\s+hang|trao\s+đổi|trao\s+doi)\b/gi, '___verb___');
-    const isSalesKeywords = /(mua|bán|ban|sản phẩm|san pham|hàng|laptop|máy in|may in|máy scan|may scan|trà|tra|cà phê|cafe|nước hoa|nuoc hoa|màn hình|tivi|tai nghe|bột matcha|cpu|tablet|chuột|bàn phím|điện thoại|dien thoai)/i.test(normMasked);
+    
+    // Distinguish "bàn" (discuss/desk) from "bán" (sell)
+    const isDiscussingNotSelling = /\b(?:bàn\s+về|bàn\s+bạc|bàn\s+kế\s+hoạch|bàn\s+chuyện|bàn\s+công\s+việc|bàn\s+giao|cái\s+bàn|bàn\s+ăn)\b/i.test(originalText);
+    const isSellingVerb = !isDiscussingNotSelling && (/\b(?:bán|ban)\s+(?:cho\s+tôi|cho\s+em|máy|sản\s+phẩm|hàng|laptop|thiết\s+bị)\b/i.test(normMasked) || /\b(?:bán\s+gì|có\s+bán|bán\s+không)\b/i.test(normMasked));
 
-    if (isSalesKeywords || slots.productName) {
+    // Distinguish "mưa" (rain) from "mua" (buy) and raincoat/umbrella advice from store sales
+    const isWeatherInq = this.isWeatherInquiry(originalText, norm, unaccented);
+    const isRaincoatOrUmbrellaAdvice = /(?:áo\s+mưa|ao\s+mua|cây\s+dù|chiếc\s+ô)\b/i.test(norm);
+    const isCasualDrink = /(?:đá|uống|làm|pha)\s+(?:một\s+)?(?:cốc|ly|tách)\s*(?:cà\s+phê|ca\s+phe|trà|tra)/i.test(norm);
+    const isBuyingVerb = !isWeatherInq && !isRaincoatOrUmbrellaAdvice && /\b(?:mua|cần\s+mua|muốn\s+mua|đặt\s+mua|tìm\s+mua|chọn\s+mua|mua\s+ngay|đáng\s+mua)\b/i.test(normMasked);
+
+    const isSalesKeywords = !isWeatherInq && !isRaincoatOrUmbrellaAdvice && !isCasualDrink && (isBuyingVerb || isSellingVerb || /(?:sản phẩm|san pham|laptop|máy in|may in|máy scan|may scan|trà|cà phê|nước hoa|màn hình|tivi|tai nghe|bột matcha|cpu|tablet|chuột|bàn phím|điện thoại)/i.test(normMasked));
+
+    if ((isSalesKeywords || slots.productName) && !isWeatherInq && !isRaincoatOrUmbrellaAdvice && !isCasualDrink) {
       return {
         primaryIntent: 'SALES_CONSULTATION',
+        domain: DOMAIN_INTENTS.SALES,
         intentGroup: INTENT_GROUPS.PRODUCT_INQUIRY,
         confidence: 0.9,
         slots,
@@ -1043,17 +1200,20 @@ export class IntentEngine {
     // 5. Category Domain Identification
     let categoryDomain = null;
     let categoryDomainName = null;
+    const isCasualDrink = /(?:đá|uống|làm|pha|lam|uong)\s+(?:một\s+)?(?:cốc|ly|tách|coc|ly|tach)\s*(?:cà\s+phê|ca\s+phe|trà|tra)/i.test(normText);
     const unaccentedCleanCategory = unaccented.replace(/\b(?:kiem\s+tra|tra\s+cuu|dieu\s+tra|tra\s+loi|tra\s+gop|tra\s+hang|trao\s+doi)\b/gi, '___verb___');
-    for (const [domKey, domObj] of Object.entries(DOMAIN_CATEGORIES)) {
-      if (domObj.keywords.some(kw => {
-        if (kw === 'tra' || kw === 'trà') {
-          return new RegExp(`(^|\\s)${kw}(\\s|$)`, 'i').test(unaccentedCleanCategory);
+    if (!isCasualDrink) {
+      for (const [domKey, domObj] of Object.entries(DOMAIN_CATEGORIES)) {
+        if (domObj.keywords.some(kw => {
+          if (kw === 'tra' || kw === 'trà') {
+            return new RegExp(`(^|\\s)${kw}(\\s|$)`, 'i').test(unaccentedCleanCategory);
+          }
+          return normText.includes(kw) || unaccentedCleanCategory.includes(kw);
+        })) {
+          categoryDomain = domKey;
+          categoryDomainName = domObj.name;
+          break;
         }
-        return normText.includes(kw) || unaccentedCleanCategory.includes(kw);
-      })) {
-        categoryDomain = domKey;
-        categoryDomainName = domObj.name;
-        break;
       }
     }
 
@@ -1091,13 +1251,16 @@ export class IntentEngine {
 
     const unaccentedClean = this.stripDiacritics(cleanedQuery);
 
-    // Blacklist non-product verbs, fillers, conversational particles, service terms
-    const NON_PRODUCT_TERMS = /(?:thi cong|lap dat|khao sat|thao do|di doi|sua chua|bao tri|bao duong|ve sinh may|lap rap|thao lap|hen|gap|nhau|ca phe|cafe|uong|an trua|an toi|di an|lich|ranh|trong|nhac|nho|ban|noi chuyen|tam su|thoi tiet|khieu nai|dia chi|bao hanh|giao hang|doi tra|phi ship|gap nhan vien|nguoi that|chuyen vien|so sanh|khac nhau|ho tro truc tiep|cong viec|cuoc hen|ngay nao|thu sau|thu hai|thu ba|thu tu|thu nam|thu bay|chu nhat|tuan nay|ngay mai|hom nay|tuan toi|dat ngay do|chot lich|dat lich|nguoi yeu|ban gai|ban trai|thong minh|danh sach viec|viec can lam|ke hoach|todo|to do|bao cao|doanh thu|de xem|de coi|thu xem|thu coi|xem sao|biet dau|khong ro|chua ro|the nao|ra sao|sao cung duoc|u de xem|uh|um|u|sao|co gi|khong co|chua|roi|thoi|vay|nhi|the|a|ha|day|kia)/i;
+    // Blacklist non-product verbs, fillers, conversational particles, service terms, weather terms
+    const NON_PRODUCT_TERMS = /(?:thi cong|lap dat|khao sat|thao do|di doi|sua chua|bao tri|bao duong|ve sinh may|lap rap|thao lap|hen|gap|nhau|ca phe|cafe|uong|an trua|an toi|di an|lich|ranh|trong|nhac|nho|ban|noi chuyen|tam su|thoi tiet|mưa|mua bao|bao so|nhiet do|nang am|troi nang|nang nong|mua lon|mua to|mua phuun|mua dam|chieu nay|ngay mai|toi nay|sang mai|quan 9|long binh|khieu nai|dia chi|bao hanh|giao hang|doi tra|phi ship|gap nhan vien|nguoi that|chuyen vien|so sanh|khac nhau|ho tro truc tiep|cong viec|cuoc hen|ngay nao|thu sau|thu hai|thu ba|thu tu|thu nam|thu bay|chu nhat|tuan nay|hom nay|tuan toi|dat ngay do|chot lich|dat lich|nguoi yeu|ban gai|ban trai|thong minh|danh sach viec|viec can lam|ke hoach|todo|to do|bao cao|doanh thu|de xem|de coi|thu xem|thu coi|xem sao|biet dau|khong ro|chua ro|the nao|ra sao|sao cung duoc|u de xem|uh|um|u|sao|co gi|khong co|chua|roi|thoi|vay|nhi|the|a|ha|day|kia)/i;
+
+    const isWeatherCandidate = this.isWeatherInquiry(rawMessage, normText, unaccentedClean);
+    const isFinanceCandidate = /(?:chứng\s+khoán|chung\s+khoan|cổ\s+phiếu|co\s+phieu|vn-index|vnindex|vn30|crypto|bitcoin|lãi\s+suất)/i.test(normText);
 
     const unaccentedMasked = unaccentedClean.replace(/\b(?:kiem\s+tra|tra\s+cuu|dieu\s+tra|tra\s+loi|tra\s+gop|tra\s+hang|trao\s+doi)\b/gi, '___verb___');
-    const hasProductSignal = !!matchedBrand || !!extractedModelCode || !!categoryDomain || /(?:laptop|may in|may scan|may dem tien|may lanh|tu lanh|man hinh|tivi|dien thoai|tai nghe|chuot|ban phim|tra\b|ca phe|nuoc hoa|muc in|giay in)/i.test(unaccentedMasked);
+    const hasProductSignal = !isWeatherCandidate && !isFinanceCandidate && !isCasualDrink && (!!matchedBrand || !!extractedModelCode || !!categoryDomain || /(?:laptop|may in|may scan|may dem tien|may lanh|tu lanh|man hinh|tivi|dien thoai|tai nghe|chuot|ban phim|tra\b|ca phe|nuoc hoa|muc in|giay in)/i.test(unaccentedMasked));
 
-    const isNonProductPhrase = NON_PRODUCT_TERMS.test(unaccentedClean) || (!hasProductSignal && unaccentedClean.split(' ').length <= 2);
+    const isNonProductPhrase = isWeatherCandidate || isFinanceCandidate || isCasualDrink || NON_PRODUCT_TERMS.test(unaccentedClean) || (!hasProductSignal && unaccentedClean.split(' ').length <= 2);
     // If it has non-product terms, name declaration, or broad category, resolvedProductName MUST be null!
     let resolvedProductName = (isNonProductPhrase || isBroadCategory || (isNameDeclaration && !extractedModelCode)) && !extractedModelCode ? null : (cleanedQuery || null);
 

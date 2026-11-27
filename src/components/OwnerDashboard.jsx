@@ -135,7 +135,7 @@ export const OwnerDashboard = ({
   const [adminAccountMessage, setAdminAccountMessage] = useState(null);
 
   const [settingsForm, setSettingsForm] = useState({
-    bot_name: 'TRÍ AI SALES ROBOT',
+    bot_name: 'TRÍ AI',
     owner_name: 'Quang Nhựt Trí',
     robot_model: 'cyber_valkyrie',
     avatar_url: '',
@@ -1944,7 +1944,7 @@ export const OwnerDashboard = ({
                     }`}
                   >
                     <span className="text-[11px] text-slate-400 mb-1 font-semibold">
-                      {m.senderType === 'user' ? selectedLeadConv.customer_name : 'TRÍ AI Sales Robot'}
+                      {m.senderType === 'user' ? selectedLeadConv.customer_name : 'TRÍ AI'}
                     </span>
                     <div
                       className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${

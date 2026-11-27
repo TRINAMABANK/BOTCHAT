@@ -157,29 +157,35 @@ export class SelfVerificationQualityGate {
    * Domain Relevance & Anti-Sales-Hijack Gate
    * Verifies that the AI reply domain matches the user's intent domain.
    * If user query is non-sales, the reply MUST NOT contain sales pitch or catalog dumps.
+   * Enforces strict Vietnamese semantic understanding (Mưa ≠ Mua, Bàn ≠ Bán, Bão ≠ Bảo)
    */
   static verifyDomainRelevance({ userQuery = '', draftReply = '' } = {}) {
     if (!userQuery || !draftReply) return { isDomainRelevant: true };
 
-    const lowerQuery = userQuery.toLowerCase();
+    const lowerQuery = userQuery.toLowerCase().trim();
     const unaccentedQuery = lowerQuery
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/đ/g, 'd');
 
-    const hasPurchaseVerb = /(?:mua|đặt hàng|chốt đơn|báo giá|bao gia|gia bao nhieu|bao nhieu tien)\b/i.test(unaccentedQuery);
+    // Strict semantic distinction: "mưa" (rain) with hook/horn tone MUST NOT be treated as "mua" (buy)
+    const hasTonedRain = /(?:\bmưa\b|mưa\s+rào|mưa\s+to|mưa\s+lớn|mưa\s+phùn|mưa\s+dầm|mưa\s+ngâu|đang\s+mưa|sắp\s+mưa|tạnh\s+mưa|hết\s+mưa|mưa\s+đến\s+mấy\s+giờ|xác\s+suất\s+mưa|lượng\s+mưa|có\s+mưa|trời\s+mưa)/i.test(lowerQuery);
+    const hasPurchaseVerb = !hasTonedRain && /(?:mua\s+ngay|đặt\s+mua|dat\s+mua|chốt\s+đơn|chot\s+don|báo\s+giá|bao\s+gia|giá\s+bao\s+nhiêu|bao\s+nhiêu\s+tiền|mấy\s+tiền|\bmua\s+(?:máy|laptop|sản\s+phẩm|hàng|con|chiếc|mẫu|thiết\s+bị))\b/i.test(lowerQuery);
 
     // Identify Non-Sales Domain in User Query
     let detectedDomain = null;
-    if (/(?:chứng khoán|chung khoan|cổ phiếu|co phieu|vnindex|vcb|hpg|fpt|đầu tư tài chính|dau tu tai chinh|đầu tư cổ phiếu)/i.test(unaccentedQuery)) {
+    const isDeliveryInRain = /(?:giao\s+hàng|ship|vận\s+chuyển)\s*(?:được\s+không|có\s+không|khi\s+trời\s+mưa)/i.test(lowerQuery);
+    const isRaincoatAdvice = /(?:áo\s+mưa|ao\s+mua)\b/i.test(lowerQuery);
+
+    if (/(?:chứng khoán|chung khoan|cổ phiếu|co phieu|vn-index|vnindex|vcb|hpg|fpt|đầu tư tài chính|dau tu tai chinh|đầu tư cổ phiếu|lãi suất gửi tiết kiệm|trái phiếu)/i.test(unaccentedQuery)) {
       detectedDomain = 'FINANCE_STOCK';
-    } else if (/(?:thời tiết|thoi tiet|dự báo thời tiết|du bao thoi tiet|có mưa không|co mua khong|nhiệt độ|nhiet do)/i.test(unaccentedQuery)) {
+    } else if (!isDeliveryInRain && !isRaincoatAdvice && (hasTonedRain || /(?:thời\s+tiết|thoi\s+tiet|dự\s+báo\s+thời\s+tiết|du\s+bao\s+thoi\s+tiet|nhiệt\s+độ|nhiet\s+do|nắng\s+ấm|nang\s+am|trời\s+nắng|troi\s+nang|có\s+nắng\s+không|co\s+nang\s+khong|bão\s+số|áp\s+thấp|mưa\s+lớn|mua\s+lon|mưa\s+to|mua\s+to|mưa\s+đến\s+mấy\s+giờ|mua\s+den\s+may\s+gio|có\s+mưa\s+không|co\s+mua\s+khong)/i.test(unaccentedQuery))) {
       detectedDomain = 'WEATHER_FORECAST';
-    } else if (/(?:soạn giúp|soan giup|viết giúp|viet giup|soạn công văn|soan cong van|thông báo nội bộ|thong bao noi bo|biên bản|bien ban)/i.test(unaccentedQuery)) {
+    } else if (/(?:soạn giúp|soan giup|viết giúp|viet giup|soạn công văn|soan cong van|thông báo nội bộ|thong bao noi bo|biên bản|bien ban|hợp đồng|hop dong|đơn xin|don xin)/i.test(unaccentedQuery)) {
       detectedDomain = 'ADMIN_DRAFTING';
-    } else if (/(?:bị kẹt giấy|bi ket giay|không nhận lệnh|màn hình xanh|lỗi code|loi code|sửa bug|sua bug)/i.test(unaccentedQuery)) {
+    } else if (/(?:bị kẹt giấy|bi ket giay|không nhận lệnh|màn hình xanh|lỗi code|loi code|sửa bug|sua bug|lỗi indexerror|chạy chậm)/i.test(unaccentedQuery)) {
       detectedDomain = 'TECH_SUPPORT';
-    } else if (/(?:bạn là ai|ban la ai|em là ai|em la ai|khỏe không|khoe khong|tâm sự|tam su)/i.test(unaccentedQuery)) {
+    } else if (/(?:bạn là ai|ban la ai|em là ai|em la ai|khỏe không|khoe khong|tâm sự|tam su|ý nghĩa của cuộc sống|giảm stress|câu chuyện cười)/i.test(unaccentedQuery)) {
       detectedDomain = 'GENERAL_CHAT';
     }
 
@@ -196,6 +202,19 @@ export class SelfVerificationQualityGate {
           violation: 'SALES_HIJACK_OF_NON_SALES_INQUIRY',
           reason: `User asked about ${detectedDomain}, but response contained sales engine catalog dump.`
         };
+      }
+
+      // If Weather Query, strictly forbid sales pitches, product recommendations, or asking phone number for sales
+      if (detectedDomain === 'WEATHER_FORECAST') {
+        const hasWeatherViolation = /(?:sản phẩm|đặt mua|báo giá|mua hàng|để lại số điện thoại để shop|trong hệ thống của shop)/i.test(lowerReply);
+        if (hasWeatherViolation) {
+          return {
+            isDomainRelevant: false,
+            detectedDomain: 'WEATHER_FORECAST',
+            violation: 'WEATHER_RESPONSE_POLLUTED_WITH_SALES',
+            reason: 'Response to weather inquiry contained commercial product or sales text.'
+          };
+        }
       }
     }
 

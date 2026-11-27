@@ -1,5 +1,5 @@
 /**
- * TRÍ AI ULTIMATE ROBOT - CENTRAL BRAIN SERVICE & SMART TOOL ORCHESTRATOR
+ * TRÍ AI - CENTRAL BRAIN SERVICE & SMART TOOL ORCHESTRATOR
  * 
  * Architecture: ONE BRAIN – MANY CAPABILITIES – ONE ROBOT
  * Central Brain coordinates between:
@@ -43,7 +43,9 @@ import { KnowledgeGraphEngine } from './intelligence/knowledgeGraphEngine.js';
 import { DeepResearchEngine } from './intelligence/deepResearchEngine.js';
 import { MetacognitionEngine } from './intelligence/metacognitionEngine.js';
 import { DomainRegistry } from './domains/domainRegistry.js';
+import { WeatherService } from './weather/weatherService.js';
 import { NaturalHumanConversationEngine } from './intelligence/naturalHumanConversationEngine.js';
+import { MultiThreadConversationEngine } from './intelligence/multiThreadConversationEngine.js';
 import { UnifiedMemoryCore, TRUTH_TYPES } from './intelligence/unifiedMemoryCore.js';
 import { AutonomyApprovalEngine } from './intelligence/autonomyApprovalEngine.js';
 import { CentralBrainOrchestrator } from './centralBrainOrchestrator.js';
@@ -278,7 +280,7 @@ export class CentralBrainService {
     if (!trimmedMsg) {
       return {
         success: true,
-        reply: 'Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?',
+        reply: 'Dạ em chào anh/chị! Em là **TRÍ AI**. Em có thể hỗ trợ thông tin gì cho anh/chị hôm nay ạ?',
         citations: [],
         toolsUsed: []
       };
@@ -713,7 +715,7 @@ export class CentralBrainService {
       const cPronoun = intentResult.slots?.customerPronoun || effectiveCustomerPronoun || null;
       const addressing = cPronoun ? `${cPronoun} ${cName}` : cName;
       const ref = cPronoun || 'anh/chị';
-      const replyText = `Dạ, em chào ${addressing}! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, rất vui được hỗ trợ ${ref} hôm nay ạ. Hôm nay ${ref} đang quan tâm đến sản phẩm nào để em tư vấn cho ${ref} ạ?`;
+      const replyText = `Dạ em chào ${addressing}! Em là **TRÍ AI**, rất vui được đồng hành và hỗ trợ ${ref} hôm nay ạ. Hôm nay ${ref} cần em hỗ trợ giải đáp thông tin gì cứ chia sẻ với em nhé!`;
 
       return ResponseEngine.formatResponse({
         replyText,
@@ -1206,6 +1208,7 @@ export class CentralBrainService {
     let intermediateContext = '';
 
     const lower = message.toLowerCase();
+    const unaccentedMsg = IntentEngine.stripDiacritics(message).toLowerCase();
     const primaryIntent = intentResult?.primaryIntent || 'PRODUCT_CONSULTATION';
     const slots = intentResult?.slots || {};
 
@@ -1242,6 +1245,30 @@ export class CentralBrainService {
     }
 
     // 0C. Appointment & Schedule & Reminder & Support Routing (Defense-in-depth)
+    // 0C-2. REAL WEATHER QUERY ROUTING (Defense-in-depth: Cấm Sales Engine, Cấm Cột 2)
+    const isDeliveryInRain = /(?:giao\s+hàng|ship|vận\s+chuyển)\s*(?:được\s+không|có\s+không|khi\s+trời\s+mưa)/i.test(message);
+    const isRaincoatAdvice = /(?:áo\s+mưa|ao\s+mua)\b/i.test(message);
+    if (!isDeliveryInRain && !isRaincoatAdvice && (primaryIntent === 'WEATHER_QUERY' || IntentEngine.isWeatherInquiry(message, lower, unaccentedMsg))) {
+      const weatherRes = await WeatherService.handleWeatherQuery(message, context);
+      return ResponseEngine.formatResponse({
+        replyText: weatherRes.replyText,
+        revealCatalog: false,
+        stage: 'WEATHER_FORECAST_RESOLVED',
+        toolsUsed: ['weather_service', 'open_meteo_live']
+      });
+    }
+
+    // 0C-3. REAL FINANCE & STOCK QUERY ROUTING
+    if (primaryIntent === 'FINANCE_QUERY' || /(?:chứng\s+khoán|chung\s+khoan|cổ\s+phiếu|co\s+phieu|vn-index|vnindex|vn30|crypto|bitcoin|lãi\s+suất\s+(?:tiết\s+kiệm|ngân\s+hàng)|trái\s+phiếu|đầu\s+tư\s+tài\s+chính)/i.test(message)) {
+      const stockRes = MultiThreadConversationEngine.handleStockInquiry(message, conversationId);
+      return ResponseEngine.formatResponse({
+        replyText: stockRes.replyText,
+        revealCatalog: false,
+        stage: stockRes.stage,
+        toolsUsed: ['multi_thread_engine', 'finance_stock_advisor']
+      });
+    }
+
     if (primaryIntent === 'APPOINTMENT') {
       return await AppointmentHandler.handleAppointment(context);
     }
@@ -1459,13 +1486,13 @@ export class CentralBrainService {
         });
       }
 
-      const docInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh hỗ trợ tra cứu tài liệu quy chuẩn và quy trình nội bộ.
+      const docInstruction = `Bạn là TRÍ AI – trợ lý AI thông minh hỗ trợ tra cứu tài liệu quy chuẩn và quy trình nội bộ.
 Nguyên tắc:
 - Dựa vào nội dung tài liệu trích dẫn để giải đáp chính xác, khách quan.
 - Dẫn kèm nguồn trích dẫn theo nhãn [Nguồn: ...].
 - Nếu tài liệu không có thông tin về câu hỏi của người dùng, trả lời trung thực rằng tài liệu hiện có chưa có quy định về nội dung này.
 - Tuyệt đối không đề cập đến việc bán hàng hay sản phẩm thương mại khi đang trả lời về văn bản nội bộ.
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AI ULTIMATE ROBOT.`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AI.`;
 
       const prompt = `${docInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -1509,12 +1536,12 @@ Nguyên tắc:
         });
       }
 
-      const excelInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh hỗ trợ tính toán và phân tích bảng tính Excel.
+      const excelInstruction = `Bạn là TRÍ AI – trợ lý AI thông minh hỗ trợ tính toán và phân tích bảng tính Excel.
 Nguyên tắc:
 - Dựa trên dữ liệu bảng tính trích xuất để trả lời chính xác, mạch lạc.
 - Dẫn kèm nguồn trích dẫn theo nhãn [Bảng tính: ...].
 - Tuyệt đối không bịa đặt số liệu tài chính.
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AI ULTIMATE ROBOT.`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AI.`;
 
       const prompt = `${excelInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -1553,12 +1580,12 @@ Nguyên tắc:
         });
       }
 
-      const webInstruction = `Bạn là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh tra cứu thông tin Internet.
+      const webInstruction = `Bạn là TRÍ AI – trợ lý AI thông minh tra cứu thông tin Internet.
 Nguyên tắc:
 - Trả lời bằng tiếng Việt lịch sự, thông minh, chuyên nghiệp, súc tích.
 - Khi có dữ liệu trích dẫn được cung cấp, hãy tổng hợp câu trả lời chính xác và dẫn kèm nguồn theo nhãn [Nguồn: ...].
 - Tuyệt đối không dẫn nguồn duckduckgo hoặc các đường link tìm kiếm rác.
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AI ULTIMATE ROBOT.`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ xưng là TRÍ AI.`;
 
       const prompt = `${webInstruction}\n\n${intermediateContext ? `Dữ liệu tham khảo tra cứu được:\n${intermediateContext}\n\n` : ''}Câu hỏi của người dùng: "${message}"`;
 
@@ -1583,7 +1610,6 @@ Nguyên tắc:
 
     // 3B. TRÍ AN SMART SALES CONSULTANT (LEVEL 2.0 - PROMPT 04)
     // Phục vụ: Yêu cầu gặp nhân viên, Chính sách bảo hành/giao hàng, So sánh sản phẩm, Tra cứu cấu hình & Đặt hàng
-    const unaccentedMsg = IntentEngine.stripDiacritics(message).toLowerCase();
 
     // 3B.1. STAFF HANDOFF: Chuyển nhân viên hỗ trợ khi vượt khả năng hoặc khách yêu cầu
     if (primaryIntent === 'STAFF_HANDOFF' || SmartSalesConsultant.isStaffHandoff(unaccentedMsg)) {
@@ -1872,7 +1898,7 @@ Nguyên tắc:
 
     const isDocExplicitQuery = /(tài liệu|tai lieu|quy trình|quy trinh|chính sách|chinh sach|hướng dẫn|huong dan|quy chế|quy che|quyết định|quyet dinh|điều chuyển|dieu chuyen|nam a bank|namabank|thủ tục|thu tuc|công văn|cong van|văn bản|van ban|nội bộ|noi bo|sổ tay|so tay|quy định|quy dinh|hồ sơ|ho so)/i.test(message);
 
-    const systemPrompt = `Bạn là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh & bán hàng toàn năng.
+    const systemPrompt = `Bạn là TRÍ AI – trợ lý AI thông minh & bán hàng toàn năng.
 Bạn có quyền truy cập các công cụ:
 1. consult_sales_engine: Tư vấn sản phẩm, tồn kho, kiểm tra danh mục và chốt đơn mua hàng.
 2. lookup_supplier_products: Tra cứu sản phẩm, thông số kỹ thuật và đơn giá từ kho nhà cung cấp đã thu thập và kiểm duyệt.
@@ -1882,7 +1908,7 @@ ${isDocExplicitQuery ? '5. search_knowledge_base: Tra cứu kho tài liệu quy 
 7. search_web_internet: Tra cứu thông tin trên Internet khi được yêu cầu.
 QUY TẮC BẮT BUỘC:
 - Khi khách hàng tìm hiểu, hỏi mua sản phẩm, hỏi giá, báo giá hoặc trò chuyện mua sắm, BÁN HÀNG LÀ ƯU TIÊN DUY NHẤT. TUYỆT ĐỐI KHÔNG lôi kéo nội dung tài liệu nội bộ (như quy chế ngân hàng, văn bản công văn) vào câu trả lời bán hàng!
-- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ tự xưng là TRÍ AI ULTIMATE ROBOT.`;
+- Tuyệt đối không xưng hô "của Quang Nhựt Trí" hay "của anh Quang Nhựt Trí". Chỉ tự xưng là TRÍ AI.`;
 
     const historyTurns = (await ContextEngine.getConversationHistory(conversationId, 6))
       .map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content }));

@@ -212,11 +212,11 @@ export async function initDatabase() {
       `, [
         'tri-ai-sales-robot',
         'tri-ai-sales-robot',
-        'TRÍ AI ULTIMATE ROBOT',
-        'Trợ lý AI thông minh & bán hàng toàn năng',
+        'TRÍ AI',
+        'Chuyên viên tư vấn thông minh & Nền tảng AI toàn năng',
         '/assets/robot_avatar.png',
-        'Trợ lý AI Humanoid thông minh tư vấn sản phẩm, giải đáp thắc mắc, so sánh, báo giá và thư ký cho chủ nhân.',
-        'Xin chào Anh/Chị! Em là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?',
+        'Trí tuệ nhân tạo TRÍ AI hỗ trợ tư vấn đa lĩnh vực, phản hồi tự nhiên, giải đáp thắc mắc và hỗ trợ người dùng.',
+        'Dạ em chào anh/chị! Em là TRÍ AI. Em có thể hỗ trợ thông tin gì cho anh/chị hôm nay ạ?',
         JSON.stringify(['Tư vấn sản phẩm', 'So sánh & Báo giá', 'Tiếp nhận Lead', 'Chăm sóc khách hàng 24/7']),
         JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.7 }),
         now,
@@ -230,11 +230,11 @@ export async function initDatabase() {
 
   // 6. Seed Bot Settings
   const defaultSettings = [
-    { key: 'bot_name', value: 'TRÍ AI ULTIMATE ROBOT', description: 'Tên chatbot đại diện' },
+    { key: 'bot_name', value: 'TRÍ AI', description: 'Tên đại diện hệ thống' },
     { key: 'owner_name', value: 'Quang Nhựt Trí', description: 'Tên chủ nhân shop' },
     { key: 'robot_model', value: 'cyber_valkyrie', description: 'Mô hình robot 3D (cyber_valkyrie, tron_humanoid, quantum_sphere, nano_sentinel)' },
     { key: 'avatar_url', value: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80', description: 'Ảnh đại diện Robot' },
-    { key: 'greeting', value: 'Xin chào Anh/Chị! Em là TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?', description: 'Lời chào mặc định khi mở chat' },
+    { key: 'greeting', value: 'Dạ em chào anh/chị! Em là TRÍ AI. Em có thể hỗ trợ thông tin gì cho anh/chị hôm nay ạ?', description: 'Lời chào mặc định khi mở chat' },
     { key: 'ai_tone', value: 'Chuyên nghiệp, thân thiện, lịch thiệp', description: 'Giọng điệu AI khi giao tiếp' },
     { key: 'phone_invitation_prompt', value: 'Tôi có thể ghi nhận yêu cầu để shop trực tiếp liên hệ với bạn. Bạn vui lòng để lại số điện thoại nhé.', description: 'Lời mời để lại số điện thoại chuẩn kịch bản' },
     { key: 'lead_notification_email', value: 'triqnnamabank@gmail.com', description: 'Email nhận thông báo Lead mới' },
@@ -251,12 +251,12 @@ export async function initDatabase() {
         'INSERT INTO bot_settings (key, value, description, updated_at) VALUES (?, ?, ?, ?)',
         [s.key, s.value, s.description, new Date().toISOString()]
       );
-    } else if (s.key === 'bot_name' && existing.value !== 'TRÍ AI ULTIMATE ROBOT') {
+    } else if (s.key === 'bot_name' && existing.value !== 'TRÍ AI') {
       await db.run(
         'UPDATE bot_settings SET value = ?, updated_at = ? WHERE key = ?',
         [s.value, new Date().toISOString(), s.key]
       );
-    } else if (s.key === 'greeting' && !existing.value.includes('TRÍ AI ULTIMATE ROBOT')) {
+    } else if (s.key === 'greeting' && (!existing.value || existing.value.includes('ROBOT') || existing.value.includes('tiện xưng hô'))) {
       await db.run(
         'UPDATE bot_settings SET value = ?, updated_at = ? WHERE key = ?',
         [s.value, new Date().toISOString(), s.key]

@@ -122,15 +122,16 @@ export class VerificationEngine {
       .replace(/\(https?:\/\/(?:www\.)?duckduckgo\.com[^\s)]*\)/gi, '')
       .replace(/https?:\/\/(?:www\.)?duckduckgo\.com\S*/gi, '')
       .replace(/\[Nguồn:\s*\]/gi, '')
-      // 2. Eliminate owner names and unify persona to TRÍ AI ULTIMATE ROBOT
+      // 2. Eliminate owner names and unify persona to TRÍ AI
       .replace(/(\*\*[^*]+?)\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?Quang Nhựt Trí\*\*/gi, '$1**')
       .replace(/—\s*Thư ký AI Toàn năng của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí\b/gi, '— Trợ lý AI thông minh')
       .replace(/trợ lý bán hàng (?:thông minh )?của\s*(?:anh\s+|chị\s+|ông\s+)?Quang Nhựt Trí/gi, 'Trợ lý AI thông minh')
       .replace(/\s*của\s*(?:anh\s+|chị\s+|ông\s+|bà\s+)?(?:\*\*|\*|__|_)?Quang Nhựt Trí(?:\*\*|\*|__|_)?[\.]?/gi, '')
-      .replace(/TRÍ AI SALES ROBOT\s*—\s*trợ lý bán hàng thông minh/gi, 'TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh')
-      .replace(/TRÍ AN\s*—\s*Trợ lý AI (?:Bán hàng & Tư vấn Toàn diện|Thông minh & Toàn diện)/gi, 'TRÍ AI ULTIMATE ROBOT – trợ lý AI thông minh')
-      .replace(/\bTRÍ AN\b/gi, 'TRÍ AI ULTIMATE ROBOT')
-      .replace(/\bSALES ROBOT\b/gi, 'TRÍ AI ULTIMATE ROBOT')
+      .replace(/TRÍ AI SALES ROBOT\s*—\s*trợ lý bán hàng thông minh/gi, 'TRÍ AI – trợ lý AI thông minh')
+      .replace(/TRÍ AN\s*—\s*Trợ lý AI (?:Bán hàng & Tư vấn Toàn diện|Thông minh & Toàn diện)/gi, 'TRÍ AI – trợ lý AI thông minh')
+      .replace(/\bTRÍ AN\b/gi, 'TRÍ AI')
+      .replace(/\bSALES ROBOT\b/gi, 'TRÍ AI')
+      .replace(/\bTRÍ AI ULTIMATE ROBOT\b/gi, 'TRÍ AI')
       // 3. Block accidental internal bank regulation leakage in public chats
       .replace(/Rất tiếc,\s*hiện tại dữ liệu tra cứu từ hệ thống chỉ cung cấp các thông tin nội bộ liên quan đến Quy chế.*?(?:Trang.*?)?(?:\.|$)/gis, 'Dạ hiện tại thông tin này chưa có trong dữ liệu sản phẩm của shop ạ.')
       .trim();
@@ -205,7 +206,7 @@ export class VerificationEngine {
           return `Dạ em xin phép từ chối yêu cầu này theo đúng quy định bảo mật và an toàn dữ liệu cá nhân của hệ thống ạ.`;
         }
         if (intentGroup === 'GENERAL_CHAT') {
-          return `Dạ em chào bạn! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể hỗ trợ gì cho bạn hôm nay ạ?`;
+          return `Dạ em chào anh/chị! Em là **TRÍ AI**. Rất vui được đồng hành và hỗ trợ anh/chị hôm nay ạ!`;
         }
       }
     }
