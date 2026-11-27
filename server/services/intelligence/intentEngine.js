@@ -558,8 +558,8 @@ export class IntentEngine {
     if (this.isCustomerSellingGoods(originalText, norm, unaccented)) return false;
 
     // Explicit purchase intent verbs
-    return /\b(?:cần\s+mua|muốn\s+mua|đặt\s+mua|chốt\s+mua|mua\s+ngay|đặt\s+hàng|dat\s+hang|chốt\s+đơn|chot\s+don|mua\s+giúp|tìm\s+mua|đặt\s+\d+|mua\s+\d+|\bmua\s+(?:sữa|điện\s+thoại|máy|laptop|máy\s+in|trà|cà\s+phê|nước\s+hoa|màn\s+hình|con|chiếc|bộ|cái|hộp|thùng|cốc|ly))\b/i.test(cleanNorm) ||
-      /\b(?:can\s+mua|muon\s+mua|dat\s+mua|chot\s+mua|mua\s+ngay|dat\s+hang|chot\s+don|mua\s+sua|mua\s+dien\s+thoai|mua\s+may\s+in|mua\s+laptop)\b/i.test(cleanUnaccented);
+    return /\b(?:cần\s+mua|muốn\s+mua|đặt\s+mua|chốt\s+mua|mua\s+ngay|đặt\s+hàng|dat\s+hang|chốt\s+đơn|chot\s+don|mua\s+giúp|tìm\s+mua|đặt\s+\d+|mua\s+\d+|mua\s+số\s+lượng\s+nhiều|mua\s+nhiều|mua\s+sỉ|mua\s+buôn|\bmua\s+(?:sữa|điện\s+thoại|máy|laptop|máy\s+in|trà|cà\s+phê|nước\s+hoa|màn\s+hình|con|chiếc|bộ|cái|hộp|thùng|cốc|ly))\b/i.test(cleanNorm) ||
+      /\b(?:can\s+mua|muon\s+mua|dat\s+mua|chot\s+mua|mua\s+ngay|dat\s+hang|chot\s+don|mua\s+sua|mua\s+dien\s+thoai|mua\s+may\s+in|mua\s+laptop|mua\s+so\s+luong\s+nhieu|mua\s+nhieu|mua\s+si|mua\s+buon)\b/i.test(cleanUnaccented);
   }
 
   /**
@@ -611,10 +611,10 @@ export class IntentEngine {
     }
 
     // 1. Check Memory Control Commands (Xem, sửa, xóa, tắt ghi nhớ)
-    const isMemoryCommand = /(quên\b.*(?:tôi|thông tin|dữ liệu|sđt|số điện thoại)|xóa\b.*(?:thông tin|trí nhớ|dữ liệu|bộ nhớ)|đừng ghi nhớ|không lưu thông tin|xem thông tin đã lưu|lưu thông tin này)/i.test(norm);
+    const isMemoryCommand = /(quên\b.*(?:tôi|thông tin|dữ liệu|sđt|số điện thoại)|xóa\b.*(?:thông tin|trí nhớ|dữ liệu|bộ nhớ)|đừng ghi nhớ|không lưu thông tin|xem thông tin đã lưu|lưu thông tin này|(?:hệ thống|bạn)?\s*(?:đang\s+)?nhớ\s+(?:những\s+)?gì\s+về\s+(?:tôi|mình))/i.test(norm);
     if (isMemoryCommand) {
       let memoryAction = 'FORGET';
-      if (/xem thông tin/i.test(norm)) memoryAction = 'VIEW';
+      if (/xem thông tin|nhớ.*gì về/i.test(norm)) memoryAction = 'VIEW';
       else if (/lưu thông tin/i.test(norm)) memoryAction = 'SAVE';
 
       return {
@@ -751,7 +751,7 @@ export class IntentEngine {
       /(?:bao\s+nhieu\s+tien|chi\s+phi|gia\s+ca|mat\s+phi|khi\s+nao|mai|sang\s+mai|chieu\s+mai|tuan\s+sau|may\s+gio|qua\s+lam|lam\s+luon|khao\s+sat|qua\s+xem|chot\s+lich|thoi\s+gian|quy\s+mo|\d+\s*(?:may|bo|thiet\s+bi|cai|chiec|diem|phong)|som\s+nhat)/i.test(unaccented)
     );
 
-    if (isDirectServiceInquiry || (isServiceKeywords && /(?:co\s+|nhan\s+|khong|ko|giup|cho|tan\s+noi|tai\s+nha|tron\s+goi|o\s+dau|nhu\s+the\s+nao|ra\s+sao)/i.test(unaccented)) || isServiceFollowUp) {
+    if (isDirectServiceInquiry || (isServiceKeywords && /(?:co\s+|nhan\s+|can\s+|muon\s+|yeu\s+cau\s+|khong|ko|giup|cho|tan\s+noi|tai\s+nha|tron\s+goi|o\s+dau|nhu\s+the\s+nao|ra\s+sao)/i.test(unaccented)) || isServiceFollowUp) {
       let serviceType = 'SERVICE_SURVEY_REQUEST';
       if (/(?:sua|sua\s+chua|khac\s+phuc|hu\s+hong|bao\s+hong|bi\s+loi|khong\s+len)/i.test(unaccented)) {
         serviceType = 'REPAIR_REQUEST';
@@ -919,7 +919,7 @@ export class IntentEngine {
 
     // 6. BUSINESS SUPPORT & CORPORATE INQUIRIES
     const isOfficeDocDevice = /(may huy tai lieu|may scan tai lieu|may quet tai lieu)/i.test(unaccented);
-    const isDocExplicitQuery = !isOfficeDocDevice && ((/(tai lieu|quy trinh|quy che|quyet dinh|dieu chuyen|nam a bank|namabank|thu tuc|cong van|van ban|so tay|quy dinh|ho so)/i.test(unaccented) || (/(chinh sach)/i.test(unaccented) && !/(bao hanh|doi tra|giao hang|mua hang)/i.test(unaccented))) && !/(bao gia)/i.test(unaccented));
+    const isDocExplicitQuery = !isOfficeDocDevice && ((/(tai lieu|quy trinh|quy che|quyet dinh|dieu chuyen|nam a bank|namabank|thu tuc|cong van|van ban|so tay|quy dinh|ho so)/i.test(unaccented) || (/(chinh sach)/i.test(unaccented) && !/(bao hanh|doi tra|giao hang|mua hang|ban buon|dai ly|chiet khau|gia si)/i.test(unaccented))) && !/(bao gia)/i.test(unaccented));
 
     const isCompanyInfo = /(?:dia\s+chi\s+(?:cong\s+ty|cua\s+hang|shop|van\s+phong)|tru\s+so\s+o\s+dau|van\s+phong\s+o\s+dau|thoi\s+gian\s+lam\s+viec|gio\s+mo\s+cua|tong\s+dai\s+ho\s+tro|hotline\s+(?:cong\s+ty|shop)|thong\s+tin\s+doanh\s+nghiep)\b/i.test(unaccented);
     const isComplaint = /(?:khieu\s+nai|phan\s+nan|thai\s+do\s+phuc\s+vu|cham\s+soc\s+khach\s+hang\s+kem|giao\s+hang\s+qua\s+cham)\b/i.test(unaccented);
@@ -1117,7 +1117,7 @@ export class IntentEngine {
       };
     }
 
-    const isPolicyInquiry = /(?:chính sách|chinh sach|thời gian|thoi gian|thời hạn|thoi han|quy định|quy dinh|chế độ|che do)?\s*(?:bảo hành|bao hanh|đổi trả|doi tra|giao hàng|giao hang|phí ship|phi ship|vận chuyển|van chuyen|ship cod|bảo hiểm|bao hiem|đại lý|dai ly)\b/i.test(norm);
+    const isPolicyInquiry = !this.isProductPurchase(originalText, norm, unaccented) && /(?:chính sách|chinh sach|thời gian|thoi gian|thời hạn|thoi han|quy định|quy dinh|chế độ|che do)?\s*(?:bảo hành|bao hanh|đổi trả|doi tra|giao hàng|giao hang|phí ship|phi ship|vận chuyển|van chuyen|ship cod|bảo hiểm|bao hiem|đại lý|dai ly|bán buôn|ban buon|bán sỉ|ban si|chiết khấu|chiet khau)\b/i.test(norm);
     if (isPolicyInquiry) {
       return {
         primaryIntent: 'POLICY_INQUIRY',

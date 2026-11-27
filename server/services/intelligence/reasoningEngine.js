@@ -260,6 +260,14 @@ export class ReasoningEngine {
 
     if (primaryIntent === 'PRODUCT_CONSULTATION' || primaryIntent === 'SPEC_INQUIRY') {
       plan.capability = SYSTEM_CAPABILITIES.AI_SALES;
+      if (!slots.productName && !selectedProduct && conversationHistory.length === 0) {
+        plan.dataSufficient = false;
+        plan.clarificationQuestion = 'Dạ bạn đang quan tâm dòng máy hoặc thiết bị cụ thể nào (như laptop, máy in hay linh kiện) để em tư vấn chi tiết cho mình ạ?';
+        plan.steps = ['ASK_PRODUCT_CLARIFICATION'];
+        plan.targetSources = ['salesConsultant'];
+        plan.internalReasoningLog = 'Consultation requested without target product. Clarification needed.';
+        return plan;
+      }
       plan.complexity = 'SIMPLE_DIRECT';
       plan.steps = ['SEARCH_PRODUCT_CATALOG', 'LOOKUP_CATALOG_MATCH', 'EXPLAIN_KEY_BENEFITS', 'OFFER_QUOTATION'];
       plan.targetSources = ['salesConsultant', 'products'];

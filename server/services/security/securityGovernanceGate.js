@@ -36,8 +36,8 @@ export class SecurityGovernanceGate {
     const lower = (message || '').toLowerCase();
 
     // 1. TIER 3 / L4 FINANCIAL & IRREVERSIBLE ACTION BLOCK
-    const isFinancialAction = /(chuyển tiền|chuyen tien|chuyển khoản|chuyen khoan|chuyển\s+(?:\d+|ngay|cho|tiền|khoản)|thanh toán|thanh toan|quẹt thẻ|nạp tiền|bắn tiền)/i.test(lower) ||
-      /(xóa database|xoa database|drop table|xóa toàn bộ hợp đồng|xoa toan bo)/i.test(lower);
+    const isFinancialAction = /(chuyển tiền|chuyen tien|chuyển khoản|chuyen khoan|chuyển\s+(?:\d+|ngay|cho|tiền|khoản)|thanh toán|thanh toan|quẹt thẻ|nạp tiền|bắn tiền|rút tiền|rut tien|trừ tiền|tru tien)/i.test(lower) ||
+      /(xóa database|xoa database|drop table|xóa toàn bộ hợp đồng|xoa toan bo|xóa cơ sở dữ liệu|xoa co so du lieu|xóa sạch|xoa sach)/i.test(lower);
 
     if (isFinancialAction || actionType === 'FINANCIAL_TRANSFER' || actionType === 'SYSTEM_WIPE') {
       return {

@@ -38,6 +38,9 @@ import { IntentEngine } from './intelligence/intentEngine.js';
 import { PersonaLayer, PERSONAS } from './intelligence/personaLayer.js';
 import { SelfVerificationQualityGate } from './intelligence/selfVerificationQualityGate.js';
 
+import { ToolGateway } from './gateway/toolGateway.js';
+import { ModelGateway } from './gateway/modelGateway.js';
+
 export class CentralBrainOrchestrator {
   /**
    * Main 11-Stage Cognitive Pipeline Execution
@@ -264,8 +267,8 @@ export class CentralBrainOrchestrator {
     // =========================================================================
 
     // 7A. Objection Handling (LEAR Framework)
-    const isPriceObjectionQuery = /(khách|khach|người mua|khách hàng).*(giá cao quá|gia cao qua|đắt quá|chê đắt|chê mắc|giá đắt|giá mắc|đắt thế).*(trả lời|tra loi|nói sao|noi sao|xử lý sao|xu ly sao|tư vấn sao|tu van sao)/i.test(pipelineContext.sanitizedText) ||
-      /(sao đắt thế|sao đắt vậy|sao gia cao the|sao giá cao thế|bên kia bán rẻ hơn)/i.test(pipelineContext.sanitizedText) ||
+    const isPriceObjectionQuery = /(?:(?:khách|khach|người mua|khách hàng).*(?:giá cao|đắt quá|chê đắt|chê mắc|đắt thế|chát quá)|(?:xử lý sao|trả lời sao|nói sao).*(?:khách chê|giá cao|chê đắt))/i.test(pipelineContext.sanitizedText) ||
+      /(sao đắt thế|sao đắt vậy|sao gia cao the|bên kia bán rẻ hơn|giá chát quá|chát quá|bớt đi|có giảm giá không|giảm chút đỉnh)/i.test(pipelineContext.sanitizedText) ||
       pragmaticProfile.communicativeAct === COMMUNICATIVE_ACTS.IMPLICIT_COMPLAINT;
 
     if (isPriceObjectionQuery) {
