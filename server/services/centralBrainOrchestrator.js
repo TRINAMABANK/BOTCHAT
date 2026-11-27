@@ -63,7 +63,7 @@ export class CentralBrainOrchestrator {
 
     if (!pipelineContext.sanitizedText) {
       return ResponseEngine.formatResponse({
-        replyText: 'Xin chào Anh/Chị! Em là **TRÍ AI ONE SUPER BRAIN** – trợ lý trí tuệ nhân tạo toàn năng. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?',
+        replyText: 'Dạ em chào Anh/Chị ạ! Em là **TRÍ AI ONE SUPER BRAIN** – rất vui được đồng hành cùng Anh/Chị. Anh/Chị đang quan tâm đến sản phẩm hay cần em hỗ trợ giải pháp nào cứ nhắn cho em nhé ạ!',
         revealCatalog: false,
         stage: 'PROMPT_GREETING'
       });

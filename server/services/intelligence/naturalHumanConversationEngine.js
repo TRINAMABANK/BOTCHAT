@@ -35,7 +35,11 @@ export class NaturalHumanConversationEngine {
     /toàn bộ danh mục sản phẩm hiện có của shop đã được mở sẵn ở \*\*cột 2\*\*[^\n.!?]*[.!?]?/gi,
     /bạn có thể tham khảo trực tiếp các mẫu khác ở cột 2 nhé[.!?]?/gi,
     /bạn có muốn em hỗ trợ đặt mua hay tư vấn thêm ưu đãi cho sản phẩm này không ạ\??/gi,
-    /bạn có muốn tôi hỗ trợ lập bảng báo giá chính thức cho sản phẩm này không ạ\??/gi
+    /bạn có muốn tôi hỗ trợ lập bảng báo giá chính thức cho sản phẩm này không ạ\??/gi,
+    /xin lỗi,?\s*(?:bạn|quý khách)?\s*vui lòng cho tôi biết tên hoặc cách xưng hô[^\n.!?]*[.!?]?/gi,
+    /tôi là\s+\*?\*?trí ai sales robot\*?\*?[^\n.!?]*[.!?]?/gi,
+    /do tôi là trợ lý ảo[^\n.!?]*[.!?]?/gi,
+    /tôi sẽ mở bộ sản phẩm ở cột 2[^\n.!?]*[.!?]?/gi
   ];
 
   /**

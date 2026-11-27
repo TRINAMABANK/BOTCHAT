@@ -39,8 +39,6 @@ function renderInlineFormatting(inlineText) {
 
 /**
  * Render formatted message text.
- * Dòng câu hỏi xưng hô ("Xin lỗi, bạn vui lòng cho tôi biết tên hoặc cách xưng hô...")
- * luôn được hiển thị nổi bật bằng MÀU TRẮNG TÍM theo yêu cầu người dùng.
  */
 function renderFormattedText(text) {
   if (!text) return null;
@@ -48,27 +46,6 @@ function renderFormattedText(text) {
 
   return lines.map((line, pIdx) => {
     const trimmed = line.trim();
-
-    // Kiểm tra dòng hỏi tên / cách xưng hô
-    const isPoliteAddressingLine =
-      trimmed.includes('cách xưng hô để tôi tiện') ||
-      trimmed.includes('Xin lỗi, bạn vui lòng cho tôi biết tên') ||
-      trimmed.includes('cách xưng hô để tôi thuận tiện') ||
-      (trimmed.includes('cách xưng hô') && (trimmed.includes('phục vụ') || trimmed.includes('tiện')));
-
-    if (isPoliteAddressingLine) {
-      return (
-        <div
-          key={pIdx}
-          className="my-2.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-[#290d47]/95 via-[#3b0764]/90 to-[#1a0b36]/95 border border-fuchsia-400/60 shadow-[0_0_18px_rgba(192,38,211,0.35)] flex items-center space-x-2.5 font-medium backdrop-blur-md"
-        >
-          <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse flex-shrink-0 shadow-[0_0_8px_rgba(232,121,249,0.9)]" />
-          <span className="text-white text-xs leading-relaxed drop-shadow-[0_1px_2px_rgba(168,85,247,0.5)] font-semibold">
-            {trimmed}
-          </span>
-        </div>
-      );
-    }
 
     return (
       <div key={pIdx} className={pIdx > 0 && trimmed === '' ? 'h-2' : ''}>
@@ -333,7 +310,41 @@ export const HumanoidChatCard = ({
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto overflow-x-hidden space-y-3.5 pr-1.5 custom-scrollbar text-xs leading-relaxed max-h-[420px] md:max-h-[520px] pb-6"
         >
-          {messages.map((msg, idx) => {
+          {messages.length === 0 ? (
+            <div className="h-full min-h-[260px] flex flex-col items-center justify-center text-center p-6 text-slate-300 select-none">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-cyan-600/30 via-blue-600/20 to-purple-600/30 border border-cyan-400/40 flex items-center justify-center shadow-[0_0_20px_rgba(0,240,255,0.25)] mb-3 relative">
+                <img
+                  src="/assets/ai_avatar.png"
+                  alt="TRÍ AI"
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-900 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+              </div>
+              <h4 className="text-sm font-semibold text-cyan-300 flex items-center gap-1.5 mb-1">
+                TRÍ AI – Chuyên Viên Tư Vấn Thông Minh
+              </h4>
+              <p className="text-slate-400 text-[11px] max-w-xs leading-relaxed mb-4">
+                Dạ em sẵn sàng hỗ trợ! Anh/Chị có thể nhắn tin hoặc bấm micro để bắt đầu trao đổi bất kỳ lúc nào ạ.
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center max-w-sm">
+                {[
+                  'Tư vấn sản phẩm phù hợp',
+                  'Báo giá chính hãng tốt nhất',
+                  'Chính sách bảo hành & giao hàng'
+                ].map((prompt, pIdx) => (
+                  <button
+                    key={pIdx}
+                    type="button"
+                    onClick={() => onQuickPrompt && onQuickPrompt(prompt)}
+                    className="px-3 py-1.5 rounded-full bg-slate-800/80 hover:bg-cyan-950/80 text-[11px] text-slate-300 hover:text-cyan-300 border border-slate-700/80 hover:border-cyan-400/60 transition-all shadow-sm active:scale-95 cursor-pointer"
+                  >
+                    💬 {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            messages.map((msg, idx) => {
             const isUser = msg.senderType === 'user' || msg.role === 'user';
             const isLatest = idx === messages.length - 1;
             const timeStr = msg.createdAt
@@ -472,7 +483,7 @@ export const HumanoidChatCard = ({
                 </div>
               </div>
             );
-          })}
+          }))}
 
           {/* Thinking indicator */}
           {(isThinking || isStreaming) && (

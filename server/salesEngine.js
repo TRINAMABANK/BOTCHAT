@@ -3425,7 +3425,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
           ? `- **Số lượng:** ${detectedQty} chiếc (~${formatVnd(totalEstimate)})\n`
           : '';
 
-      return `${politeAskBanner}Dạ tuyệt vời! Tôi xin xác nhận sản phẩm ${customerRef} quan tâm đặt mua:\n- **Sản phẩm:** ${targetProd.name}\n- **Đơn giá:** ${formatPrice(targetProd)}\n${qtyText}${capRef} vui lòng cho biết số lượng hoặc để lại SĐT để ${ownerName} liên hệ giao hàng nhé.`;
+      return `${politeAskBanner}Dạ tuyệt vời! Em xin xác nhận sản phẩm ${customerRef} quan tâm đặt mua:\n- **Sản phẩm:** ${targetProd.name}\n- **Đơn giá:** ${formatPrice(targetProd)}\n${qtyText}\nDạ em đã chuẩn bị xong thông tin chi tiết và bảng báo giá chính hãng gồm VAT 10% cho mình rồi ạ. Anh/Chị cho em xin tên và số điện thoại liên hệ để em gửi bản báo giá và hỗ trợ giao hàng tận nơi nhé ạ!`;
     }
 
     // 4. Comparison Engine (Compare 2+ matched models or all products in same category)
@@ -3700,7 +3700,7 @@ ${activeProduct ? `SẢN PHẨM KHÁCH ĐANG QUAN TÂM/CHỌN HIỆN TẠI: ${ac
       normMessage.includes('chuc nang gi') ||
       normMessage.includes('biet lam gi')
     ) {
-      const actionScope = `tìm sản phẩm theo nhu cầu, so sánh thông số & giá bán, mở danh mục trực quan ở Cột 2 và ghi nhận đơn hàng`;
+      const actionScope = `tìm sản phẩm theo nhu cầu, so sánh thông số kỹ thuật & giá bán, chuẩn bị bảng báo giá chính xác và hỗ trợ giao hàng tận nơi`;
       return `${politeAskBanner}Dạ, em có thể giúp ${customerRef}: ${actionScope}. ${capRef} cần hỗ trợ gì cứ nhắn em nhé!`;
     }
 

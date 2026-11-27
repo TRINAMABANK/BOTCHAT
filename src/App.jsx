@@ -27,20 +27,6 @@ import {
   VoiceRecognizer
 } from './utils/speech';
 
-const createWelcomeMessage = (customerName = null, pronoun = null) => {
-  let greeting = 'Xin chào Anh/Chị! Em là **TRÍ AI ULTIMATE ROBOT** – trợ lý AI thông minh, sẵn sàng hỗ trợ Anh/Chị. Em có thể xin tên để tiện xưng hô và phục vụ tốt hơn không ạ?';
-  if (customerName) {
-    const addressing = pronoun ? `${pronoun} ${customerName}` : customerName;
-    greeting = `Xin chào ${addressing}! Em là **TRÍ AI ULTIMATE ROBOT** – rất vui được gặp lại ${pronoun || 'anh/chị'}. Hôm nay ${pronoun || 'anh/chị'} cần em hỗ trợ gì ạ?`;
-  }
-  return {
-    id: `msg_welcome_${Date.now()}`,
-    senderType: 'assistant',
-    content: greeting,
-    createdAt: new Date().toISOString()
-  };
-};
-
 export const App = () => {
   // Chat & Conversation States
   const [conversationId, setConversationId] = useState(null);
@@ -146,14 +132,28 @@ export const App = () => {
       }
     } catch {}
 
-    if (!currentConvId || !Array.isArray(savedMessages) || savedMessages.length === 0) {
+    // Lọc bỏ triệt để các tin nhắn chào cũ hoặc mẫu chào tự động từ phiên trước
+    if (Array.isArray(savedMessages)) {
+      savedMessages = savedMessages.filter(m => {
+        if (!m || !m.content) return false;
+        const c = String(m.content);
+        if (m.id && String(m.id).startsWith('msg_welcome')) return false;
+        if (c.includes('SALES ROBOT') || c.includes('Xin lỗi, bạn vui lòng') || c.includes('cách xưng hô để tôi tiện') || c.includes('Cột 2')) return false;
+        return true;
+      });
+    } else {
+      savedMessages = [];
+    }
+
+    if (!currentConvId) {
       currentConvId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      savedMessages = [createWelcomeMessage()];
       try {
         sessionStorage.setItem('triai_conversation_id', currentConvId);
-        sessionStorage.setItem('triai_chat_history', JSON.stringify(savedMessages));
       } catch {}
     }
+    try {
+      sessionStorage.setItem('triai_chat_history', JSON.stringify(savedMessages));
+    } catch {}
 
     setConversationId(currentConvId);
     setMessages(savedMessages);
@@ -700,11 +700,10 @@ export const App = () => {
       }
       const newConvId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       setConversationId(newConvId);
-      const initialWelcome = createWelcomeMessage();
-      setMessages([initialWelcome]);
+      setMessages([]);
       try {
         sessionStorage.setItem('triai_conversation_id', newConvId);
-        sessionStorage.setItem('triai_chat_history', JSON.stringify([initialWelcome]));
+        sessionStorage.setItem('triai_chat_history', JSON.stringify([]));
         localStorage.removeItem('triai_conversation_id');
         localStorage.removeItem('triai_chat_history');
       } catch {}
