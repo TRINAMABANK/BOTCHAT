@@ -190,7 +190,7 @@ async function runSecuritySuite() {
 
   await test('5.2. Chống nhầm lẫn sản phẩm (Panasonic KX-TSC11 3-step flow)', async () => {
     const resMissing = await CentralBrainService.processChat({
-      message: 'em bán điện thoại bàn panasonic không'
+      message: 'bên bạn có bán điện thoại bàn panasonic kx-tsc11 không'
     });
     assert(resMissing.reply.toLowerCase().includes('chưa tìm thấy'), 'Phải nói rõ chưa tìm thấy');
     assert(resMissing.reply.toLowerCase().includes('số điện thoại'), 'Phải xin số điện thoại');

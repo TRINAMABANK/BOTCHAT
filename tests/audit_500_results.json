@@ -1,14 +1,14 @@
 {
-  "executedAt": "2026-11-27T14:02:55.684Z",
+  "executedAt": "2026-11-28T04:40:20.518Z",
   "totalTests": 510,
   "passedCount": 510,
   "failedCount": 0,
   "blockedCount": 0,
   "passRate": "100.0%",
   "latency": {
-    "p50": 0,
-    "p95": 6,
-    "p99": 83
+    "p50": 1,
+    "p95": 11,
+    "p99": 143
   },
   "tests": [
     {
@@ -20,7 +20,7 @@
       "actual": "WEATHER_QUERY [isWeather: true, isSales: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 124,
+      "latencyMs": 273,
       "evidence": "Homophone disambiguation mưa vs mua verified (isWeather=true)"
     },
     {
@@ -32,7 +32,7 @@
       "actual": "WEATHER_QUERY [isWeather: true, isSales: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 58,
+      "latencyMs": 143,
       "evidence": "Homophone disambiguation mưa vs mua verified (isWeather=true)"
     },
     {
@@ -56,7 +56,7 @@
       "actual": "WEATHER_QUERY [isWeather: true, isSales: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 5,
       "evidence": "Homophone disambiguation mưa vs mua verified (isWeather=true)"
     },
     {
@@ -80,7 +80,7 @@
       "actual": "WEATHER_QUERY [isWeather: true, isSales: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Homophone disambiguation mưa vs mua verified (isWeather=true)"
     },
     {
@@ -92,7 +92,7 @@
       "actual": "BROAD_CATEGORY_INQUIRY [isWeather: false, isSales: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 16,
+      "latencyMs": 25,
       "evidence": "Homophone disambiguation mưa vs mua verified (isWeather=false)"
     },
     {
@@ -104,7 +104,7 @@
       "actual": "PRODUCT_PURCHASE [isWeather: false, isSales: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 9,
+      "latencyMs": 14,
       "evidence": "Homophone disambiguation mưa vs mua verified (isWeather=false)"
     },
     {
@@ -116,7 +116,7 @@
       "actual": "SALES_CONSULTATION [isWeather: false, isSales: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 6,
+      "latencyMs": 11,
       "evidence": "Homophone disambiguation mưa vs mua verified (isWeather=false)"
     },
     {
@@ -152,7 +152,7 @@
       "actual": "PRODUCT_PURCHASE [isWeather: false, isSales: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 35,
+      "latencyMs": 79,
       "evidence": "Homophone disambiguation mưa vs mua verified (isWeather=false)"
     },
     {
@@ -164,7 +164,7 @@
       "actual": "REPAIR_SERVICE [isRepairService: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Tone mark distinction 'sửa' (repair) vs 'sữa' (milk) verified"
     },
     {
@@ -200,7 +200,7 @@
       "actual": "REPAIR_SERVICE [isRepairService: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Tone mark distinction 'sửa' (repair) vs 'sữa' (milk) verified"
     },
     {
@@ -212,7 +212,7 @@
       "actual": "REPAIR_SERVICE [isRepairService: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark distinction 'sửa' (repair) vs 'sữa' (milk) verified"
     },
     {
@@ -248,7 +248,7 @@
       "actual": "SALES_CONSULTATION [isRepairService: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 5,
       "evidence": "Tone mark distinction 'sửa' (repair) vs 'sữa' (milk) verified"
     },
     {
@@ -260,7 +260,7 @@
       "actual": "SALES_CONSULTATION [isRepairService: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Tone mark distinction 'sửa' (repair) vs 'sữa' (milk) verified"
     },
     {
@@ -272,7 +272,7 @@
       "actual": "SALES_CONSULTATION [isRepairService: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Tone mark distinction 'sửa' (repair) vs 'sữa' (milk) verified"
     },
     {
@@ -296,7 +296,7 @@
       "actual": "PRODUCT_PURCHASE [isRepairService: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Tone mark distinction 'sửa' (repair) vs 'sữa' (milk) verified"
     },
     {
@@ -320,7 +320,7 @@
       "actual": "GENERAL_CONVERSATION [isSales: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Tone mark 'bàn' (discuss/table) vs 'bán' (sell) verified"
     },
     {
@@ -332,7 +332,7 @@
       "actual": "GENERAL_CONVERSATION [isSales: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'bàn' (discuss/table) vs 'bán' (sell) verified"
     },
     {
@@ -356,7 +356,7 @@
       "actual": "GENERAL_CONVERSATION [isSales: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'bàn' (discuss/table) vs 'bán' (sell) verified"
     },
     {
@@ -368,7 +368,7 @@
       "actual": "GENERAL_CONVERSATION [isSales: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'bàn' (discuss/table) vs 'bán' (sell) verified"
     },
     {
@@ -392,7 +392,7 @@
       "actual": "SALES_CONSULTATION [isSales: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'bàn' (discuss/table) vs 'bán' (sell) verified"
     },
     {
@@ -404,7 +404,7 @@
       "actual": "SALES_CONSULTATION [isSales: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 6,
+      "latencyMs": 9,
       "evidence": "Tone mark 'bàn' (discuss/table) vs 'bán' (sell) verified"
     },
     {
@@ -416,7 +416,7 @@
       "actual": "CATALOG_OVERVIEW [isSales: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'bàn' (discuss/table) vs 'bán' (sell) verified"
     },
     {
@@ -440,7 +440,7 @@
       "actual": "SALES_CONSULTATION [isSales: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'bàn' (discuss/table) vs 'bán' (sell) verified"
     },
     {
@@ -464,7 +464,7 @@
       "actual": "WEATHER_QUERY [isWeather: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'bão' (storm) vs 'bảo' (say) verified"
     },
     {
@@ -476,7 +476,7 @@
       "actual": "WEATHER_QUERY [isWeather: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Tone mark 'bão' (storm) vs 'bảo' (say) verified"
     },
     {
@@ -488,7 +488,7 @@
       "actual": "WEATHER_QUERY [isWeather: true]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'bão' (storm) vs 'bảo' (say) verified"
     },
     {
@@ -512,7 +512,7 @@
       "actual": "GENERAL_CONVERSATION [isWeather: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'bão' (storm) vs 'bảo' (say) verified"
     },
     {
@@ -524,7 +524,7 @@
       "actual": "FORMAL_QUOTATION [isWeather: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Tone mark 'bão' (storm) vs 'bảo' (say) verified"
     },
     {
@@ -548,7 +548,7 @@
       "actual": "GENERAL_CONVERSATION [isWeather: false]",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 2,
       "evidence": "Tone mark 'bão' (storm) vs 'bảo' (say) verified"
     },
     {
@@ -572,7 +572,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 2,
       "evidence": "Tone mark 'nghĩ' (think) vs 'nghỉ' (rest/holiday) verified"
     },
     {
@@ -584,7 +584,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'nghĩ' (think) vs 'nghỉ' (rest/holiday) verified"
     },
     {
@@ -608,7 +608,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Tone mark 'nghĩ' (think) vs 'nghỉ' (rest/holiday) verified"
     },
     {
@@ -620,7 +620,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Tone mark 'nghĩ' (think) vs 'nghỉ' (rest/holiday) verified"
     },
     {
@@ -656,7 +656,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 2,
       "evidence": "Tone mark 'nghĩ' (think) vs 'nghỉ' (rest/holiday) verified"
     },
     {
@@ -680,7 +680,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 2,
       "evidence": "Tone mark 'nghĩ' (think) vs 'nghỉ' (rest/holiday) verified"
     },
     {
@@ -704,7 +704,7 @@
       "actual": "FINANCE_QUERY",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 2,
       "evidence": "Tone mark 'cổ' (shares) vs 'cỗ' (feast) verified"
     },
     {
@@ -740,7 +740,7 @@
       "actual": "FINANCE_QUERY",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 6,
       "evidence": "Tone mark 'cổ' (shares) vs 'cỗ' (feast) verified"
     },
     {
@@ -752,7 +752,7 @@
       "actual": "KNOWLEDGE_QUERY",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 3,
       "evidence": "Tone mark 'cổ' (shares) vs 'cỗ' (feast) verified"
     },
     {
@@ -776,7 +776,7 @@
       "actual": "KNOWLEDGE_QUERY",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'cổ' (shares) vs 'cỗ' (feast) verified"
     },
     {
@@ -800,7 +800,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'cổ' (shares) vs 'cỗ' (feast) verified"
     },
     {
@@ -812,7 +812,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'đã' (already) vs 'đá' (ice/stone/kick) verified"
     },
     {
@@ -824,7 +824,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'đã' (already) vs 'đá' (ice/stone/kick) verified"
     },
     {
@@ -848,7 +848,7 @@
       "actual": "SALES_CONSULTATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Tone mark 'đã' (already) vs 'đá' (ice/stone/kick) verified"
     },
     {
@@ -860,7 +860,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 4,
+      "latencyMs": 1,
       "evidence": "Tone mark 'đã' (already) vs 'đá' (ice/stone/kick) verified"
     },
     {
@@ -920,7 +920,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'đã' (already) vs 'đá' (ice/stone/kick) verified"
     },
     {
@@ -932,7 +932,7 @@
       "actual": "SALES_CONSULTATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Tone mark 'hỏi' (ask) vs 'hói' (bald) verified"
     },
     {
@@ -944,7 +944,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'hỏi' (ask) vs 'hói' (bald) verified"
     },
     {
@@ -956,7 +956,7 @@
       "actual": "POLICY_INQUIRY",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Tone mark 'hỏi' (ask) vs 'hói' (bald) verified"
     },
     {
@@ -968,7 +968,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'hỏi' (ask) vs 'hói' (bald) verified"
     },
     {
@@ -992,7 +992,7 @@
       "actual": "KNOWLEDGE_QUERY",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'hỏi' (ask) vs 'hói' (bald) verified"
     },
     {
@@ -1016,7 +1016,7 @@
       "actual": "KNOWLEDGE_QUERY",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'hỏi' (ask) vs 'hói' (bald) verified"
     },
     {
@@ -1028,7 +1028,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone mark 'hỏi' (ask) vs 'hói' (bald) verified"
     },
     {
@@ -1076,7 +1076,7 @@
       "actual": "SALES_CONSULTATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone & vowel 'đường' (road/sugar) vs 'đương' (current/face) verified"
     },
     {
@@ -1100,7 +1100,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tone & vowel 'đường' (road/sugar) vs 'đương' (current/face) verified"
     },
     {
@@ -1148,7 +1148,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 2,
       "evidence": "Tone & vowel 'đường' (road/sugar) vs 'đương' (current/face) verified"
     },
     {
@@ -1160,7 +1160,7 @@
       "actual": "GENERAL_CONVERSATION",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Tone & vowel 'đường' (road/sugar) vs 'đương' (current/face) verified"
     },
     {
@@ -1220,7 +1220,7 @@
       "actual": "sản phẩm này bảo hành mấy tháng",
       "responsibleModule": "IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Vietnamese shorthand dictionary normalized successfully"
     },
     {
@@ -1342,7 +1342,7 @@
       "actual": "Máy in Canon LBP 2900",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 4,
+      "latencyMs": 7,
       "evidence": "Pronoun correctly bound to active product entity without loss"
     },
     {
@@ -1356,7 +1356,7 @@
       "actual": "Máy in Brother HL-L2321D",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 3,
       "evidence": "Pronoun correctly bound to active product entity without loss"
     },
     {
@@ -1370,7 +1370,7 @@
       "actual": "Máy đếm tiền XINDA Super BC-35",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Pronoun correctly bound to active product entity without loss"
     },
     {
@@ -1384,7 +1384,7 @@
       "actual": "Máy in Canon LBP 2900",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Pronoun correctly bound to active product entity without loss"
     },
     {
@@ -1468,7 +1468,7 @@
       "actual": "Máy in Canon LBP 2900",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Pronoun correctly bound to active product entity without loss"
     },
     {
@@ -1524,7 +1524,7 @@
       "actual": "Máy in Brother HL-L2321D",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Pronoun correctly bound to active product entity without loss"
     },
     {
@@ -1538,7 +1538,7 @@
       "actual": "Máy đếm tiền XINDA Super BC-35",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Pronoun correctly bound to active product entity without loss"
     },
     {
@@ -1690,7 +1690,7 @@
       "actual": "FINANCE_STOCK",
       "responsibleModule": "MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Thread state transitioned to FINANCE_STOCK"
     },
     {
@@ -1738,7 +1738,7 @@
       "actual": "SALES_CONSULTATION",
       "responsibleModule": "MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Thread state transitioned to SALES_CONSULTATION"
     },
     {
@@ -1786,7 +1786,7 @@
       "actual": "TECH_SUPPORT",
       "responsibleModule": "MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Thread state transitioned to TECH_SUPPORT"
     },
     {
@@ -1810,7 +1810,7 @@
       "actual": "FINANCE_STOCK",
       "responsibleModule": "MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Thread state transitioned to FINANCE_STOCK"
     },
     {
@@ -1870,7 +1870,7 @@
       "actual": "FINANCE_STOCK",
       "responsibleModule": "MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Thread state transitioned to FINANCE_STOCK"
     },
     {
@@ -1906,7 +1906,7 @@
       "actual": "TECH_SUPPORT",
       "responsibleModule": "MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Thread state transitioned to TECH_SUPPORT"
     },
     {
@@ -2763,7 +2763,7 @@
       "actual": "Top was STEP_2, prev is STEP_1",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "LIFO Goal Stack operations verified"
     },
     {
@@ -3075,7 +3075,7 @@
       "actual": "Anh Trí",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 40,
+      "latencyMs": 62,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3087,7 +3087,7 @@
       "actual": "Chị Mai",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 4,
+      "latencyMs": 6,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3111,7 +3111,7 @@
       "actual": "Cô Lan",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 4,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3123,7 +3123,7 @@
       "actual": "Anh Nam",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3135,7 +3135,7 @@
       "actual": "Anh Trí",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3147,7 +3147,7 @@
       "actual": "Chị Mai",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 5,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3159,7 +3159,7 @@
       "actual": "Bác Hùng",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3195,7 +3195,7 @@
       "actual": "Anh Trí",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3207,7 +3207,7 @@
       "actual": "Chị Mai",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3219,7 +3219,7 @@
       "actual": "Bác Hùng",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3243,7 +3243,7 @@
       "actual": "Anh Nam",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 3,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3255,7 +3255,7 @@
       "actual": "Anh Trí",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3267,7 +3267,7 @@
       "actual": "Chị Mai",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 5,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3279,7 +3279,7 @@
       "actual": "Bác Hùng",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 4,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3303,7 +3303,7 @@
       "actual": "Anh Nam",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "SQLite customer_memories table correctly stores and fetches profile fact"
     },
     {
@@ -3312,10 +3312,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_5676538f-b",
+      "actual": "Created memoryId: mem_144dbee7-d",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 9,
+      "latencyMs": 16,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3324,10 +3324,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_319d214d-0",
+      "actual": "Created memoryId: mem_f6eb0ad5-f",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 6,
+      "latencyMs": 11,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3336,10 +3336,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_273f171d-2",
+      "actual": "Created memoryId: mem_ff4a9739-b",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 6,
+      "latencyMs": 12,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3348,10 +3348,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_344bffff-a",
+      "actual": "Created memoryId: mem_d689877a-a",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 5,
+      "latencyMs": 8,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3360,7 +3360,7 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_8e7c832f-1",
+      "actual": "Created memoryId: mem_fe5e16b0-a",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
       "latencyMs": 6,
@@ -3372,10 +3372,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_73b276be-c",
+      "actual": "Created memoryId: mem_09f329b3-8",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 6,
+      "latencyMs": 9,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3384,10 +3384,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_51b978ed-0",
+      "actual": "Created memoryId: mem_fe147882-5",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 7,
+      "latencyMs": 9,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3396,10 +3396,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_6c2afd7c-1",
+      "actual": "Created memoryId: mem_97d8d24c-d",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 5,
+      "latencyMs": 10,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3408,10 +3408,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_0c7a889a-1",
+      "actual": "Created memoryId: mem_4337caf0-3",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 6,
+      "latencyMs": 7,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3420,10 +3420,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_5feaf38f-4",
+      "actual": "Created memoryId: mem_47628852-a",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 7,
+      "latencyMs": 12,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3432,10 +3432,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_75c955c5-a",
+      "actual": "Created memoryId: mem_6675f173-8",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 6,
+      "latencyMs": 11,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3444,10 +3444,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_caf36ba1-d",
+      "actual": "Created memoryId: mem_8323a901-5",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 5,
+      "latencyMs": 10,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3456,10 +3456,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_000b0589-a",
+      "actual": "Created memoryId: mem_e5afcf12-b",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 5,
+      "latencyMs": 11,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3468,10 +3468,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_1b9566a5-8",
+      "actual": "Created memoryId: mem_56e6288d-b",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 8,
+      "latencyMs": 12,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3480,10 +3480,10 @@
       "input": "Update fact budget from 10M to 15M",
       "initialContext": {},
       "expected": "Fact updated without destructive unrecorded overwrite",
-      "actual": "Created memoryId: mem_5bd8a155-9",
+      "actual": "Created memoryId: mem_59a5f76c-5",
       "responsibleModule": "UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 5,
+      "latencyMs": 10,
       "evidence": "Contradiction detected and superseded with audit log"
     },
     {
@@ -3495,7 +3495,7 @@
       "actual": "MEMORY_COMMAND [Action: VIEW]",
       "responsibleModule": "IntentEngine / UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 80,
+      "latencyMs": 142,
       "evidence": "Memory governance command recognized natively"
     },
     {
@@ -3507,7 +3507,7 @@
       "actual": "MEMORY_COMMAND [Action: SAVE]",
       "responsibleModule": "IntentEngine / UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 58,
+      "latencyMs": 103,
       "evidence": "Memory governance command recognized natively"
     },
     {
@@ -3531,7 +3531,7 @@
       "actual": "MEMORY_COMMAND [Action: VIEW]",
       "responsibleModule": "IntentEngine / UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Memory governance command recognized natively"
     },
     {
@@ -3555,7 +3555,7 @@
       "actual": "MEMORY_COMMAND [Action: FORGET]",
       "responsibleModule": "IntentEngine / UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Memory governance command recognized natively"
     },
     {
@@ -3579,7 +3579,7 @@
       "actual": "MEMORY_COMMAND [Action: SAVE]",
       "responsibleModule": "IntentEngine / UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Memory governance command recognized natively"
     },
     {
@@ -3651,7 +3651,7 @@
       "actual": "MEMORY_COMMAND [Action: SAVE]",
       "responsibleModule": "IntentEngine / UnifiedMemoryCore",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Memory governance command recognized natively"
     },
     {
@@ -3675,7 +3675,7 @@
       "actual": "Complexity: SIMPLE_DIRECT, Sufficient: false",
       "responsibleModule": "ReasoningEngine",
       "status": "PASS",
-      "latencyMs": 21,
+      "latencyMs": 31,
       "evidence": "Logical capability triage evaluated"
     },
     {
@@ -3687,7 +3687,7 @@
       "actual": "Complexity: SIMPLE_DIRECT, Sufficient: false",
       "responsibleModule": "ReasoningEngine",
       "status": "PASS",
-      "latencyMs": 13,
+      "latencyMs": 17,
       "evidence": "Logical capability triage evaluated"
     },
     {
@@ -3699,7 +3699,7 @@
       "actual": "Complexity: SIMPLE_DIRECT, Sufficient: false",
       "responsibleModule": "ReasoningEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Logical capability triage evaluated"
     },
     {
@@ -3735,7 +3735,7 @@
       "actual": "Complexity: SIMPLE_DIRECT, Sufficient: false",
       "responsibleModule": "ReasoningEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Logical capability triage evaluated"
     },
     {
@@ -3771,7 +3771,7 @@
       "actual": "Complexity: SIMPLE_DIRECT, Sufficient: false",
       "responsibleModule": "ReasoningEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Logical capability triage evaluated"
     },
     {
@@ -3855,7 +3855,7 @@
       "actual": "dataSufficient: false",
       "responsibleModule": "ReasoningEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Premature hallucination prevented; clarification triggered"
     },
     {
@@ -3903,7 +3903,7 @@
       "actual": "dataSufficient: false",
       "responsibleModule": "ReasoningEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Premature hallucination prevented; clarification triggered"
     },
     {
@@ -3975,7 +3975,7 @@
       "actual": "dataSufficient: false",
       "responsibleModule": "ReasoningEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Premature hallucination prevented; clarification triggered"
     },
     {
@@ -4395,7 +4395,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 5,
+      "latencyMs": 6,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4419,7 +4419,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 5,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4431,7 +4431,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4443,7 +4443,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 3,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4455,7 +4455,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4467,7 +4467,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 5,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4479,7 +4479,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 3,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4503,7 +4503,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4527,7 +4527,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4539,7 +4539,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 4,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4551,7 +4551,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4563,7 +4563,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 3,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4575,7 +4575,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4587,7 +4587,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4599,7 +4599,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 8,
+      "latencyMs": 4,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4611,7 +4611,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 4,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4623,7 +4623,7 @@
       "actual": "Found 0 compatible items",
       "responsibleModule": "KnowledgeGraphEngine",
       "status": "PASS",
-      "latencyMs": 4,
+      "latencyMs": 2,
       "evidence": "Graph traversal executed safely with zero crash"
     },
     {
@@ -4683,7 +4683,7 @@
       "actual": "Intent: INTERNET_SEARCH",
       "responsibleModule": "CentralBrainOrchestrator / ToolOrchestrator",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 1,
       "evidence": "Intent maps to sandbox tool specification"
     },
     {
@@ -4695,7 +4695,7 @@
       "actual": "Intent: FORMAL_QUOTATION",
       "responsibleModule": "CentralBrainOrchestrator / ToolOrchestrator",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 3,
       "evidence": "Intent maps to sandbox tool specification"
     },
     {
@@ -4719,7 +4719,7 @@
       "actual": "Intent: INTERNAL_DOCUMENT_RAG",
       "responsibleModule": "CentralBrainOrchestrator / ToolOrchestrator",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Intent maps to sandbox tool specification"
     },
     {
@@ -4743,7 +4743,7 @@
       "actual": "Intent: INTERNET_SEARCH",
       "responsibleModule": "CentralBrainOrchestrator / ToolOrchestrator",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Intent maps to sandbox tool specification"
     },
     {
@@ -4767,7 +4767,7 @@
       "actual": "Intent: WEATHER_QUERY",
       "responsibleModule": "CentralBrainOrchestrator / ToolOrchestrator",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Intent maps to sandbox tool specification"
     },
     {
@@ -4779,7 +4779,7 @@
       "actual": "Intent: INTERNAL_DOCUMENT_RAG",
       "responsibleModule": "CentralBrainOrchestrator / ToolOrchestrator",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Intent maps to sandbox tool specification"
     },
     {
@@ -4791,7 +4791,7 @@
       "actual": "Intent: EXCEL_CALCULATION",
       "responsibleModule": "CentralBrainOrchestrator / ToolOrchestrator",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Intent maps to sandbox tool specification"
     },
     {
@@ -4815,7 +4815,7 @@
       "actual": "Intent: FORMAL_QUOTATION",
       "responsibleModule": "CentralBrainOrchestrator / ToolOrchestrator",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Intent maps to sandbox tool specification"
     },
     {
@@ -4863,7 +4863,7 @@
       "actual": "Intent: INTERNET_SEARCH",
       "responsibleModule": "CentralBrainOrchestrator / ToolOrchestrator",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Intent maps to sandbox tool specification"
     },
     {
@@ -4875,7 +4875,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 83,
+      "latencyMs": 108,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -4887,7 +4887,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -4911,7 +4911,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -4923,7 +4923,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 4,
+      "latencyMs": 3,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -4935,7 +4935,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 5,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -4947,7 +4947,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -4959,7 +4959,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -4971,7 +4971,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -4995,7 +4995,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 4,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -5007,7 +5007,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 2,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -5019,7 +5019,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 4,
+      "latencyMs": 3,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -5043,7 +5043,7 @@
       "actual": "VAT: 400000, Total: 4400000",
       "responsibleModule": "QuotationService",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 5,
       "evidence": "Deterministic financial math verified with 10% statutory VAT"
     },
     {
@@ -5055,7 +5055,7 @@
       "actual": "SERVICE_SURVEY_REQUEST [Domain: SERVICE]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 5,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5091,7 +5091,7 @@
       "actual": "FORMAL_QUOTATION [Domain: SALES]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 50,
+      "latencyMs": 75,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5103,7 +5103,7 @@
       "actual": "BROAD_CATEGORY_INQUIRY [Domain: SALES]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5127,7 +5127,7 @@
       "actual": "SERVICE_SURVEY_REQUEST [Domain: SERVICE]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5139,7 +5139,7 @@
       "actual": "SERVICE_SURVEY_REQUEST [Domain: SERVICE]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5151,7 +5151,7 @@
       "actual": "FORMAL_QUOTATION [Domain: SALES]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5163,7 +5163,7 @@
       "actual": "BROAD_CATEGORY_INQUIRY [Domain: SALES]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5175,7 +5175,7 @@
       "actual": "SERVICE_SURVEY_REQUEST [Domain: SERVICE]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5187,7 +5187,7 @@
       "actual": "SERVICE_SURVEY_REQUEST [Domain: SERVICE]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5199,7 +5199,7 @@
       "actual": "SERVICE_SURVEY_REQUEST [Domain: SERVICE]",
       "responsibleModule": "ServiceConsultant / IntentEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Service inquiry isolated from product catalog"
     },
     {
@@ -5232,11 +5232,11 @@
       "input": "Chào em",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "1ms",
+      "actual": "2ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 1,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
+      "latencyMs": 2,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 2ms"
     },
     {
       "id": "PERF_BENCH_2",
@@ -5244,11 +5244,11 @@
       "input": "Hôm nay trời có mưa không?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_3",
@@ -5256,11 +5256,11 @@
       "input": "Giá máy in Canon 2900 bao nhiêu?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_4",
@@ -5280,11 +5280,11 @@
       "input": "Tư vấn giúp tôi laptop văn phòng",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "2ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 2,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 2ms"
     },
     {
       "id": "PERF_BENCH_6",
@@ -5292,11 +5292,11 @@
       "input": "Thị trường chứng khoán hôm nay thế nào?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_7",
@@ -5328,11 +5328,11 @@
       "input": "Chào em",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_10",
@@ -5352,11 +5352,11 @@
       "input": "Giá máy in Canon 2900 bao nhiêu?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_12",
@@ -5364,11 +5364,11 @@
       "input": "Shop có những danh mục sản phẩm nào?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_13",
@@ -5400,11 +5400,11 @@
       "input": "Sửa máy in kẹt giấy",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_16",
@@ -5424,11 +5424,11 @@
       "input": "Chào em",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_18",
@@ -5448,28 +5448,16 @@
       "input": "Giá máy in Canon 2900 bao nhiêu?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_20",
       "group": "Performance & Latency",
       "input": "Shop có những danh mục sản phẩm nào?",
-      "initialContext": {},
-      "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
-      "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
-      "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
-    },
-    {
-      "id": "PERF_BENCH_21",
-      "group": "Performance & Latency",
-      "input": "Tư vấn giúp tôi laptop văn phòng",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
       "actual": "1ms",
@@ -5479,9 +5467,9 @@
       "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
-      "id": "PERF_BENCH_22",
+      "id": "PERF_BENCH_21",
       "group": "Performance & Latency",
-      "input": "Thị trường chứng khoán hôm nay thế nào?",
+      "input": "Tư vấn giúp tôi laptop văn phòng",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
       "actual": "0ms",
@@ -5489,6 +5477,18 @@
       "status": "PASS",
       "latencyMs": 0,
       "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+    },
+    {
+      "id": "PERF_BENCH_22",
+      "group": "Performance & Latency",
+      "input": "Thị trường chứng khoán hôm nay thế nào?",
+      "initialContext": {},
+      "expected": "Pipeline latency < 50ms",
+      "actual": "2ms",
+      "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
+      "status": "PASS",
+      "latencyMs": 2,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 2ms"
     },
     {
       "id": "PERF_BENCH_23",
@@ -5496,11 +5496,11 @@
       "input": "Sửa máy in kẹt giấy",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "2ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 2,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 2ms"
     },
     {
       "id": "PERF_BENCH_24",
@@ -5508,11 +5508,11 @@
       "input": "Xem thông tin đã lưu về tôi",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_25",
@@ -5520,11 +5520,11 @@
       "input": "Chào em",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_26",
@@ -5544,11 +5544,11 @@
       "input": "Giá máy in Canon 2900 bao nhiêu?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "2ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 2,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 2ms"
     },
     {
       "id": "PERF_BENCH_28",
@@ -5556,11 +5556,11 @@
       "input": "Shop có những danh mục sản phẩm nào?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_29",
@@ -5568,11 +5568,11 @@
       "input": "Tư vấn giúp tôi laptop văn phòng",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_30",
@@ -5580,11 +5580,11 @@
       "input": "Thị trường chứng khoán hôm nay thế nào?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "1ms",
+      "actual": "0ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 1,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
+      "latencyMs": 0,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
     },
     {
       "id": "PERF_BENCH_31",
@@ -5616,11 +5616,11 @@
       "input": "Chào em",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "1ms",
+      "actual": "0ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 1,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
+      "latencyMs": 0,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
     },
     {
       "id": "PERF_BENCH_34",
@@ -5628,11 +5628,11 @@
       "input": "Hôm nay trời có mưa không?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_35",
@@ -5652,11 +5652,11 @@
       "input": "Shop có những danh mục sản phẩm nào?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_37",
@@ -5676,11 +5676,11 @@
       "input": "Thị trường chứng khoán hôm nay thế nào?",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_39",
@@ -5688,11 +5688,11 @@
       "input": "Sửa máy in kẹt giấy",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "PERF_BENCH_40",
@@ -5700,11 +5700,11 @@
       "input": "Xem thông tin đã lưu về tôi",
       "initialContext": {},
       "expected": "Pipeline latency < 50ms",
-      "actual": "0ms",
+      "actual": "1ms",
       "responsibleModule": "IntentEngine / ContextEngine / MultiThreadConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
-      "evidence": "Deterministic pre-execution pipeline benchmarked at 0ms"
+      "latencyMs": 1,
+      "evidence": "Deterministic pre-execution pipeline benchmarked at 1ms"
     },
     {
       "id": "SEC_IMPERSONATION_1",
@@ -5715,7 +5715,7 @@
       "actual": "isImpersonation: true, role: CUSTOMER",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Zero-trust identity guard prevents chat-based privilege escalation"
     },
     {
@@ -5727,7 +5727,7 @@
       "actual": "isImpersonation: true, role: CUSTOMER",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Zero-trust identity guard prevents chat-based privilege escalation"
     },
     {
@@ -5775,7 +5775,7 @@
       "actual": "isImpersonation: true, role: CUSTOMER",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Zero-trust identity guard prevents chat-based privilege escalation"
     },
     {
@@ -5799,7 +5799,7 @@
       "actual": "isImpersonation: true, role: CUSTOMER",
       "responsibleModule": "ContextEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Zero-trust identity guard prevents chat-based privilege escalation"
     },
     {
@@ -5835,7 +5835,7 @@
       "actual": "Allowed: false",
       "responsibleModule": "SecurityGovernanceGate",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tier 3 / L4 payment and destructive action strictly blocked"
     },
     {
@@ -5847,7 +5847,7 @@
       "actual": "Allowed: false",
       "responsibleModule": "SecurityGovernanceGate",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Tier 3 / L4 payment and destructive action strictly blocked"
     },
     {
@@ -5931,7 +5931,7 @@
       "actual": "Allowed: false",
       "responsibleModule": "SecurityGovernanceGate",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Tier 3 / L4 payment and destructive action strictly blocked"
     },
     {
@@ -5955,7 +5955,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 53,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -5967,7 +5967,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 34,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -5979,7 +5979,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 9,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -5991,7 +5991,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 7,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -6003,7 +6003,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 3,
+      "latencyMs": 9,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -6015,7 +6015,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -6027,7 +6027,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -6039,7 +6039,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 10,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -6051,7 +6051,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 4,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -6063,7 +6063,7 @@
       "actual": "Leaked: false",
       "responsibleModule": "MemoryEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 5,
       "evidence": "Tenant boundaries enforce multi-tenant isolation at SQL level"
     },
     {
@@ -6072,10 +6072,10 @@
       "input": "Chào em",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Chào! Chúc bạn một ngày thật nhiều năng lượng và niềm vui nhé. Bạn đan...",
+      "actual": "Dạ em chào! Rất vui được trò chuyện cùng bạn hôm nay. Hôm nay bạn thế ...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
-      "latencyMs": 8,
+      "latencyMs": 11,
       "evidence": "Clean humanized tone verified with zero robotic leak"
     },
     {
@@ -6084,10 +6084,10 @@
       "input": "Hello shop",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Chào! Chúc bạn một ngày thật nhiều năng lượng và niềm vui nhé. Bạn đan...",
+      "actual": "Dạ em đây ạ! Em có thể đồng hành hỗ trợ gì cùng hôm nay nào?...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
-      "latencyMs": 2,
+      "latencyMs": 3,
       "evidence": "Clean humanized tone verified with zero robotic leak"
     },
     {
@@ -6099,7 +6099,7 @@
       "actual": "Dạ em đây ạ! Em có thể đồng hành hỗ trợ gì cùng hôm nay nào?...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
-      "latencyMs": 1,
+      "latencyMs": 0,
       "evidence": "Clean humanized tone verified with zero robotic leak"
     },
     {
@@ -6108,10 +6108,10 @@
       "input": "Em ơi có đó không",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Dạ, em nghe đây bạn ơi! Em lúc nào cũng sẵn sàng ở đây để hỗ trợ bạn n...",
+      "actual": "Dạ, em nghe đây ạ! Em luôn sẵn sàng đây. Bạn đang cần trao đổi hay muố...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
-      "latencyMs": 1056,
+      "latencyMs": 1225,
       "evidence": "Clean humanized tone verified with zero robotic leak"
     },
     {
@@ -6120,10 +6120,10 @@
       "input": "Hi bạn",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Dạ em đây ạ! Em có thể đồng hành hỗ trợ gì cùng hôm nay nào?...",
+      "actual": "Chào! Chúc bạn một ngày thật nhiều năng lượng và niềm vui nhé. Bạn đan...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 2,
       "evidence": "Clean humanized tone verified with zero robotic leak"
     },
     {
@@ -6144,7 +6144,7 @@
       "input": "Hello shop",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Chào! Chúc bạn một ngày thật nhiều năng lượng và niềm vui nhé. Bạn đan...",
+      "actual": "Dạ em chào! Rất vui được trò chuyện cùng bạn hôm nay. Hôm nay bạn thế ...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
       "latencyMs": 0,
@@ -6156,7 +6156,7 @@
       "input": "Xin chào bot",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Chào! Chúc bạn một ngày thật nhiều năng lượng và niềm vui nhé. Bạn đan...",
+      "actual": "Dạ em chào! Rất vui được trò chuyện cùng bạn hôm nay. Hôm nay bạn thế ...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
       "latencyMs": 0,
@@ -6168,10 +6168,10 @@
       "input": "Em ơi có đó không",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Dạ, em nghe đây ạ! Em luôn sẵn sàng đây. Hôm nay bạn muốn trao đổi hay...",
+      "actual": "Dạ, em nghe đây ạ! Em luôn sẵn sàng đây. Bạn đang cần trao đổi hay tìm...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
-      "latencyMs": 757,
+      "latencyMs": 918,
       "evidence": "Clean humanized tone verified with zero robotic leak"
     },
     {
@@ -6183,7 +6183,7 @@
       "actual": "Chào! Chúc bạn một ngày thật nhiều năng lượng và niềm vui nhé. Bạn đan...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
-      "latencyMs": 0,
+      "latencyMs": 1,
       "evidence": "Clean humanized tone verified with zero robotic leak"
     },
     {
@@ -6192,7 +6192,7 @@
       "input": "Chào em",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Chào! Chúc bạn một ngày thật nhiều năng lượng và niềm vui nhé. Bạn đan...",
+      "actual": "Dạ em đây ạ! Em có thể đồng hành hỗ trợ gì cùng hôm nay nào?...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
       "latencyMs": 0,
@@ -6204,7 +6204,7 @@
       "input": "Hello shop",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Dạ em đây ạ! Em có thể đồng hành hỗ trợ gì cùng hôm nay nào?...",
+      "actual": "Chào! Chúc bạn một ngày thật nhiều năng lượng và niềm vui nhé. Bạn đan...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
       "latencyMs": 0,
@@ -6228,10 +6228,10 @@
       "input": "Em ơi có đó không",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Dạ, em nghe đây ạ! Em luôn sẵn sàng đây. Bạn đang cần trao đổi hay tìm...",
+      "actual": "Dạ, em nghe đây bạn ơi! Em luôn sẵn sàng đây ạ. Mình đang cần trao đổi...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
-      "latencyMs": 1036,
+      "latencyMs": 698,
       "evidence": "Clean humanized tone verified with zero robotic leak"
     },
     {
@@ -6240,7 +6240,7 @@
       "input": "Hi bạn",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Dạ em đây ạ! Em có thể đồng hành hỗ trợ gì cùng hôm nay nào?...",
+      "actual": "Chào! Chúc bạn một ngày thật nhiều năng lượng và niềm vui nhé. Bạn đan...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
       "latencyMs": 0,
@@ -6252,7 +6252,7 @@
       "input": "Chào em",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Dạ em đây ạ! Em có thể đồng hành hỗ trợ gì cùng hôm nay nào?...",
+      "actual": "Dạ em chào! Rất vui được trò chuyện cùng bạn hôm nay. Hôm nay bạn thế ...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
       "latencyMs": 0,
@@ -6276,7 +6276,7 @@
       "input": "Xin chào bot",
       "initialContext": {},
       "expected": "Warm, natural greeting without robotic banners or \"Cột 2\" references",
-      "actual": "Dạ em chào! Rất vui được trò chuyện cùng bạn hôm nay. Hôm nay bạn thế ...",
+      "actual": "Dạ em đây ạ! Em có thể đồng hành hỗ trợ gì cùng hôm nay nào?...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
       "latencyMs": 0,
@@ -6291,7 +6291,7 @@
       "actual": "Dạ, em nghe đây ạ! Em luôn sẵn sàng đây. Bạn đang cần trao đổi hay tìm...",
       "responsibleModule": "NaturalHumanConversationEngine",
       "status": "PASS",
-      "latencyMs": 776,
+      "latencyMs": 736,
       "evidence": "Clean humanized tone verified with zero robotic leak"
     },
     {
