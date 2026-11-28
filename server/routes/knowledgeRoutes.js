@@ -18,6 +18,11 @@ import { ExcelParser } from '../services/parsers/excelParser.js';
 import { WebSearchService } from '../services/webSearchService.js';
 import { CentralBrainService } from '../services/centralBrainService.js';
 import { requireAdmin } from '../middleware/authMiddleware.js';
+import { UnifiedKnowledgePipelineService } from '../services/knowledge/unifiedKnowledgePipeline.js';
+import { WebKnowledgeExtractor } from '../services/crawler/webKnowledgeExtractor.js';
+import { isSafePublicUrl } from '../utils/ssrfProtection.js';
+
+const activeCrawlerTasks = new Map();
 
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
@@ -79,7 +84,7 @@ router.get('/stats', async (req, res) => {
 // -----------------------------------------------------------------------------
 router.get('/documents', async (req, res) => {
   try {
-    const { scope, orgId = 'org_default', approvalStatus } = req.query;
+    const { scope, orgId = 'org_default', approvalStatus, productScope } = req.query;
 
     let sql = 'SELECT * FROM knowledge_documents WHERE 1=1';
     const params = [];
@@ -99,6 +104,11 @@ router.get('/documents', async (req, res) => {
       params.push(approvalStatus);
     }
 
+    if (productScope && productScope !== 'all') {
+      sql += ' AND (product_scope = "all" OR product_scope = ? OR product_scope IS NULL)';
+      params.push(productScope);
+    }
+
     sql += ' ORDER BY created_at DESC';
     const documents = await db.all(sql, params);
     res.json({ success: true, documents });
@@ -115,6 +125,7 @@ router.post('/documents/upload', async (req, res) => {
       dataUrl,
       rawText,
       scope = 'global',
+      productScope = 'all',
       orgId = 'org_default',
       approvalStatus = 'PENDING_REVIEW'
     } = req.body;
@@ -147,6 +158,11 @@ router.post('/documents/upload', async (req, res) => {
         orgId: effectiveOrgId
       });
 
+      // Update product_scope on document record
+      if (parsedExcel.documentId) {
+        await db.run('UPDATE knowledge_documents SET product_scope = ?, source_origin = "UPLOAD", original_filename = ? WHERE id = ?', [productScope, fileName || 'data.xlsx', parsedExcel.documentId]);
+      }
+
       return res.json({
         success: true,
         type: 'excel',
@@ -157,61 +173,81 @@ router.post('/documents/upload', async (req, res) => {
       });
     }
 
-    // 2. Text / PDF / DOC document
-    let contentToIngest = rawText || '';
-    let pageCount = 1;
-    let savedFilePath = null;
-
+    // 2. Multi-Format Pipeline (PDF, DOCX, PPTX, TXT, OCR Images)
+    let buffer = null;
     if (dataUrl) {
       const base64Data = dataUrl.replace(/^data:.*?;base64,/, '');
-      const fileBuffer = Buffer.from(base64Data, 'base64');
-
-      // Save raw file to disk for persistence & future audits
-      const savedFileName = `${Date.now()}_${(fileName || `doc.${ext}`).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      savedFilePath = path.join(docsUploadDir, savedFileName);
-      fs.writeFileSync(savedFilePath, fileBuffer);
-
-      if (ext === 'pdf') {
-        try {
-          const pdfData = await pdfParse(fileBuffer);
-          contentToIngest = pdfData.text || '';
-          pageCount = pdfData.numpages || 1;
-        } catch (pdfErr) {
-          console.warn('[PDF PARSE PRIMARY FAILED]', pdfErr.message);
-          try {
-            const latinBuf = Buffer.from(fileBuffer.toString('binary'), 'binary');
-            const pdfData2 = await pdfParse(latinBuf);
-            contentToIngest = pdfData2.text || '';
-            pageCount = pdfData2.numpages || 1;
-          } catch (e2) {
-            console.error('[PDF PARSE FALLBACK FAILED]', e2.message);
-            contentToIngest = fileBuffer.toString('utf-8');
-          }
-        }
-      } else {
-        contentToIngest = fileBuffer.toString('utf-8');
-      }
+      buffer = Buffer.from(base64Data, 'base64');
     }
 
-    if (!contentToIngest.trim()) {
-      return res.status(400).json({ success: false, error: 'Tài liệu không có nội dung văn bản hợp lệ hoặc không trích xuất được chữ.' });
-    }
-
-    const ingested = await RagService.ingestDocument({
+    const ingested = await UnifiedKnowledgePipelineService.ingest({
       title: docTitle,
+      sourceType: 'UPLOAD',
+      originalFilename: fileName || null,
       fileType: ext,
-      filePath: savedFilePath,
-      content: contentToIngest,
+      buffer,
+      rawText: rawText || '',
       orgId: effectiveOrgId,
       scope,
+      productScope,
       approvalStatus,
-      pageCount
+      skipDuplicate: false
     });
 
     res.json({
       success: true,
-      type: 'text_document',
+      type: 'unified_document',
       ...ingested
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/documents/batch-upload', async (req, res) => {
+  try {
+    const {
+      files = [],
+      scope = 'global',
+      productScope = 'all',
+      orgId = 'org_default',
+      approvalStatus = 'PENDING_REVIEW'
+    } = req.body;
+
+    const effectiveOrgId = req.orgId || orgId || 'org_default';
+
+    if (!Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ success: false, error: 'Danh sách tệp tải lên không được rỗng' });
+    }
+
+    const batchResult = await UnifiedKnowledgePipelineService.processBatchFiles({
+      files,
+      orgId: effectiveOrgId,
+      scope,
+      productScope,
+      approvalStatus
+    });
+
+    res.json({ success: true, ...batchResult });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/documents/batch-status/:batchId', async (req, res) => {
+  try {
+    const batch = await db.get('SELECT * FROM knowledge_batch_uploads WHERE id = ?', [req.params.batchId]);
+    if (!batch) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy phiên tải lên này' });
+    }
+
+    res.json({
+      success: true,
+      batch: {
+        ...batch,
+        error_log: JSON.parse(batch.error_log_json || '[]'),
+        percentComplete: batch.total_files > 0 ? Math.round((batch.processed_files / batch.total_files) * 100) : 0
+      }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -307,39 +343,263 @@ router.get('/sources', async (req, res) => {
 
 router.post('/sources/crawl', async (req, res) => {
   try {
-    const { url, title, orgId = 'org_default' } = req.body;
-    if (!url) {
+    const { url, title, orgId = 'org_default', scope = 'global', productScope = 'all', approvalStatus = 'APPROVED' } = req.body;
+    if (!url || typeof url !== 'string') {
       return res.status(400).json({ success: false, error: 'Thiếu URL nguồn cần crawl' });
     }
 
-    // Crawl web content
-    const webData = await WebSearchService.search(url, 1);
-    const sourceTitle = title || `Nguồn Web: ${new URL(url).hostname}`;
+    const effectiveOrgId = req.orgId || orgId || 'org_default';
+
+    // 1. SSRF Safety Gate
+    const ssrfCheck = await isSafePublicUrl(url);
+    if (!ssrfCheck.safe) {
+      return res.status(400).json({ success: false, error: `URL không hợp lệ hoặc bị chặn bởi SSRF Protection: ${ssrfCheck.reason}` });
+    }
+    const cleanUrl = ssrfCheck.cleanUrl;
+
+    // 2. Fetch page directly with respectful User-Agent
+    let cleanText = '';
+    let pageTitle = title || '';
+    let contentHash = '';
+
+    try {
+      const resp = await fetch(cleanUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; TriAIKnowledgeCrawler/2.0; +https://quangnhuttri.com)'
+        },
+        signal: AbortSignal.timeout(9000)
+      });
+
+      if (resp.ok) {
+        const html = await resp.text();
+        const extracted = WebKnowledgeExtractor.extract(html, cleanUrl);
+        if (extracted.success && extracted.cleanText) {
+          cleanText = extracted.cleanText;
+          if (!pageTitle) pageTitle = extracted.title;
+          contentHash = extracted.contentHash;
+        }
+      }
+    } catch (fetchErr) {
+      console.warn('[CRAWL FETCH FALLBACK]', fetchErr.message);
+    }
+
+    // 3. Fallback to WebSearchService if direct fetch was blocked by anti-bot
+    if (!cleanText) {
+      const webData = await WebSearchService.search(cleanUrl, 1);
+      const snippet = webData.results?.[0]?.snippet || `Nguồn crawl từ ${cleanUrl}`;
+      cleanText = `${snippet}`;
+      if (!pageTitle) pageTitle = webData.results?.[0]?.title || `Nguồn Web: ${new URL(cleanUrl).hostname}`;
+    }
+
+    const sourceTitle = pageTitle || `Nguồn Web: ${new URL(cleanUrl).hostname}`;
     const now = new Date().toISOString();
     const sourceId = `src_${randomUUID()}`;
 
-    const snippet = webData.results?.[0]?.snippet || `Nguồn crawl từ ${url}`;
-
+    // 4. Save to knowledge_sources
     await db.run(`
       INSERT INTO knowledge_sources (id, title, type, content, metadata_json, is_active, created_at)
       VALUES (?, ?, 'url', ?, ?, 1, ?)
-    `, [sourceId, sourceTitle, snippet, JSON.stringify({ url }), now]);
+    `, [sourceId, sourceTitle, cleanText.slice(0, 500), JSON.stringify({ url: cleanUrl }), now]);
 
-    // Also ingest into knowledge base
-    const ingested = await RagService.ingestDocument({
+    // 5. Ingest into Central Knowledge Base via Unified Pipeline
+    const ingested = await UnifiedKnowledgePipelineService.ingest({
       title: sourceTitle,
+      sourceType: 'WEBSITE',
+      sourceUrl: cleanUrl,
+      rawText: cleanText,
       fileType: 'url',
-      content: `${sourceTitle}\nURL: ${url}\n\n${snippet}`,
-      orgId,
-      scope: 'global'
+      orgId: effectiveOrgId,
+      scope,
+      productScope,
+      approvalStatus,
+      skipDuplicate: false
     });
 
     res.json({
       success: true,
       sourceId,
       title: sourceTitle,
-      ingestedChunks: ingested.totalChunks
+      ingestedChunks: ingested.totalChunks,
+      contentHash: ingested.contentHash,
+      documentId: ingested.documentId
     });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// 4B. ADVANCED MULTI-PAGE & BULK URL CRAWLER TASKS
+// -----------------------------------------------------------------------------
+router.get('/crawler/tasks', async (req, res) => {
+  try {
+    const orgId = req.orgId || req.query.orgId || 'org_default';
+    const tasks = await db.all('SELECT * FROM knowledge_crawler_tasks WHERE org_id = ? ORDER BY created_at DESC LIMIT 30', [orgId]);
+    res.json({ success: true, tasks });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/crawler/start-task', async (req, res) => {
+  try {
+    const {
+      url,
+      urls = [],
+      crawlMode = 'SINGLE_PAGE',
+      maxUrls = 20,
+      orgId = 'org_default',
+      scope = 'global',
+      productScope = 'all',
+      approvalStatus = 'PENDING_REVIEW'
+    } = req.body;
+
+    const effectiveOrgId = req.orgId || orgId || 'org_default';
+
+    const targetUrls = new Set();
+    if (url && typeof url === 'string') targetUrls.add(url.trim());
+    if (Array.isArray(urls)) {
+      urls.forEach(u => u && typeof u === 'string' && targetUrls.add(u.trim()));
+    }
+
+    if (targetUrls.size === 0) {
+      return res.status(400).json({ success: false, error: 'Thiếu URL nguồn cần thu thập' });
+    }
+
+    const taskId = `ctask_${randomUUID()}`;
+    const now = new Date().toISOString();
+    const rootUrl = Array.from(targetUrls)[0];
+
+    // SSRF Validation on all input URLs
+    const verifiedUrls = [];
+    const rejectedUrls = [];
+    for (const u of targetUrls) {
+      const ssrfCheck = await isSafePublicUrl(u);
+      if (ssrfCheck.safe) {
+        verifiedUrls.push(ssrfCheck.cleanUrl);
+      } else {
+        rejectedUrls.push({ url: u, reason: ssrfCheck.reason });
+      }
+    }
+
+    if (verifiedUrls.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Tất cả các URL đều không hợp lệ hoặc bị chặn bởi SSRF Protection',
+        rejectedUrls
+      });
+    }
+
+    await db.run(`
+      INSERT INTO knowledge_crawler_tasks (
+        id, org_id, root_url, crawl_mode, max_urls, urls_discovered, urls_crawled,
+        pages_ingested, pages_skipped, status, error_log_json, product_scope, started_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 'RUNNING', ?, ?, ?, ?, ?)
+    `, [taskId, effectiveOrgId, rootUrl, crawlMode, maxUrls, verifiedUrls.length, JSON.stringify(rejectedUrls), productScope, now, now, now]);
+
+    const abortController = new AbortController();
+    activeCrawlerTasks.set(taskId, abortController);
+
+    // Run crawling in background
+    (async () => {
+      let crawled = 0;
+      let ingested = 0;
+      let skipped = 0;
+      const taskErrors = [...rejectedUrls];
+
+      for (const currentUrl of verifiedUrls.slice(0, maxUrls)) {
+        if (abortController.signal.aborted) break;
+
+        try {
+          const resp = await fetch(currentUrl, {
+            signal: abortController.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; TriAIKnowledgeCrawler/2.0; +https://quangnhuttri.com)'
+            }
+          });
+
+          crawled++;
+          if (!resp.ok) {
+            taskErrors.push({ url: currentUrl, error: `HTTP ${resp.status}` });
+            continue;
+          }
+
+          const html = await resp.text();
+          const result = await UnifiedKnowledgePipelineService.ingestCrawledWebPage({
+            url: currentUrl,
+            html,
+            orgId: effectiveOrgId,
+            scope,
+            productScope,
+            approvalStatus
+          });
+
+          if (result.isDuplicate) {
+            skipped++;
+          } else {
+            ingested++;
+          }
+        } catch (crawlErr) {
+          taskErrors.push({ url: currentUrl, error: crawlErr.message });
+        }
+
+        await db.run(`
+          UPDATE knowledge_crawler_tasks
+          SET urls_crawled = ?, pages_ingested = ?, pages_skipped = ?, error_log_json = ?, updated_at = ?
+          WHERE id = ?
+        `, [crawled, ingested, skipped, JSON.stringify(taskErrors), new Date().toISOString(), taskId]);
+      }
+
+      const finishStatus = abortController.signal.aborted ? 'STOPPED' : 'COMPLETED';
+      await db.run(`
+        UPDATE knowledge_crawler_tasks
+        SET status = ?, finished_at = ?, updated_at = ?
+        WHERE id = ?
+      `, [finishStatus, new Date().toISOString(), new Date().toISOString(), taskId]);
+
+      activeCrawlerTasks.delete(taskId);
+    })();
+
+    res.json({
+      success: true,
+      taskId,
+      status: 'RUNNING',
+      discoveredUrls: verifiedUrls.length,
+      rejectedUrls
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/crawler/task-status/:taskId', async (req, res) => {
+  try {
+    const task = await db.get('SELECT * FROM knowledge_crawler_tasks WHERE id = ?', [req.params.taskId]);
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy tác vụ cào này' });
+    }
+
+    res.json({
+      success: true,
+      task: {
+        ...task,
+        error_log: JSON.parse(task.error_log_json || '[]')
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/crawler/tasks/:taskId/stop', (req, res) => {
+  try {
+    const controller = activeCrawlerTasks.get(req.params.taskId);
+    if (controller) {
+      controller.abort();
+      activeCrawlerTasks.delete(req.params.taskId);
+      return res.json({ success: true, message: 'Đã gửi lệnh dừng tác vụ cào thành công' });
+    }
+    res.json({ success: false, message: 'Tác vụ không còn chạy hoặc không tồn tại' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

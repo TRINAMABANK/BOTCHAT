@@ -109,6 +109,7 @@ export class RagService {
       query = '',
       orgId = 'org_default',
       scope = 'all', // 'all', 'global', 'private'
+      productScope = 'all', // 'all', 'sales_robot', 'receptionist', 'secretary', 'tutor', 'voice_vision', 'enterprise'
       limit = 5
     } = options;
 
@@ -131,6 +132,12 @@ export class RagService {
       params.push(orgId);
     }
 
+    // Enforce 6-Product Scope Isolation
+    if (productScope && productScope !== 'all') {
+      scopeSql += " AND (kd.product_scope = 'all' OR kd.product_scope = ? OR kd.product_scope IS NULL)";
+      params.push(productScope);
+    }
+
     // Retrieve active chunks
     const sql = `
       SELECT 
@@ -143,7 +150,10 @@ export class RagService {
         kd.title as doc_title,
         kd.file_type,
         kd.scope,
-        kd.org_id
+        kd.org_id,
+        kd.product_scope,
+        kd.source_origin,
+        kd.source_url
       FROM knowledge_chunks kc
       JOIN knowledge_documents kd ON kc.document_id = kd.id
       WHERE ${scopeSql}
@@ -212,16 +222,21 @@ export class RagService {
         docTitle: c.doc_title,
         fileType: c.file_type,
         scope: c.scope,
+        productScope: c.product_scope || 'all',
+        sourceOrigin: c.source_origin || 'UPLOAD',
+        sourceUrl: c.source_url || null,
         pageNumber: c.page_number,
         sheetName: c.sheet_name,
         content: c.content,
         score: c.score,
         matchType: 'HYBRID_DENSE_RAG',
-        citationLabel: c.page_number 
-          ? `[Nguồn: ${c.doc_title} - Trang: ${c.page_number}]` 
-          : c.sheet_name 
-            ? `[Nguồn: ${c.doc_title} - Sheet: ${c.sheet_name}]` 
-            : `[Nguồn: ${c.doc_title}]`
+        citationLabel: c.source_url
+          ? `[Nguồn: ${c.doc_title} (${c.source_url})]`
+          : c.page_number 
+            ? `[Nguồn: ${c.doc_title} - Trang: ${c.page_number}]` 
+            : c.sheet_name 
+              ? `[Nguồn: ${c.doc_title} - Sheet: ${c.sheet_name}]` 
+              : `[Nguồn: ${c.doc_title}]`
       }));
   }
 

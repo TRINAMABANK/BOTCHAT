@@ -1531,6 +1531,7 @@ export class CentralBrainService {
       const ragChunks = await RagService.searchKnowledge({
         query: message,
         orgId,
+        productScope: context.productScope || 'all',
         limit: 4
       });
 
@@ -2040,6 +2041,7 @@ QUY TẮC BẮT BUỘC:
           const kResults = await RagService.searchKnowledge({
             query: args.search_query,
             orgId,
+            productScope: context.productScope || 'all',
             scope: args.knowledge_scope || 'all'
           });
           kResults.forEach(c => citations.push(c));

@@ -14,6 +14,7 @@ import { runPrivateSecretaryMigration } from './migrations/schema_phase_private_
 import { runServiceLeadsMigration } from './migrations/schema_phase_service_leads.js';
 import { runKnowledgeGraphMigration } from './migrations/schema_phase_knowledge_graph.js';
 import { runPersonalAssistantMigration } from './migrations/schema_phase_personal_assistant.js';
+import { runContinuousLearningMigration } from './migrations/schema_phase_continuous_learning.js';
 import { CrmLeadService } from './services/crmLeadService.js';
 
 dotenv.config();
@@ -936,6 +937,12 @@ export async function initDatabase() {
     await runPersonalAssistantMigration(db);
   } catch (err) {
     console.error('[MIGRATION ERROR] Personal Assistant migration error:', err);
+  }
+
+  try {
+    await runContinuousLearningMigration(db);
+  } catch (err) {
+    console.error('[MIGRATION ERROR] Continuous Learning migration error:', err);
   }
 
   console.log('[DB READY] Database initialization and schema migration completed.');
